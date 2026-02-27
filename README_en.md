@@ -76,6 +76,7 @@ python viewer.py
 ```
 
 Notes:
+
 - You can also override with `SESSIONS_DIR`.
 - Multiple paths are separated by `os.pathsep` (`;` on Windows, `:` on Unix/WSL).
 
@@ -88,11 +89,13 @@ Notes:
 - Session detail view (show only user messages, reverse order)
 
 `project/path` search behavior:
+
 - Searches both `project` and `relative_path`.
 - Treats `-`, `/`, and `\` as equivalent separators.
 - Example: `C:\junichi\takeda\source` / `C:/junichi/takeda/source` / `C--junichi-takeda-source`
 
 Display behavior:
+
 - `project` values are shown in Windows path style when possible (`C:\...`).
 - Slug-style values such as `C--foo-bar...` are normalized to `C:\foo\bar\...`.
 
@@ -110,3 +113,5 @@ Display behavior:
 - `HOST`: Bind address (default: `127.0.0.1`)
 - `PORT`: Port (default: `8767`)
 - `CLAUDE_SESSIONS_DIR` / `SESSIONS_DIR`: Override Claude Code CLI JSONL root path(s)
+
+## ❗This project is licensed under the MIT License, see the LICENSE file for details
