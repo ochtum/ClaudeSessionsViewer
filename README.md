@@ -76,6 +76,7 @@ python viewer.py
 ```
 
 補足:
+
 - `SESSIONS_DIR` でも上書きできます。
 - 複数指定は `os.pathsep` 区切り（Windows は `;`, Unix/WSL は `:`）です。
 
@@ -88,11 +89,13 @@ python viewer.py
 - セッション詳細表示（ユーザー発話のみ表示、逆順表示）
 
 `project/path` 検索仕様:
+
 - `project` と `relative_path` の両方を対象に検索します。
 - `-` / `/` / `\` を同一視して検索できます。
 - 例: `C:\junichi\takeda\source` / `C:/junichi/takeda/source` / `C--junichi-takeda-source`
 
 表示仕様:
+
 - `project` 表示は Windows パス形式を優先（`C:\...`）。
 - `C--foo-bar...` の slug 形式も `C:\foo\bar\...` に正規化して表示します。
 
@@ -109,3 +112,5 @@ python viewer.py
 - `HOST`: バインドアドレス（既定 `127.0.0.1`）
 - `PORT`: ポート（既定 `8767`）
 - `CLAUDE_SESSIONS_DIR` / `SESSIONS_DIR`: Claude Code CLI の JSONL ルートを上書き
+
+## ❗このプロジェクトは MIT ライセンスの下で提供されています。詳細は LICENSE ファイルをご覧ください。
