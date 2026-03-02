@@ -268,17 +268,16 @@ def _extract_claude_message_text(message_obj):
                 if isinstance(t, str) and t.strip():
                     chunks.append(t.strip())
             elif typ == "thinking":
-                t = item.get("thinking")
-                if isinstance(t, str) and t.strip():
-                    chunks.append(t.strip())
+                # Claude UIで通常表示されないthinkingは詳細表示テキストから除外する
+                continue
             elif typ == "tool_use":
                 name = item.get("name", "")
                 tool_input = item.get("input")
                 if isinstance(tool_input, dict):
-                    arg = json.dumps(tool_input, ensure_ascii=False)
+                    arg = json.dumps(tool_input, ensure_ascii=False, indent=2)
                 else:
                     arg = str(tool_input or "")
-                chunks.append(f"[tool_use] {name} {arg}".strip())
+                chunks.append(f"[tool_use] {name}\n{arg}".strip())
             elif typ == "tool_result":
                 t = "\n".join(_extract_text_recursive(item.get("content")))
                 if t.strip():
@@ -290,6 +289,18 @@ def _extract_claude_message_text(message_obj):
     if chunks:
         return "\n".join(chunks).strip()
     return "\n".join(_extract_text_recursive(message_obj)).strip()
+
+
+def _is_tool_result_message(message_obj):
+    if not isinstance(message_obj, dict):
+        return False
+    content = message_obj.get("content")
+    if not isinstance(content, list):
+        return False
+    for item in content:
+        if isinstance(item, dict) and item.get("type") == "tool_result":
+            return True
+    return False
 
 
 def _extract_claude_progress_text(obj):
@@ -631,8 +642,12 @@ def load_cli_events(path: Path):
             text = ""
 
             if typ == "user":
-                kind = "message"
-                role = "user"
+                if _is_tool_result_message(obj.get("message")):
+                    kind = "tool_result"
+                    role = "tool"
+                else:
+                    kind = "message"
+                    role = "user"
                 text = _extract_claude_message_text(obj.get("message"))
             elif typ == "assistant":
                 kind = "message"
@@ -928,11 +943,13 @@ button {
 .ev.assistant { border-left-color: var(--assistant); background: #ecf9f1; }
 .ev.developer { border-left-color: var(--dev); }
 .ev.system { border-left-color: #6b7280; background: #f6f7f9; }
+.ev.tool { border-left-color: #0f766e; background: #e8fbf8; }
 .ev.kind-message { box-shadow: inset 0 0 0 1px rgba(20, 90, 160, 0.08); }
 .ev.kind-queue { border-left-color: #a855f7; background: #f5efff; }
 .ev.kind-progress { border-left-color: #f59e0b; background: #fff7e6; }
 .ev.kind-notice { border-left-color: #0ea5e9; background: #eaf7ff; }
 .ev.kind-system { border-left-color: #64748b; background: #f1f5f9; }
+.ev.kind-tool-result { border-left-color: #0f766e; background: #dff7f2; box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.15); }
 .ev-head {
   font-size: 12px;
   color: var(--muted);
@@ -964,11 +981,33 @@ button {
   background: #f1f5f9;
   border-color: #d4dce5;
 }
+.ev-role.tool {
+  color: #0f5f58;
+  background: #dcf5ef;
+  border-color: #97ddd0;
+}
 pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.ev-details summary {
+  cursor: pointer;
+  color: #334155;
   font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.ev-details[open] summary {
+  margin-bottom: 10px;
 }
 @media (max-width: 900px) {
   .container {
@@ -1006,7 +1045,8 @@ pre {
   <main class="right">
     <div class="meta" id="meta">セッションを選択してください</div>
     <div class="detail-toolbar">
-      <label><input type="checkbox" id="only_user_instruction" /> ユーザー発話のみ表示</label>
+      <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
+      <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
       <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
     </div>
     <div id="events"></div>
@@ -1142,6 +1182,9 @@ function getDisplayEvents(){
   if(document.getElementById('only_user_instruction').checked){
     events = events.filter(ev => ev.role === 'user');
   }
+  if(document.getElementById('only_ai_response').checked){
+    events = events.filter(ev => ev.role === 'assistant' && ev.kind === 'message');
+  }
   if(document.getElementById('reverse_order').checked){
     events = [...events].reverse();
   }
@@ -1167,10 +1210,17 @@ function renderActiveSession(){
 
   eventsBox.innerHTML = displayEvents.map(ev => {
     const role = ev.role || 'system';
+    const roleLabel = ev.role_label || role;
     const kind = ev.kind || 'event';
     const safeKind = String(kind).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
-    const body = `<pre>${esc(ev.text || '')}</pre>`;
-    return `<div class="ev ${role} kind-${safeKind}"><div class="ev-head"><span>${esc(kind)}</span><span class="ev-role ${esc(role)}">${esc(role)}</span><span>${esc(fmt(ev.timestamp))}</span></div>${body}</div>`;
+    const safeRole = String(role).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+    const rawText = ev.text || '';
+    const lineCount = rawText ? rawText.split('\\n').length : 0;
+    const isLong = rawText.length > 1800 || lineCount > 35;
+    const body = isLong
+      ? `<details class="ev-details"><summary>本文を展開 (${lineCount} lines)</summary><pre>${esc(rawText)}</pre></details>`
+      : `<pre>${esc(rawText)}</pre>`;
+    return `<div class="ev ${safeRole} kind-${safeKind}"><div class="ev-head"><span>${esc(kind)}</span><span class="ev-role ${esc(safeRole)}">${esc(roleLabel)}</span><span>${esc(fmt(ev.timestamp))}</span></div>${body}</div>`;
   }).join('');
 }
 
@@ -1201,6 +1251,7 @@ document.getElementById('source_filter').addEventListener('change', applyFilter)
 document.getElementById('mode').addEventListener('change', applyFilter);
 document.getElementById('reload').addEventListener('click', loadSessions);
 document.getElementById('only_user_instruction').addEventListener('change', renderActiveSession);
+document.getElementById('only_ai_response').addEventListener('change', renderActiveSession);
 document.getElementById('reverse_order').addEventListener('change', renderActiveSession);
 loadSessions();
 </script>
