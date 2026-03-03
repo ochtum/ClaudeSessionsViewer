@@ -102,11 +102,27 @@ Display behavior:
 ## Important Limitations
 
 - Claude Code CLI (JSONL) can be parsed and displayed structurally.
-- Claude Desktop (IndexedDB/LevelDB) is binary, so it is currently shown via text/JSON snippet extraction.
-  - Scans both UTF-8 and UTF-16LE.
-  - Extracts nested JSON using balanced-brace parsing.
-  - This is not a full-fidelity history reconstruction.
-  - A dedicated decoder may be added in the future.
+- Claude Desktop (IndexedDB/LevelDB) has the following characteristics and limitations.
+
+### Claude Desktop Data Structure
+
+Investigation has revealed that Claude Desktop only stores **unsent chat draft messages** in `%APPDATA%\Claude\IndexedDB\`.
+
+| Item | Description |
+|------|-------------|
+| What is stored | Chat input drafts (unsent messages) |
+| What is NOT stored | Sent conversation history (user messages and AI responses) |
+| Where sent conversations are stored | Anthropic's servers (not available locally) |
+
+This viewer properly parses the LevelDB log files (`.log`) and accurately displays draft messages.
+
+- Decodes LevelDB WriteBatch records block by block
+- Recovers Chromium IndexedDB string keys (UTF-16BE)
+- Skips the Blink SerializedScriptValue header and extracts UTF-16LE JSON
+- Collects plain text from TipTap / ProseMirror document trees
+
+> **Why conversation history is not visible**
+> Claude Desktop is Electron wrapping the claude.ai web application. Conversation history is stored in Anthropic's cloud and is not synchronized to local IndexedDB. Therefore, this viewer can only display drafts currently being typed.
 
 ## Environment Variables
 

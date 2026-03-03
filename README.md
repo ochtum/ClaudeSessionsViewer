@@ -102,10 +102,27 @@ python viewer.py
 ## 重要な制約
 
 - Claude Code CLI（JSONL）は構造化して表示できます。
-- Claude Desktop（IndexedDB/LevelDB）はバイナリ形式のため、現状は文字列/JSON スニペット抽出で表示します。
-  - UTF-8/UTF-16LE の両方を走査し、入れ子 JSON をバランス解析で抽出します。
-  - 完全な履歴復元ではありません。
-  - 専用デコーダを将来的に組み込む余地があります。
+- Claude Desktop（IndexedDB/LevelDB）については、以下の仕様・制約があります。
+
+### Claude Desktop のデータ構造について
+
+調査の結果、Claude Desktop が `%APPDATA%\Claude\IndexedDB\` に保存しているのは **送信前のチャット下書きメッセージのみ** であることが判明しました。
+
+| 項目 | 説明 |
+|------|------|
+| 保存されるデータ | チャット入力欄の下書き（未送信メッセージ） |
+| 保存されないデータ | 送信済みの会話履歴（ユーザー発話・AI 応答） |
+| 送信済み会話の保存先 | Anthropic のサーバー側（ローカルには存在しない） |
+
+本 Viewer は LevelDB ログファイル（`.log`）を正式にパースし、下書きメッセージを正確に表示します。
+
+- LevelDB WriteBatch レコードをブロック単位でデコード
+- Chromium IndexedDB の文字列キー（UTF-16BE）を復元
+- Blink SerializedScriptValue のヘッダーをスキップし、UTF-16LE の JSON を抽出
+- TipTap / ProseMirror ドキュメントツリーからプレーンテキストを収集
+
+> **なぜ会話履歴が見えないのか**
+> Claude Desktop は claude.ai の Web アプリを Electron でラップしたものです。会話履歴は Anthropic のクラウドに保存され、ローカルの IndexedDB には同期されません。そのため、本 Viewer で表示できるのは現在入力中の下書きのみとなります。
 
 ## 環境変数
 

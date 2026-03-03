@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import struct
 import urllib.parse
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -507,6 +508,245 @@ def _extract_readable_snippets(raw: bytes, limit=12):
     return snippets
 
 
+# ---------------------------------------------------------------------------
+# LevelDB log file parser for Chromium IndexedDB (Claude Desktop)
+# ---------------------------------------------------------------------------
+
+def _ldb_read_varint(data: bytes, pos: int):
+    """Read a protobuf-style varint. Returns (value, new_pos)."""
+    result = 0
+    shift = 0
+    while pos < len(data):
+        b = data[pos]
+        pos += 1
+        result |= (b & 0x7F) << shift
+        if not (b & 0x80):
+            break
+        shift += 7
+    return result, pos
+
+
+def _ldb_parse_log(raw: bytes):
+    """Parse a LevelDB write-ahead log file.
+
+    Returns a list of (key, value) tuples in write order.
+    LevelDB log format: 32 KB blocks, each containing records.
+    Record header: CRC32(4) + length(2) + type(1) + data(length).
+    Record data is a WriteBatch: seq(8) + count(4) + entries.
+    """
+    BLOCK_SIZE = 32768
+    HEADER_SIZE = 7
+    records = []
+    pos = 0
+    fragment = b""
+
+    while pos < len(raw):
+        block_offset = pos % BLOCK_SIZE
+        if BLOCK_SIZE - block_offset < HEADER_SIZE:
+            pos += BLOCK_SIZE - block_offset
+            continue
+        if pos + HEADER_SIZE > len(raw):
+            break
+        length = struct.unpack_from("<H", raw, pos + 4)[0]
+        rtype = raw[pos + 6]
+        pos += HEADER_SIZE
+        if length == 0 and rtype == 0:
+            # Zero padding — skip to next block boundary
+            pos = ((pos - 1) // BLOCK_SIZE + 1) * BLOCK_SIZE
+            continue
+        if pos + length > len(raw):
+            break
+        data = raw[pos : pos + length]
+        pos += length
+        if rtype == 1:  # kFullType
+            records.append(data)
+        elif rtype == 2:  # kFirstType
+            fragment = data
+        elif rtype == 3:  # kMiddleType
+            fragment += data
+        elif rtype == 4:  # kLastType
+            records.append(fragment + data)
+            fragment = b""
+
+    entries = []
+    for record in records:
+        if len(record) < 12:
+            continue
+        count = struct.unpack_from("<I", record, 8)[0]
+        rpos = 12
+        for _ in range(count):
+            if rpos >= len(record):
+                break
+            vtype = record[rpos]
+            rpos += 1
+            key_len, rpos = _ldb_read_varint(record, rpos)
+            key = record[rpos : rpos + key_len]
+            rpos += key_len
+            if vtype == 1:  # kTypeValue
+                val_len, rpos = _ldb_read_varint(record, rpos)
+                val = record[rpos : rpos + val_len]
+                rpos += val_len
+                entries.append((key, val))
+    return entries
+
+
+def _ldb_decode_idb_string_key(key_bytes: bytes):
+    """Try to extract the IDB user-space string key from a LevelDB key.
+
+    Chromium IndexedDB data keys have a binary prefix encoding
+    (database_id, object_store_id, index_id) followed by the IDB key.
+    For string IDB keys Claude Desktop uses, the string is encoded in
+    UTF-16BE starting at offset 6 of the raw LevelDB key.
+    Returns the decoded string, or None if not recognizable.
+    """
+    if len(key_bytes) < 8:
+        return None
+    # Try UTF-16BE decoding from offset 6
+    rest = key_bytes[6:]
+    if len(rest) < 4:
+        return None
+    try:
+        s = rest.decode("utf-16-be", errors="strict")
+        # Validate: must be printable and look like a key string
+        if len(s) >= 3 and all(c.isprintable() or c in (" ", "\n", "\t") for c in s):
+            ascii_ratio = sum(1 for c in s if ord(c) < 128) / len(s)
+            if ascii_ratio >= 0.5:
+                return s
+    except Exception:
+        pass
+    return None
+
+
+def _ldb_extract_json_from_value(val: bytes):
+    """Extract the JSON object embedded in a Blink-serialized IndexedDB value.
+
+    Claude Desktop stores JavaScript objects as Blink SerializedScriptValue.
+    The actual data is UTF-16LE encoded JSON preceded by a binary header.
+    We locate the first occurrence of '{' (0x7B 0x00 in UTF-16LE) and
+    decode from there.
+    Returns a parsed dict, or None.
+    """
+    idx = val.find(b"\x7b\x00")  # '{' in UTF-16LE
+    if idx < 0:
+        return None
+    text = val[idx:].decode("utf-16-le", errors="ignore")
+    if not text.startswith("{"):
+        return None
+    # Walk to find the balanced closing brace
+    depth = 0
+    in_str = False
+    esc = False
+    end = -1
+    for i, c in enumerate(text):
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+    if end < 0:
+        return None
+    try:
+        return json.loads(text[:end])
+    except Exception:
+        return None
+
+
+def _ldb_extract_tiptap_texts(node):
+    """Recursively extract plain text strings from a TipTap/ProseMirror doc node."""
+    if isinstance(node, dict):
+        if node.get("type") == "text":
+            t = node.get("text", "")
+            return [t] if t else []
+        result = []
+        for child in node.get("content", []):
+            result.extend(_ldb_extract_tiptap_texts(child))
+        return result
+    if isinstance(node, list):
+        result = []
+        for item in node:
+            result.extend(_ldb_extract_tiptap_texts(item))
+        return result
+    return []
+
+
+def _ldb_parse_desktop_entries(path: Path):
+    """Parse a LevelDB .log file and return a list of decoded chat-draft dicts.
+
+    Each dict has keys: idb_key, text, updated_at (ISO string), attachments.
+    Only data entries with meaningful IDB string keys are returned.
+    Duplicate keys are deduplicated (latest write wins).
+    """
+    try:
+        with path.open("rb") as f:
+            raw = f.read(min(MAX_DESKTOP_SCAN_BYTES, path.stat().st_size))
+    except Exception:
+        return []
+
+    raw_entries = _ldb_parse_log(raw)
+    if not raw_entries:
+        return []
+
+    # Deduplicate: later writes override earlier ones
+    latest: dict = {}
+    for k, v in raw_entries:
+        latest[k] = v
+
+    results = []
+    for k, v in latest.items():
+        idb_key = _ldb_decode_idb_string_key(k)
+        if not idb_key:
+            continue
+        obj = _ldb_extract_json_from_value(v)
+        if not obj:
+            continue
+
+        # Extract chat content from the JSON structure
+        updated_at = ""
+        raw_ts = obj.get("updatedAt")
+        if raw_ts:
+            updated_at = _iso_from_ts(raw_ts)
+
+        state = obj.get("state", obj)
+        editor_state = state.get("tipTapEditorState") or state.get("editorState")
+        texts = _ldb_extract_tiptap_texts(editor_state) if editor_state else []
+        if not texts:
+            texts = _extract_text_recursive(obj)
+
+        draft_text = "".join(texts).strip()
+        if not draft_text:
+            continue
+
+        # Attachment info
+        attachments = state.get("attachments", []) if isinstance(state, dict) else []
+        files = state.get("files", []) if isinstance(state, dict) else []
+        attach_count = len(attachments) + len(files)
+
+        results.append(
+            {
+                "idb_key": idb_key,
+                "text": draft_text,
+                "updated_at": updated_at,
+                "attach_count": attach_count,
+            }
+        )
+
+    # Sort by updated_at ascending
+    results.sort(key=lambda x: x["updated_at"])
+    return results
+
+
 def summarize_cli_session(path: Path, root: Path):
     summary = {
         "id": path.stem,
@@ -586,6 +826,22 @@ def summarize_desktop_blob(path: Path, root: Path):
         "search_text": "",
     }
 
+    # Try the proper LevelDB log parser first (for *.log files)
+    if path.suffix == ".log":
+        entries = _ldb_parse_desktop_entries(path)
+        if entries:
+            texts = []
+            for e in entries:
+                if not summary["started_at"] and e["updated_at"]:
+                    summary["started_at"] = e["updated_at"]
+                t = e["text"].replace("\n", " ")
+                if not summary["first_user_text"]:
+                    summary["first_user_text"] = t[:180]
+                texts.append(t[:320])
+            summary["search_text"] = " ".join(texts[:20])
+            return summary
+
+    # Fallback: raw binary scan
     try:
         with path.open("rb") as f:
             raw = f.read(min(MAX_DESKTOP_SCAN_BYTES, max(256 * 1024, path.stat().st_size)))
@@ -682,6 +938,34 @@ def load_cli_events(path: Path):
 
 def load_desktop_events(path: Path):
     events = []
+
+    # Try proper LevelDB log parser first (for *.log files)
+    if path.suffix == ".log":
+        entries = _ldb_parse_desktop_entries(path)
+        if entries:
+            notice = (
+                "Claude Desktop の IndexedDB(LevelDB) から chat-draft エントリを解析しました。"
+                " これらは送信前の下書きメッセージです。送信済み会話は claude.ai サーバー側に保存されています。"
+            )
+            events.append({"timestamp": "", "kind": "notice", "role": "system", "text": notice})
+            for e in entries:
+                key = e["idb_key"]
+                # Extract conversation ID from key (e.g. "store:chat-draft:conv-id")
+                parts = key.split(":")
+                conv_label = parts[-1] if len(parts) >= 3 else key
+                attach_note = f"  [添付 {e['attach_count']} 件]" if e["attach_count"] else ""
+                text = f"[{conv_label}]\n{e['text']}{attach_note}"
+                events.append(
+                    {
+                        "timestamp": e["updated_at"],
+                        "kind": "message",
+                        "role": "user",
+                        "text": text,
+                    }
+                )
+            return {"events": events[:MAX_EVENTS], "raw_line_count": len(entries)}
+
+    # Fallback: raw binary scan
     with path.open("rb") as f:
         raw = f.read(min(MAX_DESKTOP_SCAN_BYTES, max(256 * 1024, path.stat().st_size)))
 
