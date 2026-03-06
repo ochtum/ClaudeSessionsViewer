@@ -13,6 +13,7 @@ PORT = int(os.getenv("PORT", "8767"))
 MAX_LIST = 400
 MAX_EVENTS = 4000
 MAX_DESKTOP_SCAN_BYTES = 2 * 1024 * 1024
+SEARCH_TEXT_LIMIT = 50000
 
 
 def _unique_paths(paths):
@@ -770,7 +771,7 @@ def summarize_cli_session(path: Path, root: Path):
         summary["project"] = rel.split("\\", 1)[0]
 
     search_chunks = []
-    search_limit = 2500
+    search_limit = SEARCH_TEXT_LIMIT
     try:
         with path.open("r", encoding="utf-8", errors="replace") as f:
             for line in f:
@@ -838,7 +839,7 @@ def summarize_desktop_blob(path: Path, root: Path):
                 if not summary["first_user_text"]:
                     summary["first_user_text"] = t[:180]
                 texts.append(t[:320])
-            summary["search_text"] = " ".join(texts[:20])
+            summary["search_text"] = " ".join(texts)[:SEARCH_TEXT_LIMIT]
             return summary
 
     # Fallback: raw binary scan
@@ -861,7 +862,7 @@ def summarize_desktop_blob(path: Path, root: Path):
                 if role == "user" and not summary["first_user_text"]:
                     summary["first_user_text"] = merged.replace("\n", " ")[:180]
                 texts.append(merged.replace("\n", " ")[:320])
-        summary["search_text"] = " ".join(texts[:20])
+        summary["search_text"] = " ".join(texts)[:SEARCH_TEXT_LIMIT]
         if not summary["first_user_text"] and texts:
             summary["first_user_text"] = texts[0][:180]
     else:
@@ -1401,7 +1402,7 @@ function applyFilter(){
   const fromTs = parseOptionalDateStart(fromRaw);
   const toTs = parseOptionalDateEnd(toRaw);
   const mode = document.getElementById('mode').value;
-  const terms = q.split(new RegExp('\\s+')).filter(Boolean);
+  const terms = q.split(/\\s+/).filter(Boolean);
 
   state.filtered = state.sessions.filter(s => {
     const projectTarget = ((s.project || '') + ' ' + (s.relative_path || '')).toLowerCase();
