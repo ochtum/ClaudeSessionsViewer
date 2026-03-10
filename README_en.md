@@ -62,6 +62,7 @@ python3 viewer.py
   - `%USERPROFILE%\.claude\projects`
   - `WIN_HOME\.claude\projects` (when `WIN_HOME` is set)
   - `/mnt/c/Users/*/.claude/projects`
+  - `\\wsl.localhost\<distro>\home\*\.claude\projects` (auto-detected when launched on Windows)
 - Claude Desktop
   - `%APPDATA%\Claude\IndexedDB`
   - `%USERPROFILE%\AppData\Roaming\Claude\IndexedDB`
@@ -79,6 +80,8 @@ Notes:
 
 - You can also override with `SESSIONS_DIR`.
 - Multiple paths are separated by `os.pathsep` (`;` on Windows, `:` on Unix/WSL).
+- On Windows, `viewer.py` also runs `wsl.exe -l -q` and scans each distro's `~/.claude/projects`.
+- Set `CLAUDE_WSL_DISTROS` to limit which distros are scanned (example: `Ubuntu;Debian`).
 
 ## Main Features
 
@@ -98,6 +101,7 @@ Display behavior:
 
 - `project` values are shown in Windows path style when possible (`C:\...`).
 - Slug-style values such as `C--foo-bar...` are normalized to `C:\foo\bar\...`.
+- Native WSL paths such as `/home/...` are shown as `\\wsl.localhost\<distro>\...` when the viewer is running on Windows.
 
 ## Important Limitations
 

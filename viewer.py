@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+import functools
 import json
+import locale
 import os
 import re
 import struct
+import subprocess
 import urllib.parse
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,6 +34,101 @@ def _path_exists_safe(path: Path) -> bool:
         return path.exists()
     except Exception:
         return False
+
+
+def _decode_process_stdout(raw: bytes) -> str:
+    if not raw:
+        return ""
+    encodings = ["utf-16le", "utf-8", locale.getpreferredencoding(False)] if b"\x00" in raw else ["utf-8", locale.getpreferredencoding(False), "utf-16le"]
+    seen = set()
+    for enc in encodings:
+        if not enc or enc in seen:
+            continue
+        seen.add(enc)
+        try:
+            return raw.decode(enc).replace("\x00", "").strip()
+        except Exception:
+            continue
+    return raw.decode("utf-8", errors="replace").replace("\x00", "").strip()
+
+
+def _run_command_capture(cmd, timeout=5):
+    try:
+        completed = subprocess.run(cmd, capture_output=True, check=False, timeout=timeout)
+    except Exception:
+        return ""
+    if completed.returncode != 0:
+        return ""
+    return _decode_process_stdout(completed.stdout)
+
+
+def _split_simple_list(raw: str):
+    if not isinstance(raw, str):
+        return []
+    return [x.strip() for x in re.split(r"[;,\r\n]+", raw) if x.strip()]
+
+
+def _wsl_unc_path(distro: str, posix_path: str):
+    if not distro or not isinstance(posix_path, str) or not posix_path.startswith("/"):
+        return None
+    suffix = posix_path.strip("/").replace("/", "\\")
+    base = rf"\\wsl.localhost\{distro}"
+    return Path(base if not suffix else f"{base}\\{suffix}")
+
+
+@functools.lru_cache(maxsize=1)
+def _get_wsl_distros_on_windows():
+    if os.name != "nt":
+        return []
+
+    override = os.getenv("CLAUDE_WSL_DISTROS")
+    if override:
+        return _split_simple_list(override)
+
+    raw = _run_command_capture(["wsl.exe", "-l", "-q"], timeout=6)
+    if not raw:
+        return []
+    return _split_simple_list(raw)
+
+
+def _get_wsl_home_on_windows(distro: str) -> str:
+    if os.name != "nt" or not distro:
+        return ""
+    raw = _run_command_capture(["wsl.exe", "-d", distro, "sh", "-lc", "printf '%s' \"$HOME\""], timeout=8)
+    return raw if raw.startswith("/") else ""
+
+
+@functools.lru_cache(maxsize=1)
+def _get_wsl_cli_roots_on_windows():
+    distros = _get_wsl_distros_on_windows()
+    if not distros:
+        return []
+
+    candidates = []
+    for distro in distros:
+        actual_home = _get_wsl_home_on_windows(distro)
+        actual_home_root = _wsl_unc_path(distro, actual_home) if actual_home else None
+        if actual_home_root:
+            candidates.append(actual_home_root / ".claude" / "projects")
+
+        home_root = _wsl_unc_path(distro, "/home")
+        if home_root and _path_exists_safe(home_root):
+            try:
+                for d in home_root.iterdir():
+                    try:
+                        if d.is_dir():
+                            candidates.append(d / ".claude" / "projects")
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+        root_home = _wsl_unc_path(distro, "/root")
+        if root_home:
+            candidates.append(root_home / ".claude" / "projects")
+
+    candidates = _unique_paths(candidates)
+    existing = [p for p in candidates if _path_exists_safe(p)]
+    return existing if existing else candidates
 
 
 def _iso_from_ts(ts):
@@ -65,6 +163,7 @@ def _resolve_roots_from_env():
     return _unique_paths([Path(x).expanduser() for x in parts])
 
 
+@functools.lru_cache(maxsize=1)
 def get_claude_cli_roots():
     env_roots = _resolve_roots_from_env()
     if env_roots is not None:
@@ -95,11 +194,14 @@ def get_claude_cli_roots():
             except Exception:
                 continue
 
+    candidates.extend(_get_wsl_cli_roots_on_windows())
+
     candidates = _unique_paths(candidates)
     existing = [p for p in candidates if _path_exists_safe(p)]
     return existing if existing else candidates
 
 
+@functools.lru_cache(maxsize=1)
 def get_claude_desktop_roots():
     candidates = []
     appdata = os.getenv("APPDATA")
@@ -341,7 +443,14 @@ def _safe_rel(path: Path, root: Path):
         return str(path)
 
 
-def _to_windows_path_display(path_str: str) -> str:
+def _extract_wsl_distro_from_root(root: Path) -> str:
+    if root is None:
+        return ""
+    m = re.match(r"^\\\\wsl(?:\.localhost)?\\([^\\]+)(?:\\|$)", str(root), re.IGNORECASE)
+    return m.group(1) if m else ""
+
+
+def _to_windows_path_display(path_str: str, wsl_distro: str = "") -> str:
     if not isinstance(path_str, str):
         return ""
     s = path_str.strip()
@@ -352,6 +461,12 @@ def _to_windows_path_display(path_str: str) -> str:
         drive = m.group(1).upper()
         rest = m.group(2).replace("/", "\\")
         return f"{drive}:\\{rest}" if rest else f"{drive}:\\"
+    if s.startswith("/"):
+        if wsl_distro:
+            rest = s.lstrip("/").replace("/", "\\")
+            base = f"\\\\wsl.localhost\\{wsl_distro}"
+            return f"{base}\\{rest}" if rest else base
+        return s
     converted = s.replace("/", "\\")
     # Some records can carry slug-like values such as "C:\\-foo-bar-baz".
     # Treat this as a project slug and normalize it into "C:\\foo\\bar\\baz".
@@ -389,10 +504,14 @@ def _decode_project_slug_to_windows_path(project_slug: str) -> str:
     return "\\".join(parts)
 
 
-def _project_display_label(raw_project: str, cwd: str) -> str:
+def _project_display_label(raw_project: str, cwd: str, root: Path = None) -> str:
+    wsl_distro = _extract_wsl_distro_from_root(root)
     if isinstance(cwd, str) and cwd.strip():
-        return _to_windows_path_display(cwd)
-    return _decode_project_slug_to_windows_path(raw_project)
+        return _to_windows_path_display(cwd, wsl_distro=wsl_distro)
+    label = _decode_project_slug_to_windows_path(raw_project)
+    if wsl_distro and label and not re.match(r"^(?:[a-zA-Z]:\\|\\\\)", label):
+        return f"\\\\wsl.localhost\\{wsl_distro}\\{label.lstrip('\\')}"
+    return label
 
 
 def _is_probably_textual_json_line(line: str):
@@ -805,7 +924,7 @@ def summarize_cli_session(path: Path, root: Path):
     except Exception:
         pass
 
-    summary["project"] = _project_display_label(summary["project"], summary["cwd"])
+    summary["project"] = _project_display_label(summary["project"], summary["cwd"], root)
     summary["search_text"] = " ".join(search_chunks)
     return summary
 

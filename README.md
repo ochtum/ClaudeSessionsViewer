@@ -62,6 +62,7 @@ python3 viewer.py
   - `%USERPROFILE%\.claude\projects`
   - `WIN_HOME\.claude\projects`（`WIN_HOME` 指定時）
   - `/mnt/c/Users/*/.claude/projects`
+  - `\\wsl.localhost\<distro>\home\*\.claude\projects`（Windows 起動時に WSL ディストリを自動検出）
 - Claude Desktop
   - `%APPDATA%\Claude\IndexedDB`
   - `%USERPROFILE%\AppData\Roaming\Claude\IndexedDB`
@@ -79,6 +80,8 @@ python viewer.py
 
 - `SESSIONS_DIR` でも上書きできます。
 - 複数指定は `os.pathsep` 区切り（Windows は `;`, Unix/WSL は `:`）です。
+- Windows 版 `viewer.py` は `wsl.exe -l -q` を使って WSL ディストリを列挙し、各ディストリの `~/.claude/projects` も自動探索します。
+- 自動検出対象のディストリを絞る場合は `CLAUDE_WSL_DISTROS` を指定できます（例: `Ubuntu;Debian`）。
 
 ## 主な機能
 
@@ -98,6 +101,7 @@ python viewer.py
 
 - `project` 表示は Windows パス形式を優先（`C:\...`）。
 - `C--foo-bar...` の slug 形式も `C:\foo\bar\...` に正規化して表示します。
+- WSL ネイティブな `/home/...` パスは、Windows 起動時は `\\wsl.localhost\<distro>\...` として表示します。
 
 ## 重要な制約
 
