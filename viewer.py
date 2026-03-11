@@ -407,6 +407,12 @@ def _is_tool_result_message(message_obj):
     return False
 
 
+def _is_skills_instruction_text(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    return text.lstrip().lower().startswith("base directory for this skill:")
+
+
 def _extract_claude_progress_text(obj):
     data = obj.get("data")
     if not isinstance(data, dict):
@@ -1050,7 +1056,13 @@ def load_cli_events(path: Path):
 
             if not text:
                 text = json.dumps(obj, ensure_ascii=False)[:1000]
-            events.append({"timestamp": ts, "kind": kind, "role": role, "text": text})
+            labels = []
+            if kind == "message" and role == "user" and _is_skills_instruction_text(text):
+                labels.append("SKILLS")
+            ev = {"timestamp": ts, "kind": kind, "role": role, "text": text}
+            if labels:
+                ev["labels"] = labels
+            events.append(ev)
             if len(events) >= MAX_EVENTS:
                 break
     return {"events": events, "raw_line_count": raw_count}
@@ -1330,6 +1342,21 @@ button {
   color: #324255;
   user-select: none;
 }
+.detail-toolbar button {
+  height: 28px;
+  border: 1px solid #c5d3e6;
+  background: #f1f6ff;
+  color: #1e3a5f;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.detail-toolbar button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 #events {
   padding: 14px;
   overflow: auto;
@@ -1362,6 +1389,21 @@ button {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+.ev-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ev-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 1px 8px;
+  border: 1px solid #d9c289;
+  background: #fff7e6;
+  color: #8a5d00;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 .ev-role {
   display: inline-block;
@@ -1452,6 +1494,7 @@ pre {
       <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
       <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
       <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
+      <button id="copy_resume_cmd" type="button">セッション再開コマンドコピー</button>
     </div>
     <div id="events"></div>
   </main>
@@ -1600,11 +1643,15 @@ function getDisplayEvents(){
 function renderActiveSession(){
   const meta = document.getElementById('meta');
   const eventsBox = document.getElementById('events');
+  const copyBtn = document.getElementById('copy_resume_cmd');
   if(!state.activeSession){
     meta.textContent = 'セッションを選択してください';
     eventsBox.innerHTML = '';
+    copyBtn.disabled = true;
     return;
   }
+
+  copyBtn.disabled = !getActiveSessionId();
 
   const displayEvents = getDisplayEvents();
   const sourceType = state.activeSession.source_type || '';
@@ -1623,10 +1670,14 @@ function renderActiveSession(){
     const rawText = ev.text || '';
     const lineCount = rawText ? rawText.split('\\n').length : 0;
     const isLong = rawText.length > 1800 || lineCount > 35;
+    const labels = Array.isArray(ev.labels) ? ev.labels : [];
+    const labelsHtml = labels.length
+      ? `<span class="ev-badges">${labels.map(v => `<span class="ev-badge">[${esc(String(v))}]</span>`).join('')}</span>`
+      : '';
     const body = isLong
       ? `<details class="ev-details"><summary>本文を展開 (${lineCount} lines)</summary><pre>${esc(rawText)}</pre></details>`
       : `<pre>${esc(rawText)}</pre>`;
-    return `<div class="ev ${safeRole} kind-${safeKind}"><div class="ev-head"><span>${esc(kind)}</span><span class="ev-role ${esc(safeRole)}">${esc(roleLabel)}</span><span>${esc(fmt(ev.timestamp))}</span></div>${body}</div>`;
+    return `<div class="ev ${safeRole} kind-${safeKind}"><div class="ev-head"><span>${esc(kind)}</span><span class="ev-role ${esc(safeRole)}">${esc(roleLabel)}</span><span>${esc(fmt(ev.timestamp))}</span>${labelsHtml}</div>${body}</div>`;
   }).join('');
 }
 
@@ -1649,6 +1700,43 @@ async function openSession(path, sourceType){
   renderActiveSession();
 }
 
+function getActiveSessionId(){
+  if(!state.activeSession) return '';
+  const sid = state.activeSession.id || '';
+  if(sid) return sid;
+  const rel = state.activeSession.relative_path || '';
+  const m = rel.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  return m ? m[0] : '';
+}
+
+async function copyResumeCommand(){
+  const sid = getActiveSessionId();
+  if(!sid) return;
+  const cmd = `claude --resume ${sid}`;
+  const btn = document.getElementById('copy_resume_cmd');
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(cmd);
+    }else{
+      const ta = document.createElement('textarea');
+      ta.value = cmd;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    const old = btn.textContent;
+    btn.textContent = 'コピー済み';
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  } catch(_err) {
+    btn.textContent = 'コピー失敗';
+    setTimeout(() => { btn.textContent = 'セッション再開コマンドコピー'; }, 1500);
+  }
+}
+
 document.getElementById('project_q').addEventListener('input', applyFilter);
 document.getElementById('date_from').addEventListener('change', applyFilter);
 document.getElementById('date_to').addEventListener('change', applyFilter);
@@ -1659,6 +1747,7 @@ document.getElementById('reload').addEventListener('click', loadSessions);
 document.getElementById('only_user_instruction').addEventListener('change', renderActiveSession);
 document.getElementById('only_ai_response').addEventListener('change', renderActiveSession);
 document.getElementById('reverse_order').addEventListener('change', renderActiveSession);
+document.getElementById('copy_resume_cmd').addEventListener('click', copyResumeCommand);
 loadSessions();
 </script>
 </body>
