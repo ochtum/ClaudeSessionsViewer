@@ -83,25 +83,26 @@ python viewer.py
 - Windows 版 `viewer.py` は `wsl.exe -l -q` を使って WSL ディストリを列挙し、各ディストリの `~/.claude/projects` も自動探索します。
 - 自動検出対象のディストリを絞る場合は `CLAUDE_WSL_DISTROS` を指定できます（例: `Ubuntu;Debian`）。
 
-## 主な機能
+## 画面機能
 
-- セッション一覧のキーワード検索（AND/OR）
-- `project/path` 絞り込み（部分一致）
-- 日付範囲フィルタ
-- ソース種別フィルタ（Claude Code CLI / Claude Desktop）
-- セッション詳細表示（ユーザー発話のみ表示、逆順表示）
-
-`project/path` 検索仕様:
-
-- `project` と `relative_path` の両方を対象に検索します。
-- `-` / `/` / `\` を同一視して検索できます。
-- 例: `C:\junichi\takeda\source` / `C:/junichi/takeda/source` / `C--junichi-takeda-source`
-
-表示仕様:
-
-- `project` 表示は Windows パス形式を優先（`C:\...`）。
-- `C--foo-bar...` の slug 形式も `C:\foo\bar\...` に正規化して表示します。
-- WSL ネイティブな `/home/...` パスは、Windows 起動時は `\\wsl.localhost\<distro>\...` として表示します。
+- 左ペイン: セッション一覧（最新順）
+- 一覧にセッション `source` ラベル（`CLI(JSONL)` / `Desktop(LevelDB)`）を表示
+- 左上 filter: `project/path` / 日付範囲 / キーワード / `source` で絞り込み
+- 検索は一部一致（部分一致）。`project` / `relative_path` / 最初のユーザー入力を対象
+- `project/path` 検索は `project` と `relative_path` の両方を対象にし、`-` / `/` / `\` を同一視して判定
+- `project/path` / 日付範囲 / キーワード / `source` は常に AND 条件で評価
+- `AND/OR` 切替はキーワード欄内のみ
+  - `AND`: スペース区切りキーワードをすべて含む
+  - `OR`: スペース区切りキーワードのどれかを含む
+- 右ペイン: 選択セッションのイベント時系列表示
+  - 詳細ヘッダーに `source` ラベル（`Claude Code CLI` / `Claude Desktop`）を表示
+  - 表示オプション
+    - 「ユーザー指示のみ表示」
+    - 「AIレスポンスのみ表示」
+    - 「表示順を逆にする」
+  - 「セッション再開コマンドコピー」ボタンで `claude --resume <セッションID>` をコピー
+  - `message`（`user` / `assistant`）および `function_call` / `function_output` / `agent_update` を表示
+  - `user` は薄青背景、`assistant` は薄緑背景、`AGENTS.md` / `environment_context` などの実行コンテキストはグレー背景で表示
 
 ## 重要な制約
 

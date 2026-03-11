@@ -1353,7 +1353,21 @@ button {
   font-weight: 700;
   cursor: pointer;
 }
+.detail-toolbar #copy_resume_cmd {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #ffffff;
+}
+.detail-toolbar #copy_resume_cmd:disabled {
+  background: #94a3b8;
+  border-color: #94a3b8;
+  color: #f8fafc;
+  cursor: not-allowed;
+}
 .detail-toolbar button:disabled {
+  background: #94a3b8;
+  border-color: #94a3b8;
+  color: #f8fafc;
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -1494,7 +1508,7 @@ pre {
       <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
       <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
       <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
-      <button id="copy_resume_cmd" type="button">セッション再開コマンドコピー</button>
+      <button id="copy_resume_cmd" type="button" disabled>セッション再開コマンドコピー</button>
     </div>
     <div id="events"></div>
   </main>
@@ -1643,15 +1657,14 @@ function getDisplayEvents(){
 function renderActiveSession(){
   const meta = document.getElementById('meta');
   const eventsBox = document.getElementById('events');
-  const copyBtn = document.getElementById('copy_resume_cmd');
   if(!state.activeSession){
     meta.textContent = 'セッションを選択してください';
     eventsBox.innerHTML = '';
-    copyBtn.disabled = true;
+    updateCopyResumeButtonState();
     return;
   }
 
-  copyBtn.disabled = !getActiveSessionId();
+  updateCopyResumeButtonState();
 
   const displayEvents = getDisplayEvents();
   const sourceType = state.activeSession.source_type || '';
@@ -1692,6 +1705,7 @@ async function openSession(path, sourceType){
     state.activeRawLineCount = 0;
     document.getElementById('meta').textContent = data.error;
     document.getElementById('events').innerHTML = '';
+    updateCopyResumeButtonState();
     return;
   }
   state.activeSession = data.session;
@@ -1709,31 +1723,45 @@ function getActiveSessionId(){
   return m ? m[0] : '';
 }
 
+function updateCopyResumeButtonState(){
+  const copyBtn = document.getElementById('copy_resume_cmd');
+  copyBtn.disabled = !getActiveSessionId();
+}
+
 async function copyResumeCommand(){
   const sid = getActiveSessionId();
   if(!sid) return;
   const cmd = `claude --resume ${sid}`;
-  const btn = document.getElementById('copy_resume_cmd');
+  let copied = false;
   try {
     if(navigator.clipboard && navigator.clipboard.writeText){
       await navigator.clipboard.writeText(cmd);
-    }else{
-      const ta = document.createElement('textarea');
-      ta.value = cmd;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand('copy');
+      copied = true;
+    }
+  } catch(_err) {
+    copied = false;
+  }
+
+  if(!copied){
+    const ta = document.createElement('textarea');
+    ta.value = cmd;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      copied = document.execCommand('copy');
+    } finally {
       document.body.removeChild(ta);
     }
+  }
+
+  if(copied){
+    const btn = document.getElementById('copy_resume_cmd');
     const old = btn.textContent;
-    btn.textContent = 'コピー済み';
+    btn.textContent = 'コピーしました';
     setTimeout(() => { btn.textContent = old; }, 1200);
-  } catch(_err) {
-    btn.textContent = 'コピー失敗';
-    setTimeout(() => { btn.textContent = 'セッション再開コマンドコピー'; }, 1500);
   }
 }
 
@@ -1748,6 +1776,7 @@ document.getElementById('only_user_instruction').addEventListener('change', rend
 document.getElementById('only_ai_response').addEventListener('change', renderActiveSession);
 document.getElementById('reverse_order').addEventListener('change', renderActiveSession);
 document.getElementById('copy_resume_cmd').addEventListener('click', copyResumeCommand);
+updateCopyResumeButtonState();
 loadSessions();
 </script>
 </body>

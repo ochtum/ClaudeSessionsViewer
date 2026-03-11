@@ -83,25 +83,26 @@ Notes:
 - On Windows, `viewer.py` also runs `wsl.exe -l -q` and scans each distro's `~/.claude/projects`.
 - Set `CLAUDE_WSL_DISTROS` to limit which distros are scanned (example: `Ubuntu;Debian`).
 
-## Main Features
+## UI Features
 
-- Keyword search in session list (AND/OR)
-- `project/path` filter (partial match)
-- Date range filter
-- Source type filter (Claude Code CLI / Claude Desktop)
-- Session detail view (show only user messages, reverse order)
-
-`project/path` search behavior:
-
-- Searches both `project` and `relative_path`.
-- Treats `-`, `/`, and `\` as equivalent separators.
-- Example: `C:\junichi\takeda\source` / `C:/junichi/takeda/source` / `C--junichi-takeda-source`
-
-Display behavior:
-
-- `project` values are shown in Windows path style when possible (`C:\...`).
-- Slug-style values such as `C--foo-bar...` are normalized to `C:\foo\bar\...`.
-- Native WSL paths such as `/home/...` are shown as `\\wsl.localhost\<distro>\...` when the viewer is running on Windows.
+- Left pane: session list (newest first)
+- Session `source` labels (`CLI(JSONL)` / `Desktop(LevelDB)`) are shown in the list
+- Top-left filters: narrow down by `project/path`, date range, keyword, and `source`
+- Search is partial match against `project`, `relative_path`, and first user input
+- `project/path` matching checks both `project` and `relative_path`, and treats `-`, `/`, and `\` as equivalent separators
+- `project/path` / date range / keyword / `source` are always combined with AND
+- `AND/OR` switch applies only within the keyword field
+  - `AND`: must include all space-separated keywords
+  - `OR`: must include at least one space-separated keyword
+- Right pane: timeline of events for the selected session
+  - The detail header also shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
+  - Display options
+    - `Show only user instructions`
+    - `Show only AI responses`
+    - `Reverse display order`
+  - A `Copy Resume Command` button copies `claude --resume <session_id>`
+  - Shows `message` (`user` / `assistant`) and `function_call` / `function_output` / `agent_update`
+  - `user` messages use a light-blue background, `assistant` uses light-green, and execution context such as `AGENTS.md` / `environment_context` is shown in gray
 
 ## Important Limitations
 
