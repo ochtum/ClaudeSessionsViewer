@@ -1198,6 +1198,12 @@ input, select, button {
 #project_q, #q { flex: 1 1 220px; }
 #date_from, #date_to { flex: 1 1 185px; }
 #mode, #source_filter { flex: 0 0 auto; }
+.toolbar-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 button {
   background: var(--accent);
   color: #fff;
@@ -1498,7 +1504,10 @@ pre {
         <option value="and">keyword AND</option>
         <option value="or">keyword OR</option>
       </select>
-      <button id="reload">Reload</button>
+      <div class="toolbar-actions">
+        <button id="reload">Reload</button>
+        <button id="clear">Clear</button>
+      </div>
     </div>
     <div id="sessions"></div>
   </aside>
@@ -1522,6 +1531,8 @@ const state = {
   activeEvents: [],
   activeRawLineCount: 0,
 };
+
+const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v1';
 
 function esc(s){
   return (s ?? '').toString().replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
@@ -1561,11 +1572,78 @@ function parseOptionalDateEnd(raw){
 }
 
 async function loadSessions(){
-  const r = await fetch('/api/sessions');
+  const r = await fetch('/api/sessions?ts=' + Date.now(), { cache: 'no-store' });
   const data = await r.json();
   state.sessions = data.sessions;
   document.getElementById('roots').textContent =
     `CLI roots: ${data.roots.claude_cli.join(', ') || '-'} | Desktop roots: ${data.roots.claude_desktop.join(', ') || '-'}`;
+  applyFilter();
+  if(state.activePath){
+    const active = state.sessions.find(s => s.path === state.activePath);
+    if(active){
+      await openSession(active.path, active.source_type);
+    } else {
+      state.activePath = null;
+      state.activeSession = null;
+      state.activeEvents = [];
+      state.activeRawLineCount = 0;
+      renderSessionList();
+      renderActiveSession();
+    }
+  }
+}
+
+function saveFilters(){
+  const payload = {
+    project_q: document.getElementById('project_q').value,
+    date_from: document.getElementById('date_from').value,
+    date_to: document.getElementById('date_to').value,
+    q: document.getElementById('q').value,
+    source_filter: document.getElementById('source_filter').value,
+    mode: document.getElementById('mode').value,
+  };
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(payload));
+  } catch(_err) {
+    // Ignore storage write errors.
+  }
+}
+
+function restoreFilters(){
+  let raw = null;
+  try {
+    raw = localStorage.getItem(FILTER_STORAGE_KEY);
+  } catch(_err) {
+    raw = null;
+  }
+  if(!raw) return;
+  try {
+    const data = JSON.parse(raw);
+    if(typeof data.project_q === 'string') document.getElementById('project_q').value = data.project_q;
+    if(typeof data.date_from === 'string') document.getElementById('date_from').value = data.date_from;
+    if(typeof data.date_to === 'string') document.getElementById('date_to').value = data.date_to;
+    if(typeof data.q === 'string') document.getElementById('q').value = data.q;
+    if(data.source_filter === '' || data.source_filter === 'claude_cli' || data.source_filter === 'claude_desktop'){
+      document.getElementById('source_filter').value = data.source_filter;
+    }
+    if(data.mode === 'and' || data.mode === 'or') document.getElementById('mode').value = data.mode;
+  } catch(_err) {
+    // Ignore invalid saved filters.
+  }
+}
+
+function clearFilters(){
+  document.getElementById('project_q').value = '';
+  document.getElementById('date_from').value = '';
+  document.getElementById('date_to').value = '';
+  document.getElementById('q').value = '';
+  document.getElementById('source_filter').value = '';
+  document.getElementById('mode').value = 'and';
+  try {
+    localStorage.removeItem(FILTER_STORAGE_KEY);
+  } catch(_err) {
+    // Ignore storage delete errors.
+  }
   applyFilter();
 }
 
@@ -1617,6 +1695,7 @@ function applyFilter(){
     }
     return projectMatched && sourceMatched && dateMatched && keywordMatched;
   });
+  saveFilters();
   renderSessionList();
 }
 
@@ -1772,11 +1851,13 @@ document.getElementById('q').addEventListener('input', applyFilter);
 document.getElementById('source_filter').addEventListener('change', applyFilter);
 document.getElementById('mode').addEventListener('change', applyFilter);
 document.getElementById('reload').addEventListener('click', loadSessions);
+document.getElementById('clear').addEventListener('click', clearFilters);
 document.getElementById('only_user_instruction').addEventListener('change', renderActiveSession);
 document.getElementById('only_ai_response').addEventListener('change', renderActiveSession);
 document.getElementById('reverse_order').addEventListener('change', renderActiveSession);
 document.getElementById('copy_resume_cmd').addEventListener('click', copyResumeCommand);
 updateCopyResumeButtonState();
+restoreFilters();
 loadSessions();
 </script>
 </body>
@@ -1785,21 +1866,24 @@ loadSessions();
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _send_raw(self, raw: bytes, content_type: str, status=200):
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # Client disconnected during reload/navigation. Ignore quietly.
+            return
+
     def _send_json(self, data, status=200):
         raw = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+        self._send_raw(raw, "application/json; charset=utf-8", status)
 
     def _send_html(self, text, status=200):
         raw = text.encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+        self._send_raw(raw, "text/html; charset=utf-8", status)
 
     def log_message(self, fmt, *args):
         return
