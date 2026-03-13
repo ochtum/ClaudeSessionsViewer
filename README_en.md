@@ -5,17 +5,36 @@
 
 # ClaudeSessionsViewer
 
-ClaudeSessionsViewer is a local viewer for searching and browsing Claude chat history.
-It scans the following two storage locations:
+A local viewer for searching and browsing Claude chat data.  
+It scans the following two storage families:
 
 - `~/.claude/projects/` (Claude Code CLI / JSONL)
 - `%APPDATA%\Claude\IndexedDB\` (Claude Desktop / LevelDB)
 
+## Screen Layout
+
+### Main Screen
+
 ![image](/image/00001.jpg)
+
+### Label Manager Screen
+
+![image](/image/00002.jpg)
+
+## Directory Layout
+
+```text
+.
+├─ viewer.py
+└─ scripts
+   └─ windows
+      ├─ launch_viewer.bat
+      └─ stop_viewer.bat
+```
 
 ## Prerequisites
 
-- Python 3 (`py -3`, `python`, or `python3` command available)
+- Python 3 (`py -3`, `python`, or `python3` must be available)
 - A web browser (Edge / Chrome, etc.)
 
 If Python 3 is not installed (Windows / winget):
@@ -30,20 +49,22 @@ Verify installation:
 py -3 --version
 ```
 
-## Launch on Windows
+## Launch
+
+### One-click Launch on Windows
 
 - `scripts\windows\launch_viewer.bat`
 - `scripts\windows\stop_viewer.bat`
 
-`launch_viewer.bat` starts `viewer.py` on Windows and opens your browser.
+`launch_viewer.bat` starts `viewer.py` on Windows and opens the browser.
 
-Default URL:
+Open the following URL after launch:
 
 ```text
 http://127.0.0.1:8767
 ```
 
-## Run Directly (Python)
+### Launch Directly with Python
 
 ```powershell
 python viewer.py
@@ -69,70 +90,91 @@ python3 viewer.py
   - `WIN_HOME\AppData\Roaming\Claude\IndexedDB` (when `WIN_HOME` is set)
   - `/mnt/c/Users/*/AppData/Roaming/Claude/IndexedDB`
 
-To use a custom Claude Code CLI directory:
+## Options
+
+To use custom Claude Code CLI directories, set `CLAUDE_SESSIONS_DIR`.  
+You can also override with `SESSIONS_DIR`. Multiple roots are separated with `os.pathsep` (`;` on Windows, `:` on Unix/WSL).
 
 ```powershell
 $env:CLAUDE_SESSIONS_DIR = 'C:\path\to\.claude\projects'
 python viewer.py
 ```
 
-Notes:
+To change the bind address, set `HOST`.
 
-- You can also override with `SESSIONS_DIR`.
-- Multiple paths are separated by `os.pathsep` (`;` on Windows, `:` on Unix/WSL).
-- On Windows, `viewer.py` also runs `wsl.exe -l -q` and scans each distro's `~/.claude/projects`.
-- Set `CLAUDE_WSL_DISTROS` to limit which distros are scanned (example: `Ubuntu;Debian`).
+```powershell
+$env:HOST = '0.0.0.0'
+python viewer.py
+```
 
 ## UI Features
 
-- Left pane: session list (newest first)
-- Session `source` labels (`CLI(JSONL)` / `Desktop(LevelDB)`) are shown in the list
-- Top-left filters: narrow down by `project/path`, date range, keyword, and `source`
-- Search is partial match against `project`, `relative_path`, and first user input
-- `project/path` matching checks both `project` and `relative_path`, and treats `-`, `/`, and `\` as equivalent separators
-- `project/path` / date range / keyword / `source` are always combined with AND
-- `AND/OR` switch applies only within the keyword field
-  - `AND`: must include all space-separated keywords
-  - `OR`: must include at least one space-separated keyword
-- Right pane: timeline of events for the selected session
-  - The detail header also shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
-  - Display options
+- Left pane: session list in reverse chronological order
+  - Shows session `source` labels (`CLI(JSONL)` / `Desktop(LevelDB)`) and session labels in the list
+  - `Reload` reloads the session list
+  - `Clear` resets the search conditions in the left pane
+  - `Hide` / `Show` collapses or expands the filter area
+- Top-left filters
+  - Filter by `project/path`, date range, keyword, `source`, session label, and event label
+  - Keyword search uses a SQLite-backed search index
+  - `project/path` matches both `project` and `relative_path`, and treats `-`, `/`, and `\` as equivalent separators
+  - Search targets include `message`, `function_call.arguments`, `function_output.output`, and `agent_update.message`
+  - `project/path`, date range, `source`, and label filters are always evaluated with AND
+  - `AND/OR` only affects the keyword field
+    - `AND`: all space-separated keywords must match
+    - `OR`: any space-separated keyword may match
+- Right pane: event timeline for the selected session
+  - The detail header shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
+  - Display options:
     - `Show only user instructions`
     - `Show only AI responses`
     - `Reverse display order`
-  - A `Copy Resume Command` button copies `claude --resume <session_id>`
-  - Shows `message` (`user` / `assistant`) and `function_call` / `function_output` / `agent_update`
-  - `user` messages use a light-blue background, `assistant` uses light-green, and execution context such as `AGENTS.md` / `environment_context` is shown in gray
+    - `event label: all` filter
+  - `Refresh` reloads only the selected session
+  - `Copy Resume Command` copies `claude --resume <session_id>`
+  - Shows session labels and `Add Session Label`
+  - Shows, adds, and removes labels for each event
+  - Displays `message` (`user` / `assistant`)
+  - Displays `function_call`, `function_output`, and `agent_update`
+  - `user` messages use a light blue background, `assistant` uses light green, and execution context such as `AGENTS.md` / `environment_context` is shown in gray
+- Label manager
+  - Opens in a separate window from the `Label Manager` button in the top-right corner
+  - Manages session labels and event labels in one place
+  - Label colors can be entered directly as `#hex`, `rgb(...)`, or `oklch(...)`, or selected from color presets
 
 ## Important Limitations
 
 - Claude Code CLI (JSONL) can be parsed and displayed structurally.
-- Claude Desktop (IndexedDB/LevelDB) has the following characteristics and limitations.
+- Claude Desktop (IndexedDB/LevelDB) has the following behavior and limitations.
 
 ### Claude Desktop Data Structure
 
-Investigation has revealed that Claude Desktop only stores **unsent chat draft messages** in `%APPDATA%\Claude\IndexedDB\`.
+Investigation showed that Claude Desktop stores only **unsent chat draft messages** in `%APPDATA%\Claude\IndexedDB\`.
 
 | Item | Description |
-|------|-------------|
-| What is stored | Chat input drafts (unsent messages) |
-| What is NOT stored | Sent conversation history (user messages and AI responses) |
-| Where sent conversations are stored | Anthropic's servers (not available locally) |
+| ---- | ---- |
+| Stored locally | Draft text in the chat input box (unsent messages) |
+| Not stored locally | Sent conversation history (user messages and AI responses) |
+| Actual storage for sent conversations | Anthropic servers, not local files |
 
-This viewer properly parses the LevelDB log files (`.log`) and accurately displays draft messages.
+This viewer properly parses LevelDB log files (`.log`) and reconstructs draft messages.
 
 - Decodes LevelDB WriteBatch records block by block
-- Recovers Chromium IndexedDB string keys (UTF-16BE)
+- Restores Chromium IndexedDB string keys (UTF-16BE)
 - Skips the Blink SerializedScriptValue header and extracts UTF-16LE JSON
 - Collects plain text from TipTap / ProseMirror document trees
 
-> **Why conversation history is not visible**
-> Claude Desktop is Electron wrapping the claude.ai web application. Conversation history is stored in Anthropic's cloud and is not synchronized to local IndexedDB. Therefore, this viewer can only display drafts currently being typed.
+> **Why sent conversations are not visible**  
+> Claude Desktop is an Electron wrapper around the claude.ai web app. Conversation history is stored in Anthropic's cloud and is not synchronized to local IndexedDB. Because of that, this viewer can only show drafts currently being edited.
 
-## Environment Variables
+## Notes
 
-- `HOST`: Bind address (default: `127.0.0.1`)
-- `PORT`: Port (default: `8767`)
-- `CLAUDE_SESSIONS_DIR` / `SESSIONS_DIR`: Override Claude Code CLI JSONL root path(s)
+- The search index is stored in `.cache/search_index.sqlite3` and only changed sessions are re-indexed.
+- On Windows, `viewer.py` runs `wsl.exe -l -q` and also scans each distro's `~/.claude/projects`.
+- To limit which distros are auto-detected, set `CLAUDE_WSL_DISTROS` (for example: `Ubuntu;Debian`).
+- To keep the UI responsive with large logs, the list is capped at `400` sessions and the detail view is capped at `4000` events.
+- By default, the viewer listens only on `127.0.0.1` for local use.
 
-## ❗This project is licensed under the MIT License, see the LICENSE file for details
+## License
+
+This project is provided under the MIT License. See the `LICENSE` file for details.
