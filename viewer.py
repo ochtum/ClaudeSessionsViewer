@@ -1370,6 +1370,11 @@ button {
   color: #f8fafc;
   cursor: not-allowed;
 }
+.detail-toolbar #refresh_detail {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
 .detail-toolbar button:disabled {
   background: #94a3b8;
   border-color: #94a3b8;
@@ -1517,6 +1522,7 @@ pre {
       <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
       <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
       <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
+      <button id="refresh_detail" type="button" disabled>Refresh</button>
       <button id="copy_resume_cmd" type="button" disabled>セッション再開コマンドコピー</button>
     </div>
     <div id="events"></div>
@@ -1736,6 +1742,7 @@ function getDisplayEvents(){
 function renderActiveSession(){
   const meta = document.getElementById('meta');
   const eventsBox = document.getElementById('events');
+  updateRefreshDetailButtonState();
   if(!state.activeSession){
     meta.textContent = 'セッションを選択してください';
     eventsBox.innerHTML = '';
@@ -1776,7 +1783,7 @@ function renderActiveSession(){
 async function openSession(path, sourceType){
   state.activePath = path;
   renderSessionList();
-  const r = await fetch('/api/session?path=' + encodeURIComponent(path) + '&source=' + encodeURIComponent(sourceType || ''));
+  const r = await fetch('/api/session?path=' + encodeURIComponent(path) + '&source=' + encodeURIComponent(sourceType || '') + '&ts=' + Date.now(), { cache: 'no-store' });
   const data = await r.json();
   if(data.error){
     state.activeSession = null;
@@ -1784,6 +1791,7 @@ async function openSession(path, sourceType){
     state.activeRawLineCount = 0;
     document.getElementById('meta').textContent = data.error;
     document.getElementById('events').innerHTML = '';
+    updateRefreshDetailButtonState();
     updateCopyResumeButtonState();
     return;
   }
@@ -1805,6 +1813,17 @@ function getActiveSessionId(){
 function updateCopyResumeButtonState(){
   const copyBtn = document.getElementById('copy_resume_cmd');
   copyBtn.disabled = !getActiveSessionId();
+}
+
+function updateRefreshDetailButtonState(){
+  const refreshBtn = document.getElementById('refresh_detail');
+  refreshBtn.disabled = !state.activePath;
+}
+
+async function refreshActiveSession(){
+  if(!state.activePath) return;
+  const sourceType = state.activeSession ? (state.activeSession.source_type || '') : '';
+  await openSession(state.activePath, sourceType);
 }
 
 async function copyResumeCommand(){
@@ -1855,8 +1874,10 @@ document.getElementById('clear').addEventListener('click', clearFilters);
 document.getElementById('only_user_instruction').addEventListener('change', renderActiveSession);
 document.getElementById('only_ai_response').addEventListener('change', renderActiveSession);
 document.getElementById('reverse_order').addEventListener('change', renderActiveSession);
+document.getElementById('refresh_detail').addEventListener('click', refreshActiveSession);
 document.getElementById('copy_resume_cmd').addEventListener('click', copyResumeCommand);
 updateCopyResumeButtonState();
+updateRefreshDetailButtonState();
 restoreFilters();
 loadSessions();
 </script>
