@@ -109,37 +109,54 @@ python viewer.py
 
 ## UI Features
 
-- Left pane: session list in reverse chronological order
-  - Shows session `source` labels (`CLI(JSONL)` / `Desktop(LevelDB)`) and session labels in the list
+- Left pane: session list, sorted newest first
+  - Shows session `source` labels (`Claude Code CLI` / `Claude Desktop`) and session labels in the list
+  - Shows a loading state during the initial load
   - `Reload` reloads the session list
-  - `Clear` resets the search conditions in the left pane
-  - `Hide` / `Show` collapses or expands the filter area
+    - During a manual `Reload`, the list shows an updating overlay and button state feedback
+  - `Clear` resets the left-pane search conditions
+  - `Hide` / `Show` collapses or expands the search filter area
+  - In vertical layout, the header button `Hide List` / `Show List` can hide or show the entire left pane
 - Top-left filters
-  - Filter by `project/path`, date range, keyword, `source`, session label, and event label
+  - Filter by `project/path` / date / keyword / `source` / session label / event label
   - Keyword search uses a SQLite-backed search index
   - `project/path` matches both `project` and `relative_path`, and treats `-`, `/`, and `\` as equivalent separators
-  - Search targets include `message`, `function_call.arguments`, `function_output.output`, and `agent_update.message`
-  - `project/path`, date range, `source`, and label filters are always evaluated with AND
-  - `AND/OR` only affects the keyword field
-    - `AND`: all space-separated keywords must match
-    - `OR`: any space-separated keyword may match
-- Right pane: event timeline for the selected session
+  - Search targets include event text extracted from `message`, `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other textual events
+  - `project/path`, date, `source`, and label conditions are always evaluated with AND
+  - The `AND/OR` switch applies only to the keyword field
+    - `AND`: must include all space-separated keywords
+    - `OR`: must include at least one space-separated keyword
+- Right pane: chronological event view for the selected session
+  - Shows a loading state during the first detail load, and an updating overlay during manual `Refresh`
   - The detail header shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
-  - Display options:
+  - The detail header uses a 3-row layout
+    - Row 1: display filters, `Refresh`, and `Hide` / `Show` to collapse rows 2 and 3 together
+    - Row 2: copy actions, label actions, and selection-copy actions
+    - Row 3: keyword input, `Filter`, `Search`, `Previous`, `Next`, and `Keyword Clear`
+  - Display options
     - `Show only user instructions`
     - `Show only AI responses`
     - `Reverse display order`
     - `event label: all` filter
-  - `Refresh` reloads only the selected session
+  - Keyword search
+    - `Filter`: shows only events that contain the keyword
+    - `Search`: highlights matches and lets you move through them with `Previous` / `Next`
+    - `Keyword Clear`: clears the input, filter state, and search state together
+    - Matching is a literal substring match, not AND / OR parsing
+    - Search targets include the full displayed event body text
+  - `Refresh` reloads only the currently selected session
   - `Copy Resume Command` copies `claude --resume <session_id>`
-  - Shows session labels and `Add Session Label`
-  - Shows, adds, and removes labels for each event
-  - Displays `message` (`user` / `assistant`)
-  - Displays `function_call`, `function_output`, and `agent_update`
-  - `user` messages use a light blue background, `assistant` uses light green, and execution context such as `AGENTS.md` / `environment_context` is shown in gray
-- Label manager
-  - Opens in a separate window from the `Label Manager` button in the top-right corner
-  - Manages session labels and event labels in one place
+  - `Copy Displayed Messages` copies all messages currently visible under the active display filters
+  - Session label display and `Add Session Label`
+  - Per-event label display / add / remove
+  - Each `message` event has its own `Copy` button
+  - `Selection Mode` lets you check individual `message` events and copy them together with `Copy Selected`
+    - Even when filters are applied, already selected `message` events remain selected
+  - Displays `message` (`user` / `assistant`), `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other extracted textual events
+  - `user` messages use a light blue background, `assistant` uses light green, system / notice events use gray tones, and tool events use teal tones
+- Label Manager
+  - Opens in a separate window from the `Label Manager` button in the upper-right
+  - Manages session labels and event labels in one shared UI
   - Label colors can be entered directly as `#hex`, `rgb(...)`, or `oklch(...)`, or selected from color presets
 
 ## Important Limitations

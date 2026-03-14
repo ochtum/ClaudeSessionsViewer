@@ -1753,10 +1753,10 @@ def load_session_events(source_type: str, path: Path, stat_result=None, signatur
 
 
 HTML_PAGE = """<!doctype html>
-<html lang="ja">
+<html lang=\"ja\">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset=\"utf-8\" />
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
 <title>Claude Sessions Viewer</title>
 <style>
 :root {
@@ -1769,6 +1769,8 @@ HTML_PAGE = """<!doctype html>
   --user: #1b5fd6;
   --assistant: #0f7c4f;
   --dev: #8a5a00;
+  --system: #4b5563;
+  --sidebar-width: 360px;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -1782,29 +1784,51 @@ body {
 header {
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255,255,255,0.92);
-}
-.header-bar {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(4px);
 }
 header h1 { margin: 0; font-size: 18px; }
-header small { color: var(--muted); display: block; margin-top: 4px; }
-.header-actions { display: flex; gap: 8px; }
+header small { color: var(--muted); }
+.header-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#toggle_session_list_mobile {
+  display: none;
+}
 .container {
-  display: grid;
-  grid-template-columns: 390px 1fr;
-  height: calc(100vh - 80px);
+  position: relative;
+  height: calc(100vh - 64px);
   overflow: hidden;
 }
 .left {
-  border-right: 1px solid var(--line);
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
   background: #f9fcff;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  transition: transform 0.16s ease, opacity 0.12s ease;
+  will-change: transform;
+}
+.right {
+  height: 100%;
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .toolbar {
   padding: 10px;
@@ -1819,6 +1843,12 @@ header small { color: var(--muted); display: block; margin-top: 4px; }
   flex-wrap: wrap;
   align-items: center;
 }
+.toolbar-actions {
+  justify-content: flex-start;
+}
+.toolbar.collapsed {
+  grid-template-columns: 1fr;
+}
 .toolbar.collapsed .toolbar-fields,
 .toolbar.collapsed #clear {
   display: none;
@@ -1829,18 +1859,42 @@ input, select, button {
   padding: 8px 10px;
   font-size: 13px;
 }
-#project_q, #q { flex: 1 1 220px; }
-#date_from, #date_to { flex: 1 1 160px; }
+#cwd_q, #q { flex: 1 1 220px; }
+#date_from, #date_to { flex: 1 1 185px; }
+#mode { flex: 0 0 auto; }
 button {
+  --button-shadow: rgba(13, 109, 119, 0.12);
   background: var(--accent);
   color: #fff;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: 0 4px 12px var(--button-shadow);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
+}
+button:hover:not(:disabled):not(.label-remove-button) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px var(--button-shadow);
+  filter: saturate(1.03);
+}
+button:active:not(:disabled):not(.label-remove-button) {
+  transform: translateY(0);
+  box-shadow: 0 3px 10px var(--button-shadow);
+}
+button:disabled {
+  box-shadow: none;
+  transform: none;
+  filter: none;
 }
 #reload {
   background: #0f766e;
+  --button-shadow: rgba(15, 118, 110, 0.16);
+}
+#reload:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
 }
 #clear {
+  --button-shadow: rgba(71, 85, 105, 0.08);
   background: #f8fafc;
   color: #475569;
   border-color: #94a3b8;
@@ -1848,10 +1902,19 @@ button {
 #clear:hover {
   background: #eef2f7;
 }
-.secondary-button { background: #355c7d; }
+.secondary-button {
+  --button-shadow: rgba(53, 92, 125, 0.14);
+  background: #355c7d;
+}
+.content-shell,
+.events-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
 #sessions {
   overflow: auto;
-  flex: 1;
+  height: 100%;
 }
 .session-item {
   padding: 10px 12px;
@@ -1867,33 +1930,82 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.session-cwd {
+  color: #0b5f3d;
+  font-weight: 700;
+  background: #e8f7ef;
+  border: 1px solid #bfe8cf;
+  border-radius: 6px;
+  padding: 2px 6px;
+  display: inline-block;
+  max-width: 100%;
+}
+.session-time {
+  color: #6b4300;
+  font-weight: 700;
+  background: #fff3de;
+  border: 1px solid #f0d3a1;
+  border-radius: 6px;
+  padding: 2px 6px;
+  display: inline-block;
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.session-path .ts {
+  color: #0b4a52;
+  font-weight: 600;
+  background: #dff5f8;
+  border-radius: 4px;
+  padding: 0 4px;
+}
 .session-preview {
   margin-top: 4px;
   font-size: 12px;
   color: #34414f;
 }
-.session-meta-row,
+.session-meta-row {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.session-badge {
+  display: inline-block;
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 2px 6px;
+  border: 1px solid #c7d8ea;
+  background: #f2f8ff;
+}
+.session-id {
+  color: #334155;
+  background: #eef2f7;
+  border-color: #d4dde8;
+}
+.session-project {
+  color: #0b5f3d;
+  background: #e8f7ef;
+  border-color: #bfe8cf;
+}
+.session-source {
+  font-weight: 700;
+}
+.session-source.source-cli {
+  color: #0a3f8a;
+  background: #e7efff;
+  border-color: #b9cdf8;
+}
+.session-source.source-desktop {
+  color: #6b4300;
+  background: #fff3de;
+  border-color: #f0d3a1;
+}
 .session-label-row {
   margin-top: 6px;
   display: flex;
-  gap: 6px;
   flex-wrap: wrap;
-}
-.badge {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
-  font-size: 11px;
-  border-radius: 999px;
-  padding: 3px 8px;
-  border: 1px solid #c7d8ea;
-  background: #f2f8ff;
-  line-height: 1;
 }
-.session-project { color: #0b5f3d; background: #e8f7ef; border-color: #bfe8cf; }
-.session-source.cli { color: #0a3f8a; background: #e7efff; border-color: #b9cdf8; }
-.session-source.desktop { color: #6b4300; background: #fff3de; border-color: #f0d3a1; }
-.session-time { color: #0b4a52; background: #dff5f8; border-color: #b8dee3; font-variant-numeric: tabular-nums; }
 .right {
   background: var(--panel);
   display: flex;
@@ -1906,24 +2018,92 @@ button {
   font-size: 13px;
   color: var(--muted);
 }
-.meta code {
+.meta code.path-code {
+  color: #0b4a52;
+  background: #e5f4f6;
+  border: 1px solid #b8dee3;
   padding: 2px 6px;
   border-radius: 6px;
-  border: 1px solid #d4dce5;
   font-weight: 700;
 }
-.path-code { color: #0b4a52; background: #e5f4f6; border-color: #b8dee3; }
-.project-code { color: #0b5f3d; background: #e8f7ef; border-color: #bfe8cf; }
-.source-code.cli { color: #0a3f8a; background: #e7efff; border-color: #b9cdf8; }
-.source-code.desktop { color: #6b4300; background: #fff3de; border-color: #f0d3a1; }
+.meta code.project-code {
+  color: #0b5f3d;
+  background: #e8f7ef;
+  border: 1px solid #bfe8cf;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.meta .ts {
+  color: #6b4300;
+  font-weight: 700;
+  background: #fff3de;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.meta code.time-code {
+  color: #6b4300;
+  background: #fff3de;
+  border: 1px solid #f0d3a1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.meta code.source-code {
+  border: 1px solid #bdd9f7;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.meta code.source-code.source-cli {
+  color: #0a3f8a;
+  background: #e7efff;
+  border-color: #b9cdf8;
+}
+.meta code.source-code.source-desktop {
+  color: #6b4300;
+  background: #fff3de;
+  border-color: #f0d3a1;
+}
+.meta-note {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #d4dde8;
+  background: #eef2f7;
+  color: #334155;
+}
+.meta-note.error {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
 .detail-toolbar {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  background: #f8fbff;
+}
+.detail-toolbar-row {
   display: flex;
-  gap: 10px;
+  gap: 14px;
   flex-wrap: wrap;
   align-items: center;
-  background: #f8fbff;
+}
+.detail-toolbar-row.secondary {
+  padding-top: 8px;
+  border-top: 1px solid rgba(204, 216, 228, 0.72);
+}
+.detail-toolbar-row.keyword {
+  padding-top: 8px;
+  border-top: 1px solid rgba(204, 216, 228, 0.56);
+}
+.detail-toolbar-row.hidden {
+  display: none;
 }
 .detail-toolbar label {
   display: inline-flex;
@@ -1931,6 +2111,116 @@ button {
   gap: 6px;
   font-size: 13px;
   color: #324255;
+  user-select: none;
+}
+.detail-toolbar-spacer {
+  flex: 1 1 auto;
+}
+.detail-toolbar #copy_resume_command {
+  --button-shadow: rgba(15, 118, 110, 0.15);
+  background: #0f766e;
+}
+.detail-toolbar #copy_resume_command:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.detail-toolbar #refresh_detail {
+  --button-shadow: rgba(29, 78, 216, 0.17);
+  background: #1d4ed8;
+}
+.detail-toolbar #refresh_detail:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.detail-toolbar #toggle_detail_actions {
+  --button-shadow: rgba(53, 92, 125, 0.14);
+  background: #355c7d;
+}
+.detail-toolbar #copy_displayed_messages {
+  --button-shadow: rgba(71, 85, 105, 0.12);
+  background: #475569;
+}
+.detail-toolbar #copy_displayed_messages:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.detail-toolbar #event_selection_mode {
+  --button-shadow: rgba(8, 145, 178, 0.14);
+  background: #0891b2;
+}
+.detail-toolbar #event_selection_mode.selection-active {
+  background: #0f766e;
+}
+.detail-toolbar #event_selection_mode:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.detail-toolbar #copy_selected_messages {
+  --button-shadow: rgba(37, 99, 235, 0.13);
+  background: #2563eb;
+}
+.detail-toolbar #copy_selected_messages:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.detail-toolbar #detail_keyword_filter {
+  --button-shadow: rgba(21, 128, 61, 0.14);
+  background: #15803d;
+}
+.detail-toolbar #detail_keyword_filter.active {
+  background: #166534;
+}
+.detail-toolbar #detail_keyword_search {
+  --button-shadow: rgba(217, 119, 6, 0.16);
+  background: #d97706;
+}
+.detail-toolbar #detail_keyword_search.active {
+  background: #b45309;
+}
+.detail-toolbar #detail_keyword_prev,
+.detail-toolbar #detail_keyword_next {
+  --button-shadow: rgba(71, 85, 105, 0.11);
+  background: #475569;
+}
+.detail-toolbar #detail_keyword_clear {
+  --button-shadow: rgba(71, 85, 105, 0.08);
+  background: #f8fafc;
+  color: #475569;
+  border-color: #94a3b8;
+}
+.detail-toolbar #detail_keyword_clear:hover:not(:disabled) {
+  background: #eef2f7;
+}
+.detail-toolbar #detail_keyword_filter:disabled,
+.detail-toolbar #detail_keyword_search:disabled,
+.detail-toolbar #detail_keyword_prev:disabled,
+.detail-toolbar #detail_keyword_next:disabled,
+.detail-toolbar #detail_keyword_clear:disabled {
+  background: #94a3b8;
+  color: #ffffff;
+  border-color: #94a3b8;
+  cursor: not-allowed;
+}
+#detail_keyword_q {
+  flex: 0 1 clamp(220px, 30%, 380px);
+  width: clamp(220px, 30%, 380px);
+}
+#detail_keyword_q:disabled {
+  background: #eef2f7;
+  color: #94a3b8;
+  border-color: #cbd5e1;
+  cursor: not-allowed;
+}
+#detail_keyword_q:disabled::placeholder {
+  color: #94a3b8;
+}
+#add_session_label {
+  --button-shadow: rgba(124, 58, 237, 0.18);
+  background: #7c3aed;
+}
+#add_session_label:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
 }
 .session-label-strip {
   padding: 8px 12px;
@@ -1949,7 +2239,88 @@ button {
 #events {
   padding: 14px;
   overflow: auto;
-  flex: 1;
+  height: 100%;
+}
+.status-wrap {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.status-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(248, 251, 255, 0.78);
+  backdrop-filter: blur(3px);
+  z-index: 5;
+}
+.status-layer.hidden {
+  display: none;
+}
+.status-card {
+  width: min(100%, 360px);
+  border: 1px solid #d7e4ef;
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+}
+.status-card.empty {
+  border-style: dashed;
+  box-shadow: none;
+}
+.status-card.error {
+  border-color: #fecaca;
+  background: rgba(255, 245, 245, 0.98);
+}
+.status-title {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+.status-copy {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.status-spinner,
+.status-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.status-spinner {
+  border: 3px solid #cfe3f5;
+  border-top-color: var(--accent);
+  animation: status-spin 0.9s linear infinite;
+}
+.status-icon {
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+}
+.status-icon.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .ev {
   border: 1px solid var(--line);
@@ -1957,29 +2328,88 @@ button {
   border-radius: 10px;
   padding: 10px;
   margin-bottom: 10px;
-  background: #fff;
+  background: #fbfdff;
 }
-.ev.user { border-left-color: var(--user); background: #eaf3ff; }
-.ev.assistant { border-left-color: var(--assistant); background: #ecf9f1; }
-.ev.developer { border-left-color: var(--dev); }
-.ev.system { border-left-color: #6b7280; background: #f6f7f9; }
+.ev.user { border-left-color: var(--user); background: #e7f1ff; }
+.ev.user_context { border-left-color: #7f8ea0; background: #f5f7fa; }
+.ev.assistant { border-left-color: var(--assistant); background: #e8f8f0; }
+.ev.developer { border-left-color: var(--dev); background: #fff4e2; }
+.ev.system { border-left-color: var(--system); background: #f0f3f7; }
 .ev.tool { border-left-color: #0f766e; background: #e8fbf8; }
 .ev.kind-queue { border-left-color: #a855f7; background: #f5efff; }
 .ev.kind-progress { border-left-color: #f59e0b; background: #fff7e6; }
 .ev.kind-notice { border-left-color: #0ea5e9; background: #eaf7ff; }
 .ev.kind-tool_result { border-left-color: #0f766e; background: #dff7f2; }
-.ev.label-match { box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15); }
+.ev.label-match {
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+.ev.copy-selected {
+  outline: 2px solid rgba(37, 99, 235, 0.24);
+  outline-offset: 1px;
+}
+.detail-keyword-hit {
+  background: #fde68a;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 3px;
+}
+.detail-keyword-hit.current {
+  background: #f59e0b;
+  color: #1f2937;
+}
 .ev-head {
   display: flex;
-  gap: 6px;
   align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 8px;
 }
-.ev-badge,
+.event-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.event-select-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: rgba(255, 255, 255, 0.8);
+  color: #1e3a8a;
+  font-size: 11px;
+  font-weight: 700;
+}
+.event-select-toggle input {
+  margin: 0;
+  accent-color: #2563eb;
+}
+.event-label-add-button {
+  --button-shadow: rgba(124, 58, 237, 0.14);
+  background: #7c3aed;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.event-label-add-button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+.event-copy-button {
+  --button-shadow: rgba(71, 85, 105, 0.1);
+  background: #475569;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.event-copy-button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
 .badge-kind,
+.badge-role,
 .badge-time {
   display: inline-flex;
   align-items: center;
@@ -1987,11 +2417,6 @@ button {
   padding: 2px 8px;
   border: 1px solid transparent;
   font-weight: 700;
-}
-.ev-badge {
-  border-color: #d9c289;
-  background: #fff7e6;
-  color: #8a5d00;
 }
 .badge-kind {
   color: #334155;
@@ -2002,24 +2427,52 @@ button {
   color: #5a6673;
   background: #f6f8fb;
   border-color: #dce4ee;
+  font-variant-numeric: tabular-nums;
 }
-.badge-role {
+.badge-role.user {
+  color: #0f4fbe;
+  background: #dbeafe;
+  border-color: #b6d3ff;
+}
+.badge-role.user_context {
+  color: #334155;
+  background: #e5e9ef;
+  border-color: #c7d0da;
+}
+.badge-role.assistant {
+  color: #0b6a41;
+  background: #d8f4e3;
+  border-color: #a8debe;
+}
+.badge-role.developer {
+  color: #7a4b00;
+  background: #ffe7bf;
+  border-color: #f4c97f;
+}
+.badge-role.system {
+  color: #44505d;
+  background: #e8edf3;
+  border-color: #ccd8e4;
+}
+.badge-role.tool {
+  color: #0f5f58;
+  background: #dcf5ef;
+  border-color: #97ddd0;
+}
+.ev-badges {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ev-badge {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
   padding: 2px 8px;
-  border: 1px solid var(--line);
+  border: 1px solid #d9c289;
+  background: #fff7e6;
+  color: #8a5d00;
   font-weight: 700;
-}
-.badge-role.user { color: #0a3f8a; background: #e7efff; border-color: #b9cdf8; }
-.badge-role.assistant { color: #0d6a40; background: #e5f7ed; border-color: #b7e8cb; }
-.badge-role.system { color: #4b5563; background: #f1f5f9; border-color: #d4dce5; }
-.badge-role.tool { color: #0f5f58; background: #dcf5ef; border-color: #97ddd0; }
-.event-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 .data-label-badge {
   --label-color: #94a3b8;
@@ -2028,44 +2481,33 @@ button {
   gap: 6px;
   border-radius: 999px;
   border: 1px solid var(--label-color);
-  background: #fff;
+  background: #ffffff;
   color: #1f2937;
   padding: 3px 8px;
   font-size: 11px;
-  font-weight: 700;
   line-height: 1;
+  font-weight: 700;
 }
-.label-dot {
+.data-label-badge .label-dot {
   width: 8px;
   height: 8px;
   border-radius: 999px;
   background: var(--label-color);
+  flex: 0 0 auto;
 }
-.label-remove-button {
+.data-label-badge .label-remove-button {
   border: 0;
   background: transparent;
   color: #475569;
   padding: 0;
-  font-size: 12px;
   line-height: 1;
+  font-size: 12px;
   cursor: pointer;
+  box-shadow: none;
+  transition: color 0.18s ease, opacity 0.18s ease;
 }
-.detail-toolbar #copy_resume_cmd {
-  background: #0f766e;
-}
-.detail-toolbar #refresh_detail {
-  background: #1d4ed8;
-}
-.event-label-add-button,
-#add_session_label {
-  background: #7c3aed;
-}
-.event-label-add-button:disabled,
-#add_session_label:disabled,
-#refresh_detail:disabled,
-#copy_resume_cmd:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
+.data-label-badge .label-remove-button:hover {
+  color: #0f172a;
 }
 .label-picker {
   position: fixed;
@@ -2074,47 +2516,84 @@ button {
   max-width: 280px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: #ffffff;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
   padding: 8px;
   display: grid;
   gap: 6px;
 }
-.label-picker.hidden { display: none; }
+.label-picker.hidden {
+  display: none;
+}
 .label-picker-option {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: flex-start;
-  background: #fff;
+  background: #ffffff;
   color: #18232f;
+}
+.label-picker-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 8px;
 }
 pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  overflow-wrap: anywhere;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   background: rgba(255, 255, 255, 0.65);
   border: 1px solid rgba(148, 163, 184, 0.32);
   border-radius: 8px;
   padding: 10px 12px;
 }
-.ev-details summary {
-  cursor: pointer;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-.ev-details[open] summary { margin-bottom: 10px; }
 @media (max-width: 900px) {
+  #toggle_session_list_mobile {
+    display: inline-flex;
+  }
   .container {
+    display: grid;
     grid-template-columns: 1fr;
     grid-template-rows: 40vh 1fr;
+  }
+  .container.sidebar-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: 0 1fr;
+  }
+  .left,
+  .right {
+    position: static;
+    top: auto;
+    left: auto;
+    bottom: auto;
+    width: auto;
+    margin-left: 0;
+    transition: none;
+    will-change: auto;
+  }
+  .left {
+    grid-column: 1;
+    grid-row: 1;
+    transform: none;
+    opacity: 1;
+  }
+  .right {
+    grid-column: 1;
+    grid-row: 2;
+    height: auto;
+  }
+  .container.sidebar-collapsed .left {
+    transform: none;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .container.sidebar-collapsed .right {
+    margin-left: 0;
   }
 }
 </style>
@@ -2127,26 +2606,27 @@ pre {
       <small id="roots"></small>
     </div>
     <div class="header-actions">
+      <button id="toggle_session_list_mobile" class="secondary-button">一覧を隠す</button>
       <button id="open_label_manager" class="secondary-button">ラベル管理</button>
     </div>
   </div>
 </header>
-<div class="container">
+  <div class="container">
   <aside class="left">
     <div class="toolbar">
-      <div class="toolbar-fields">
-        <input id="project_q" placeholder="project/path (部分一致)" />
+      <div class="toolbar-fields" id="toolbar_fields">
+        <input id="cwd_q" placeholder="project/path (部分一致)" />
         <input id="date_from" type="date" />
         <input id="date_to" type="date" />
         <input id="q" placeholder="keyword filter" />
-        <select id="source_filter">
-          <option value="">source: all</option>
-          <option value="claude_cli">Claude Code CLI</option>
-          <option value="claude_desktop">Claude Desktop</option>
-        </select>
         <select id="mode">
           <option value="and">keyword AND</option>
           <option value="or">keyword OR</option>
+        </select>
+        <select id="source_filter">
+          <option value="all">source: all</option>
+          <option value="claude_cli">Claude Code CLI</option>
+          <option value="claude_desktop">Claude Desktop</option>
         </select>
         <select id="session_label_filter">
           <option value="">session label: all</option>
@@ -2161,23 +2641,46 @@ pre {
         <button id="toggle_filters" class="secondary-button">Hide</button>
       </div>
     </div>
-    <div id="sessions"></div>
+    <div class="content-shell">
+      <div id="sessions"></div>
+      <div id="sessions_status" class="status-layer hidden" aria-live="polite"></div>
+    </div>
   </aside>
   <main class="right">
     <div class="meta" id="meta">セッションを選択してください</div>
     <div class="detail-toolbar">
-      <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
-      <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
-      <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
-      <select id="detail_event_label_filter">
-        <option value="">event label: all</option>
-      </select>
-      <button id="refresh_detail" type="button" disabled>Refresh</button>
-      <button id="copy_resume_cmd" type="button" disabled>セッション再開コマンドコピー</button>
-      <button id="add_session_label" type="button" disabled>セッションにラベル追加</button>
+      <div class="detail-toolbar-row primary">
+        <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
+        <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
+        <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
+        <select id="detail_event_label_filter">
+          <option value="">event label: all</option>
+        </select>
+        <button id="refresh_detail" disabled>Refresh</button>
+        <span class="detail-toolbar-spacer"></span>
+        <button id="toggle_detail_actions" class="secondary-button">Hide</button>
+      </div>
+      <div id="detail_action_row" class="detail-toolbar-row secondary">
+        <button id="copy_resume_command" disabled>セッション再開コマンドコピー</button>
+        <button id="add_session_label" disabled>セッションにラベル追加</button>
+        <button id="copy_displayed_messages" disabled>表示中メッセージコピー</button>
+        <button id="event_selection_mode" disabled>選択モード</button>
+        <button id="copy_selected_messages" disabled>選択コピー</button>
+      </div>
+      <div id="detail_keyword_row" class="detail-toolbar-row keyword">
+        <input id="detail_keyword_q" placeholder="detail keyword" />
+        <button id="detail_keyword_filter" disabled>フィルター</button>
+        <button id="detail_keyword_search" disabled>検索</button>
+        <button id="detail_keyword_prev" disabled>前へ</button>
+        <button id="detail_keyword_next" disabled>次へ</button>
+        <button id="detail_keyword_clear" disabled>Keyword Clear</button>
+      </div>
     </div>
     <div class="session-label-strip empty" id="session_label_strip">セッションラベルはまだありません</div>
-    <div id="events"></div>
+    <div class="events-shell">
+      <div id="events"></div>
+      <div id="detail_status" class="status-layer hidden" aria-live="polite"></div>
+    </div>
   </main>
 </div>
 <div id="label_picker" class="label-picker hidden"></div>
@@ -2190,14 +2693,39 @@ const state = {
   activeEvents: [],
   activeRawLineCount: 0,
   labels: [],
+  isSessionsLoading: false,
+  hasLoadedSessions: false,
+  sessionsError: '',
+  sessionsLoadMode: '',
+  isDetailLoading: false,
+  detailError: '',
+  detailLoadMode: '',
+  isEventSelectionMode: false,
+  selectedEventIds: new Set(),
 };
-const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v2';
+
+const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v3';
 const SEARCH_DEBOUNCE_MS = 180;
+const BUTTON_FEEDBACK_MS = 1200;
+const DETAIL_INTERACTION_LOCK_MS = 4000;
 let loadSessionsTimer = null;
 let loadSessionsRequestSeq = 0;
+let loadSessionDetailRequestSeq = 0;
+let saveFiltersFrame = 0;
+let deferredDetailSyncTimer = 0;
 let labelManagerWindow = null;
 let labelPickerHandler = null;
 let filtersVisible = true;
+let detailActionsVisible = true;
+let leftPaneVisible = true;
+let pendingAutomaticDetailSync = false;
+let detailPointerDown = false;
+let detailInteractionLockUntil = 0;
+let detailKeywordFilterTerm = '';
+let detailKeywordSearchTerm = '';
+let detailKeywordCurrentMatchIndex = -1;
+let pendingDetailKeywordFocusIndex = -1;
+let detailKeywordSearchTotal = 0;
 
 function esc(s){
   return (s ?? '').toString().replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
@@ -2207,32 +2735,40 @@ function renderColorStyle(colorValue){
   return `--label-color:${esc(colorValue || '#94a3b8')}`;
 }
 
-function normalizePathForMatch(s){
-  return (s ?? '').toString().toLowerCase().replace(/[\\/]+/g, '-').replace(/-+/g, '-').trim();
+function buildStatusCard(title, copy, tone){
+  const kind = tone || 'loading';
+  const indicator = kind === 'loading'
+    ? '<span class="status-spinner" aria-hidden="true"></span>'
+    : `<span class="status-icon ${kind === 'error' ? 'error' : ''}" aria-hidden="true">${kind === 'error' ? '!' : 'i'}</span>`;
+  return `<div class="status-card ${esc(kind)}">${indicator}<div class="status-title">${esc(title || '')}</div>${copy ? `<div class="status-copy">${esc(copy)}</div>` : ''}</div>`;
 }
 
-function fmt(ts){
-  if(!ts) return '';
-  const d = new Date(ts);
-  return isNaN(d) ? ts : d.toLocaleString();
+function renderInlineStatus(title, copy, tone){
+  return `<div class="status-wrap">${buildStatusCard(title, copy, tone)}</div>`;
 }
 
-function toTimestamp(ts){
-  if(!ts) return NaN;
-  const d = new Date(ts);
-  return d.getTime();
+function setStatusLayer(id, title, copy, tone){
+  const layer = document.getElementById(id);
+  if(!layer){
+    return;
+  }
+  if(!title){
+    layer.classList.add('hidden');
+    layer.innerHTML = '';
+    return;
+  }
+  layer.innerHTML = buildStatusCard(title, copy, tone);
+  layer.classList.remove('hidden');
 }
 
-function parseOptionalDateStart(raw){
-  if(!raw) return null;
-  const ts = toTimestamp(`${raw}T00:00:00`);
-  return Number.isNaN(ts) ? null : ts;
-}
-
-function parseOptionalDateEnd(raw){
-  if(!raw) return null;
-  const ts = toTimestamp(`${raw}T23:59:59.999`);
-  return Number.isNaN(ts) ? null : ts;
+function updateReloadButtonState(){
+  const button = document.getElementById('reload');
+  if(!button){
+    return;
+  }
+  const isManualReload = state.isSessionsLoading && state.sessionsLoadMode === 'reload';
+  button.disabled = isManualReload;
+  button.textContent = isManualReload ? 'Reloading...' : 'Reload';
 }
 
 function updateFilterVisibility(){
@@ -2250,6 +2786,74 @@ function updateFilterVisibility(){
 function setFiltersVisible(nextVisible){
   filtersVisible = !!nextVisible;
   updateFilterVisibility();
+  saveFiltersSoon();
+}
+
+function updateDetailActionsVisibility(){
+  const actionRow = document.getElementById('detail_action_row');
+  const keywordRow = document.getElementById('detail_keyword_row');
+  const button = document.getElementById('toggle_detail_actions');
+  if(!actionRow || !keywordRow || !button){
+    return;
+  }
+  actionRow.classList.toggle('hidden', !detailActionsVisible);
+  keywordRow.classList.toggle('hidden', !detailActionsVisible);
+  button.textContent = detailActionsVisible ? 'Hide' : 'Show';
+}
+
+function setDetailActionsVisible(nextVisible){
+  detailActionsVisible = !!nextVisible;
+  updateDetailActionsVisibility();
+  saveFiltersSoon();
+}
+
+function updateLeftPaneVisibility(){
+  const container = document.querySelector('.container');
+  const mobileButton = document.getElementById('toggle_session_list_mobile');
+  const isMobileLayout = window.matchMedia('(max-width: 900px)').matches;
+  if(!container){
+    return;
+  }
+  container.classList.toggle('sidebar-collapsed', isMobileLayout && !leftPaneVisible);
+  const label = leftPaneVisible ? '左ペインを隠す' : '左ペインを表示';
+  if(mobileButton){
+    mobileButton.textContent = leftPaneVisible ? '一覧を隠す' : '一覧を表示';
+    mobileButton.setAttribute('aria-label', label);
+    mobileButton.title = label;
+  }
+}
+
+function setLeftPaneVisible(nextVisible){
+  leftPaneVisible = !!nextVisible;
+  updateLeftPaneVisibility();
+  saveFiltersSoon();
+}
+
+function saveFiltersSoon(){
+  if(saveFiltersFrame){
+    cancelAnimationFrame(saveFiltersFrame);
+  }
+  saveFiltersFrame = requestAnimationFrame(() => {
+    saveFiltersFrame = 0;
+    setTimeout(() => {
+      saveFilters();
+    }, 0);
+  });
+}
+
+function cancelScheduledSaveFilters(){
+  if(saveFiltersFrame){
+    cancelAnimationFrame(saveFiltersFrame);
+    saveFiltersFrame = 0;
+  }
+}
+
+function postJson(url, payload){
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  }).then(r => r.json());
 }
 
 function getSelectedSessionLabelFilter(){
@@ -2301,20 +2905,25 @@ function renderAssignedLabels(labels, removeType, extra){
       ` data-label-id="${esc(label.id)}"` +
       (extra && extra.eventId ? ` data-event-id="${esc(extra.eventId)}"` : '')
     ) : '';
-    const removeButton = removeType ? `<button class="label-remove-button"${attrs}>×</button>` : '';
+    const removeButton = removeType
+      ? `<button class="label-remove-button" title="ラベル解除"${attrs}>×</button>`
+      : '';
     return `<span class="data-label-badge" style="${renderColorStyle(label.color_value)}"><span class="label-dot"></span><span>${esc(label.name)}</span>${removeButton}</span>`;
   }).join('');
 }
 
 function updateSessionLabelButtonState(){
-  document.getElementById('add_session_label').disabled = !state.activePath || state.labels.length === 0;
+  const button = document.getElementById('add_session_label');
+  button.disabled = !state.activePath || state.labels.length === 0;
 }
 
 function renderSessionLabelStrip(){
   const strip = document.getElementById('session_label_strip');
   if(!state.activeSession){
     strip.classList.add('empty');
-    strip.textContent = 'セッションラベルはまだありません';
+    strip.textContent = state.isDetailLoading && state.activePath
+      ? 'セッションラベルを読み込み中...'
+      : 'セッションラベルはまだありません';
     updateSessionLabelButtonState();
     return;
   }
@@ -2329,10 +2938,85 @@ function renderSessionLabelStrip(){
   strip.innerHTML = renderAssignedLabels(labels, 'session');
   strip.querySelectorAll('.label-remove-button').forEach(button => {
     button.onclick = async () => {
-      await removeSessionLabel(Number(button.dataset.labelId));
+      const labelId = Number(button.dataset.labelId);
+      await removeSessionLabel(labelId);
     };
   });
   updateSessionLabelButtonState();
+}
+
+function getDetailEventKey(ev, fallbackIndex){
+  if(ev && ev.event_id){
+    return String(ev.event_id);
+  }
+  return `${ev && ev.kind ? ev.kind : 'event'}:${ev && ev.timestamp ? ev.timestamp : ''}:${fallbackIndex}`;
+}
+
+function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta){
+  const role = ev.role || 'system';
+  const roleLabel = ev.role_label || role.replace('_', ' ');
+  const safeRole = String(role).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+  const safeKind = String(ev.kind || 'event').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+  const labels = ev.labels || [];
+  const matchesSelectedLabel = selectedEventLabelId && labels.some(label => String(label.id) === selectedEventLabelId);
+  const eventKey = getDetailEventKey(ev, fallbackIndex);
+  const bodyText = getEventBodyText(ev);
+  const eventMatches = searchMeta && searchMeta.matchesByEvent ? (searchMeta.matchesByEvent.get(eventKey) || []) : [];
+  const body = `<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`;
+  const selectionKey = getEventSelectionKey(ev);
+  const isSelectable = state.isEventSelectionMode && isSelectableMessageEvent(ev);
+  const isSelected = selectionKey && state.selectedEventIds.has(selectionKey);
+  const selectionCheckboxHtml = isSelectable
+    ? `<label class="event-select-toggle"><input type="checkbox" class="event-select-checkbox" data-event-id="${esc(selectionKey)}" ${isSelected ? 'checked' : ''} />選択</label>`
+    : '';
+  const labelsHtml = renderAssignedLabels(labels, 'event', { eventId: ev.event_id });
+  const systemLabels = Array.isArray(ev.system_labels) ? ev.system_labels : [];
+  const systemLabelsHtml = systemLabels.length
+    ? `<span class="ev-badges">${systemLabels.map(value => `<span class="ev-badge">[${esc(String(value))}]</span>`).join('')}</span>`
+    : '';
+  const copyButtonHtml = ev.kind === 'message'
+    ? `<button class="event-copy-button" data-event-id="${esc(ev.event_id || '')}">コピー</button>`
+    : '';
+  return `<div class="ev ${safeRole} kind-${safeKind} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${safeRole}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>ラベル追加</button>${copyButtonHtml}</span></div>${body}</div>`;
+}
+
+function attachVisibleEventCardHandlers(eventsBox){
+  eventsBox.querySelectorAll('.event-label-add-button').forEach(button => {
+    button.onclick = async () => {
+      await addEventLabelFromButton(button, button.dataset.eventId);
+    };
+  });
+  eventsBox.querySelectorAll('.event-copy-button').forEach(button => {
+    button.onclick = async () => {
+      await copyEventMessage(button, button.dataset.eventId);
+    };
+  });
+  eventsBox.querySelectorAll('.event-select-checkbox').forEach(input => {
+    input.onchange = () => {
+      updateEventSelection(input.dataset.eventId, input.checked, input.closest('.ev'));
+    };
+  });
+  eventsBox.querySelectorAll('.label-remove-button[data-remove-type="event"]').forEach(button => {
+    button.onclick = async () => {
+      await removeEventLabel(button.dataset.eventId, Number(button.dataset.labelId));
+    };
+  });
+}
+
+function renderEventList(eventsBox, displayEvents, selectedEventLabelId, searchMeta){
+  const targetMatch = searchMeta && pendingDetailKeywordFocusIndex >= 0
+    ? searchMeta.matches[pendingDetailKeywordFocusIndex] || null
+    : null;
+  const previousScrollTop = eventsBox.scrollTop;
+  eventsBox.innerHTML = displayEvents.map((ev, index) => buildEventCardHtml(ev, selectedEventLabelId, index, searchMeta)).join('');
+  eventsBox.scrollTop = previousScrollTop;
+  attachVisibleEventCardHandlers(eventsBox);
+  if(targetMatch){
+    requestAnimationFrame(() => {
+      focusDetailKeywordMatch(eventsBox, pendingDetailKeywordFocusIndex);
+      pendingDetailKeywordFocusIndex = -1;
+    });
+  }
 }
 
 function hideLabelPicker(){
@@ -2354,26 +3038,19 @@ function showLabelPicker(anchor, onSelect){
   ).join('');
   picker.querySelectorAll('.label-picker-option').forEach(button => {
     button.onclick = async () => {
-      const handler = labelPickerHandler;
       const labelId = Number(button.dataset.labelId);
+      const handler = labelPickerHandler;
       hideLabelPicker();
-      if(handler){
-        await handler(labelId);
+      if(!handler){
+        return;
       }
+      await handler(labelId);
     };
   });
   const rect = anchor.getBoundingClientRect();
   picker.style.top = `${Math.round(rect.bottom + 8)}px`;
   picker.style.left = `${Math.round(Math.min(rect.left, window.innerWidth - 300))}px`;
   picker.classList.remove('hidden');
-}
-
-function postJson(url, payload){
-  return fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload || {}),
-  }).then(r => r.json());
 }
 
 async function loadLabels(reloadSessions){
@@ -2383,12 +3060,12 @@ async function loadLabels(reloadSessions){
   state.labels = data.labels || [];
   populateLabelControls();
   if(reloadSessions && prev !== JSON.stringify(state.labels)){
-    await loadSessions();
+    await loadSessions({ mode: 'labels' });
   }
 }
 
 function openLabelManagerWindow(){
-  const features = 'width=720,height=640,resizable=yes,scrollbars=yes';
+  const features = 'width=720,height=680,resizable=yes,scrollbars=yes';
   if(labelManagerWindow && !labelManagerWindow.closed){
     labelManagerWindow.focus();
     return;
@@ -2396,55 +3073,476 @@ function openLabelManagerWindow(){
   labelManagerWindow = window.open('/labels', 'claude_label_manager', features);
 }
 
+function highlightSessionPath(s){
+  const safe = esc(s);
+  return safe.replace(/(\\d{4}-\\d{2}-\\d{2}T\\d{2}[-:]\\d{2}[-:]\\d{2}(?:[-:]\\d{3,6})?)/g, '<span class="ts">$1</span>');
+}
+
+function normalizePathForMatch(value){
+  return (value ?? '').toString().toLowerCase().replace(/[\\/]+/g, '-').replace(/-+/g, '-').trim();
+}
+
+function normalizeSource(source){
+  const raw = (source || '').toLowerCase();
+  if(raw === 'claude_desktop' || raw === 'desktop') return 'desktop';
+  return 'cli';
+}
+
+function sourceLabel(source){
+  return normalizeSource(source) === 'desktop' ? 'Claude Desktop' : 'Claude Code CLI';
+}
+
+function normalizeSourceFilter(source){
+  const raw = (source || '').toLowerCase();
+  if(raw === '' || raw === 'all') return 'all';
+  return raw === 'claude_desktop' || raw === 'desktop' ? 'claude_desktop' : 'claude_cli';
+}
+
+function fmt(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  return isNaN(d) ? ts : d.toLocaleString();
+}
+
+function toTimestamp(ts){
+  if(!ts) return NaN;
+  const d = new Date(ts);
+  return d.getTime();
+}
+
+function parseOptionalDateStart(raw){
+  if(!raw) return null;
+  // raw is expected as YYYY-MM-DD from <input type="date">.
+  const ts = toTimestamp(`${raw}T00:00:00`);
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function parseOptionalDateEnd(raw){
+  if(!raw) return null;
+  // Inclusive end-of-day for date-range filtering.
+  const ts = toTimestamp(`${raw}T23:59:59.999`);
+  return Number.isNaN(ts) ? null : ts;
+}
+
 function getActiveSessionId(){
   if(!state.activeSession) return '';
   const sid = state.activeSession.session_id || state.activeSession.id || '';
-  if(sid) return sid;
+  if(sid) return sid.toString().trim();
   const rel = state.activeSession.relative_path || '';
-  const m = rel.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
-  return m ? m[0] : '';
+  const match = rel.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  return match ? match[0] : '';
 }
 
-function updateCopyResumeButtonState(){
-  document.getElementById('copy_resume_cmd').disabled = !getActiveSessionId();
+function getButtonLabel(button, fallback){
+  if(!button) return fallback || '';
+  if(!button.dataset.defaultLabel){
+    button.dataset.defaultLabel = button.textContent;
+  }
+  return button.dataset.defaultLabel || fallback || '';
 }
 
-function updateRefreshDetailButtonState(){
-  document.getElementById('refresh_detail').disabled = !state.activePath;
+function flashButtonLabel(button, temporaryLabel, fallback, duration){
+  if(!button) return;
+  const defaultLabel = getButtonLabel(button, fallback);
+  button.textContent = temporaryLabel;
+  if(button._labelTimer){
+    clearTimeout(button._labelTimer);
+  }
+  button._labelTimer = setTimeout(() => {
+    button.textContent = defaultLabel;
+  }, duration || BUTTON_FEEDBACK_MS);
 }
 
-async function copyResumeCommand(){
-  const sid = getActiveSessionId();
-  if(!sid) return;
-  const cmd = `claude --resume ${sid}`;
+function waitForUiFeedback(duration){
+  return new Promise(resolve => {
+    setTimeout(resolve, duration || BUTTON_FEEDBACK_MS);
+  });
+}
+
+function getDetailKeywordInputValue(){
+  const input = document.getElementById('detail_keyword_q');
+  return input ? input.value : '';
+}
+
+function stringifyEventBodyValue(value){
+  if(value == null){
+    return '';
+  }
+  if(typeof value === 'string'){
+    return value;
+  }
+  if(typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint'){
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value, (key, currentValue) => {
+      if(typeof currentValue === 'string' && currentValue.startsWith('data:image/')){
+        return '[image data omitted]';
+      }
+      return currentValue;
+    }, 2) || '';
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function containsLiteralKeyword(text, keyword){
+  if(!keyword){
+    return false;
+  }
+  return stringifyEventBodyValue(text).toLocaleLowerCase().includes(keyword.toLocaleLowerCase());
+}
+
+function findLiteralKeywordRanges(text, keyword){
+  if(!keyword){
+    return [];
+  }
+  const source = stringifyEventBodyValue(text);
+  const haystack = source.toLocaleLowerCase();
+  const needle = keyword.toLocaleLowerCase();
+  const ranges = [];
+  let cursor = 0;
+  while(cursor <= haystack.length - needle.length){
+    const nextIndex = haystack.indexOf(needle, cursor);
+    if(nextIndex === -1){
+      break;
+    }
+    ranges.push({ start: nextIndex, end: nextIndex + keyword.length });
+    cursor = nextIndex + Math.max(keyword.length, 1);
+  }
+  return ranges;
+}
+
+function getEventBodyText(ev){
+  if(!ev){
+    return '';
+  }
+  const text = stringifyEventBodyValue(ev.text);
+  if(text){
+    return text;
+  }
+  try {
+    return JSON.stringify(ev, null, 2) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function buildDetailKeywordSearchMeta(displayEvents, keyword){
+  const matches = [];
+  const matchesByEvent = new Map();
+  const rawKeyword = keyword || '';
+  if(!rawKeyword){
+    return { keyword: '', matches, matchesByEvent, total: 0 };
+  }
+  displayEvents.forEach((ev, eventIndex) => {
+    const eventKey = getDetailEventKey(ev, eventIndex);
+    const ranges = findLiteralKeywordRanges(getEventBodyText(ev), rawKeyword);
+    if(!ranges.length){
+      return;
+    }
+    const eventMatches = ranges.map(range => {
+      const match = {
+        eventKey,
+        eventIndex,
+        start: range.start,
+        end: range.end,
+        globalIndex: matches.length,
+      };
+      matches.push(match);
+      return match;
+    });
+    matchesByEvent.set(eventKey, eventMatches);
+  });
+  return {
+    keyword: rawKeyword,
+    matches,
+    matchesByEvent,
+    total: matches.length,
+  };
+}
+
+function normalizeDetailKeywordSearchPosition(searchMeta){
+  if(!searchMeta.total){
+    detailKeywordCurrentMatchIndex = -1;
+    pendingDetailKeywordFocusIndex = -1;
+    return;
+  }
+  if(detailKeywordCurrentMatchIndex < 0 || detailKeywordCurrentMatchIndex >= searchMeta.total){
+    detailKeywordCurrentMatchIndex = 0;
+  }
+  if(pendingDetailKeywordFocusIndex >= searchMeta.total){
+    pendingDetailKeywordFocusIndex = -1;
+  }
+}
+
+function renderHighlightedEventBody(text, eventMatches){
+  if(!Array.isArray(eventMatches) || !eventMatches.length){
+    return esc(text || '');
+  }
+  let cursor = 0;
+  let html = '';
+  const source = text || '';
+  eventMatches.forEach(match => {
+    html += esc(source.slice(cursor, match.start));
+    const currentClass = match.globalIndex === detailKeywordCurrentMatchIndex ? ' current' : '';
+    html += `<mark class="detail-keyword-hit${currentClass}" data-search-match-index="${match.globalIndex}">${esc(source.slice(match.start, match.end))}</mark>`;
+    cursor = match.end;
+  });
+  html += esc(source.slice(cursor));
+  return html;
+}
+
+function updateDetailKeywordControls(searchMeta){
+  const input = document.getElementById('detail_keyword_q');
+  const filterButton = document.getElementById('detail_keyword_filter');
+  const searchButton = document.getElementById('detail_keyword_search');
+  const prevButton = document.getElementById('detail_keyword_prev');
+  const nextButton = document.getElementById('detail_keyword_next');
+  const clearButton = document.getElementById('detail_keyword_clear');
+  if(!input || !filterButton || !searchButton || !prevButton || !nextButton || !clearButton){
+    return;
+  }
+  const hasActiveSession = !!state.activeSession;
+  const hasInputValue = getDetailKeywordInputValue() !== '';
+  const searchTotal = searchMeta && typeof searchMeta.total === 'number' ? searchMeta.total : detailKeywordSearchTotal;
+  const hasSearchMatches = searchTotal > 0;
+  const hasKeywordState = hasInputValue || detailKeywordFilterTerm !== '' || detailKeywordSearchTerm !== '';
+  input.disabled = !hasActiveSession;
+  filterButton.disabled = !hasActiveSession || !hasInputValue;
+  searchButton.disabled = !hasActiveSession || !hasInputValue;
+  prevButton.disabled = !hasSearchMatches;
+  nextButton.disabled = !hasSearchMatches;
+  clearButton.disabled = !hasKeywordState;
+  filterButton.classList.toggle('active', hasActiveSession && detailKeywordFilterTerm !== '');
+  searchButton.classList.toggle('active', hasActiveSession && detailKeywordSearchTerm !== '');
+}
+
+function resetDetailKeywordState(){
+  detailKeywordFilterTerm = '';
+  detailKeywordSearchTerm = '';
+  detailKeywordCurrentMatchIndex = -1;
+  pendingDetailKeywordFocusIndex = -1;
+  detailKeywordSearchTotal = 0;
+}
+
+function focusDetailKeywordMatch(eventsBox, matchIndex){
+  if(matchIndex < 0){
+    return;
+  }
+  const target = eventsBox.querySelector(`.detail-keyword-hit[data-search-match-index="${matchIndex}"]`);
+  if(target){
+    target.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }
+}
+
+function isAutomaticSessionsLoadMode(mode){
+  return mode === 'auto' || mode === 'focus' || mode === 'labels';
+}
+
+function shouldSyncActiveSessionAfterListLoad(mode){
+  return mode !== 'auto';
+}
+
+function clearDeferredDetailSyncTimer(){
+  if(deferredDetailSyncTimer){
+    clearTimeout(deferredDetailSyncTimer);
+    deferredDetailSyncTimer = 0;
+  }
+}
+
+function noteDetailInteraction(){
+  detailInteractionLockUntil = Date.now() + DETAIL_INTERACTION_LOCK_MS;
+}
+
+function hasDetailTextSelection(){
+  const eventsBox = document.getElementById('events');
+  const selection = window.getSelection ? window.getSelection() : null;
+  if(!eventsBox || !selection || selection.isCollapsed || selection.rangeCount === 0){
+    return false;
+  }
+  const anchorNode = selection.anchorNode;
+  const focusNode = selection.focusNode;
+  return Boolean(
+    (anchorNode && eventsBox.contains(anchorNode)) ||
+    (focusNode && eventsBox.contains(focusNode))
+  );
+}
+
+function hasRecentDetailInteraction(){
+  return detailPointerDown || hasDetailTextSelection() || Date.now() < detailInteractionLockUntil;
+}
+
+function syncActiveSessionSummaryFromList(path){
+  if(!path){
+    return;
+  }
+  const summary = (state.sessions || []).find(session => session.path === path);
+  if(!summary){
+    return;
+  }
+  state.activeSession = {
+    ...(state.activeSession || {}),
+    ...summary,
+  };
+}
+
+async function maybeRunDeferredAutomaticDetailSync(){
+  if(!pendingAutomaticDetailSync){
+    return;
+  }
+  if(!document.hasFocus() || hasRecentDetailInteraction() || state.isDetailLoading || !state.activePath){
+    scheduleDeferredAutomaticDetailSync();
+    return;
+  }
+  pendingAutomaticDetailSync = false;
+  clearDeferredDetailSyncTimer();
+  await openSession(state.activePath, { mode: 'sync' });
+}
+
+function scheduleDeferredAutomaticDetailSync(){
+  clearDeferredDetailSyncTimer();
+  if(!pendingAutomaticDetailSync){
+    return;
+  }
+  const waitMs = Math.max(0, detailInteractionLockUntil - Date.now()) + 80;
+  deferredDetailSyncTimer = setTimeout(() => {
+    deferredDetailSyncTimer = 0;
+    void maybeRunDeferredAutomaticDetailSync();
+  }, waitMs);
+}
+
+async function copyTextToClipboard(text){
+  if(!text) return false;
   let copied = false;
   try {
     if(navigator.clipboard && navigator.clipboard.writeText){
-      await navigator.clipboard.writeText(cmd);
+      await navigator.clipboard.writeText(text);
       copied = true;
     }
-  } catch(_err) {
+  } catch (e) {
     copied = false;
   }
-  if(!copied){
-    const ta = document.createElement('textarea');
-    ta.value = cmd;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-      copied = document.execCommand('copy');
-    } finally {
-      document.body.removeChild(ta);
-    }
-  }
   if(copied){
-    const btn = document.getElementById('copy_resume_cmd');
-    const old = btn.textContent;
-    btn.textContent = 'コピーしました';
-    setTimeout(() => { btn.textContent = old; }, 1200);
+    return true;
+  }
+  const helper = document.createElement('textarea');
+  helper.value = text;
+  helper.setAttribute('readonly', '');
+  helper.style.position = 'fixed';
+  helper.style.opacity = '0';
+  document.body.appendChild(helper);
+  helper.select();
+  try {
+    copied = document.execCommand('copy');
+  } finally {
+    document.body.removeChild(helper);
+  }
+  return copied;
+}
+
+function getDisplayMessageEvents(){
+  return getDisplayEvents().filter(ev => ev.kind === 'message' && (ev.text || '').trim());
+}
+
+function getEventSelectionKey(ev){
+  return ev && ev.event_id ? String(ev.event_id) : '';
+}
+
+function isSelectableMessageEvent(ev){
+  return ev && ev.kind === 'message' && (ev.text || '').trim() && getEventSelectionKey(ev);
+}
+
+function getSelectableDisplayMessageEvents(){
+  return getDisplayEvents().filter(isSelectableMessageEvent);
+}
+
+function getSelectedMessageEvents(){
+  const selectedIds = state.selectedEventIds || new Set();
+  return (state.activeEvents || []).filter(ev => isSelectableMessageEvent(ev) && selectedIds.has(getEventSelectionKey(ev)));
+}
+
+function clearSelectedEventIds(){
+  state.selectedEventIds = new Set();
+}
+
+function syncSelectedEventIdsToActiveEvents(){
+  const validIds = new Set((state.activeEvents || []).filter(isSelectableMessageEvent).map(getEventSelectionKey));
+  state.selectedEventIds = new Set(Array.from(state.selectedEventIds || []).filter(id => validIds.has(id)));
+}
+
+function updateDisplayedMessagesCopyButtonState(){
+  const button = document.getElementById('copy_displayed_messages');
+  if(!state.activeSession){
+    button.disabled = true;
+    return;
+  }
+  const hasMessages = !!getDisplayMessageEvents().length;
+  button.disabled = state.isDetailLoading || !hasMessages;
+}
+
+function updateCopyResumeButtonState(){
+  const button = document.getElementById('copy_resume_command');
+  button.disabled = !getActiveSessionId();
+}
+
+function updateEventSelectionModeButtonState(){
+  const button = document.getElementById('event_selection_mode');
+  if(!button){
+    return;
+  }
+  const hasSelectableMessages = !!getSelectableDisplayMessageEvents().length;
+  const hasSelectedMessages = !!getSelectedMessageEvents().length;
+  button.disabled = !state.activeSession || (!hasSelectableMessages && !hasSelectedMessages && !state.isEventSelectionMode);
+  button.textContent = state.isEventSelectionMode ? '選択終了' : '選択モード';
+  button.classList.toggle('selection-active', state.isEventSelectionMode);
+}
+
+function updateCopySelectedMessagesButtonState(){
+  const button = document.getElementById('copy_selected_messages');
+  if(!button){
+    return;
+  }
+  const selectedMessages = getSelectedMessageEvents();
+  const defaultLabel = selectedMessages.length ? `選択コピー (${selectedMessages.length}件)` : '選択コピー';
+  button.disabled = state.isDetailLoading || selectedMessages.length === 0;
+  button.textContent = defaultLabel;
+  button.dataset.defaultLabel = defaultLabel;
+}
+
+function updateRefreshDetailButtonState(){
+  const button = document.getElementById('refresh_detail');
+  const isManualRefresh = state.isDetailLoading && state.detailLoadMode === 'refresh';
+  button.disabled = !state.activePath || isManualRefresh;
+  if(!isManualRefresh){
+    button.textContent = 'Refresh';
+    return;
+  }
+  button.textContent = 'Refreshing...';
+}
+
+function hasListFilter(){
+  return Boolean(
+    document.getElementById('cwd_q').value.trim() ||
+    document.getElementById('date_from').value ||
+    document.getElementById('date_to').value ||
+    document.getElementById('q').value.trim() ||
+    normalizeSourceFilter(document.getElementById('source_filter').value || 'all') !== 'all' ||
+    getSelectedSessionLabelFilter() ||
+    getSelectedListEventLabelFilter()
+  );
+}
+
+async function copyResumeCommand(){
+  const sessionId = getActiveSessionId();
+  if(!sessionId) return;
+
+  const commandText = 'claude --resume ' + sessionId;
+  const copied = await copyTextToClipboard(commandText);
+
+  if(copied){
+    const button = document.getElementById('copy_resume_command');
+    flashButtonLabel(button, 'コピーしました', 'セッション再開コマンドコピー');
   }
 }
 
@@ -2459,9 +3557,21 @@ function scheduleLoadSessions(){
   }, SEARCH_DEBOUNCE_MS);
 }
 
-async function loadSessions(){
+function normalizeRequestError(error, fallback){
+  if(error && typeof error.message === 'string' && error.message.trim()){
+    return error.message.trim();
+  }
+  return fallback;
+}
+
+async function loadSessions(options){
   saveFilters();
   const requestId = ++loadSessionsRequestSeq;
+  const loadMode = options && options.mode ? options.mode : 'auto';
+  state.isSessionsLoading = true;
+  state.sessionsError = '';
+  state.sessionsLoadMode = loadMode;
+  renderSessionList();
   const params = new URLSearchParams();
   params.set('ts', Date.now().toString());
   const q = document.getElementById('q').value.trim();
@@ -2471,47 +3581,91 @@ async function loadSessions(){
   }
   const sessionLabelId = getSelectedSessionLabelFilter();
   const eventLabelId = getSelectedListEventLabelFilter();
-  if(sessionLabelId) params.set('session_label_id', sessionLabelId);
-  if(eventLabelId) params.set('event_label_id', eventLabelId);
-  const r = await fetch('/api/sessions?' + params.toString(), { cache: 'no-store' });
-  const data = await r.json();
-  if(requestId !== loadSessionsRequestSeq){
-    return;
+  if(sessionLabelId){
+    params.set('session_label_id', sessionLabelId);
   }
-  state.sessions = data.sessions || [];
-  document.getElementById('roots').textContent =
-    `CLI roots: ${data.roots.claude_cli.join(', ') || '-'} | Desktop roots: ${data.roots.claude_desktop.join(', ') || '-'}`;
-  applyFilter();
-  if(state.activePath){
-    const active = state.sessions.find(s => s.path === state.activePath);
-    if(active){
-      await openSession(active.path, active.source_type);
-    } else {
-      state.activePath = null;
-      state.activeSession = null;
-      state.activeEvents = [];
-      state.activeRawLineCount = 0;
+  if(eventLabelId){
+    params.set('event_label_id', eventLabelId);
+  }
+  try {
+    const r = await fetch('/api/sessions?' + params.toString(), { cache: 'no-store' });
+    const data = await r.json();
+    if(requestId !== loadSessionsRequestSeq){
+      return;
+    }
+    state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+    state.sessionsError = data.error || '';
+    const cliRoots = Array.isArray(data.roots && data.roots.claude_cli) ? data.roots.claude_cli : [];
+    const desktopRoots = Array.isArray(data.roots && data.roots.claude_desktop) ? data.roots.claude_desktop : [];
+    document.getElementById('roots').textContent = `CLI roots: ${cliRoots.join(', ') || '-'} | Desktop roots: ${desktopRoots.join(', ') || '-'}`;
+    applyFilter();
+    if(state.activePath){
+      const exists = state.sessions.some(s => s.path === state.activePath);
+      if(exists){
+        syncActiveSessionSummaryFromList(state.activePath);
+        if(shouldSyncActiveSessionAfterListLoad(loadMode)){
+          if(isAutomaticSessionsLoadMode(loadMode) && hasRecentDetailInteraction()){
+            pendingAutomaticDetailSync = true;
+            renderSessionList();
+            renderActiveSession();
+            scheduleDeferredAutomaticDetailSync();
+          } else {
+            pendingAutomaticDetailSync = false;
+            clearDeferredDetailSyncTimer();
+            await openSession(state.activePath, { mode: 'sync' });
+          }
+        } else {
+          renderSessionList();
+          renderActiveSession();
+        }
+      } else {
+        state.activePath = null;
+        state.activeSession = null;
+        state.activeEvents = [];
+        state.activeRawLineCount = 0;
+        state.detailError = '';
+        state.detailLoadMode = '';
+        clearSelectedEventIds();
+        pendingAutomaticDetailSync = false;
+        clearDeferredDetailSyncTimer();
+        renderSessionList();
+        renderActiveSession();
+      }
+    }
+  } catch (error) {
+    if(requestId !== loadSessionsRequestSeq){
+      return;
+    }
+    state.sessionsError = normalizeRequestError(error, 'セッション一覧の取得に失敗しました');
+    renderSessionList();
+  } finally {
+    if(requestId === loadSessionsRequestSeq){
+      state.isSessionsLoading = false;
+      state.hasLoadedSessions = true;
+      state.sessionsLoadMode = '';
       renderSessionList();
-      renderActiveSession();
     }
   }
 }
 
 function saveFilters(){
   const payload = {
-    project_q: document.getElementById('project_q').value,
+    cwd_q: document.getElementById('cwd_q').value,
     date_from: document.getElementById('date_from').value,
     date_to: document.getElementById('date_to').value,
     q: document.getElementById('q').value,
-    source_filter: document.getElementById('source_filter').value,
     mode: document.getElementById('mode').value,
+    source_filter: document.getElementById('source_filter').value,
     session_label_filter: getSelectedSessionLabelFilter(),
     event_label_filter: getSelectedListEventLabelFilter(),
     detail_event_label_filter: getSelectedDetailEventLabelFilter(),
+    detail_actions_visible: detailActionsVisible,
+    left_pane_visible: leftPaneVisible,
   };
   try {
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(payload));
-  } catch(_err) {
+  } catch (e) {
+    // Ignore storage write errors.
   }
 }
 
@@ -2519,53 +3673,59 @@ function restoreFilters(){
   let raw = null;
   try {
     raw = localStorage.getItem(FILTER_STORAGE_KEY);
-  } catch(_err) {
+  } catch (e) {
     raw = null;
   }
   if(!raw) return;
   try {
     const data = JSON.parse(raw);
-    if(typeof data.project_q === 'string') document.getElementById('project_q').value = data.project_q;
+    if(typeof data.cwd_q === 'string') document.getElementById('cwd_q').value = data.cwd_q;
     if(typeof data.date_from === 'string') document.getElementById('date_from').value = data.date_from;
     if(typeof data.date_to === 'string') document.getElementById('date_to').value = data.date_to;
     if(typeof data.q === 'string') document.getElementById('q').value = data.q;
-    if(data.source_filter === '' || data.source_filter === 'claude_cli' || data.source_filter === 'claude_desktop'){
-      document.getElementById('source_filter').value = data.source_filter;
-    }
     if(data.mode === 'and' || data.mode === 'or') document.getElementById('mode').value = data.mode;
+    const source = normalizeSourceFilter(data.source_filter || 'all');
+    document.getElementById('source_filter').value = source;
     if(typeof data.session_label_filter === 'string') document.getElementById('session_label_filter').dataset.pendingValue = data.session_label_filter;
     if(typeof data.event_label_filter === 'string') document.getElementById('event_label_filter').dataset.pendingValue = data.event_label_filter;
     if(typeof data.detail_event_label_filter === 'string') document.getElementById('detail_event_label_filter').dataset.pendingValue = data.detail_event_label_filter;
-  } catch(_err) {
+    if(typeof data.detail_actions_visible === 'boolean') detailActionsVisible = data.detail_actions_visible;
+    if(typeof data.left_pane_visible === 'boolean') leftPaneVisible = data.left_pane_visible;
+  } catch (e) {
+    // Ignore invalid saved filters.
   }
 }
 
 function clearFilters(){
-  document.getElementById('project_q').value = '';
+  cancelScheduledSaveFilters();
+  document.getElementById('cwd_q').value = '';
   document.getElementById('date_from').value = '';
   document.getElementById('date_to').value = '';
   document.getElementById('q').value = '';
-  document.getElementById('source_filter').value = '';
   document.getElementById('mode').value = 'and';
+  document.getElementById('source_filter').value = 'all';
   document.getElementById('session_label_filter').value = '';
   document.getElementById('event_label_filter').value = '';
   document.getElementById('detail_event_label_filter').value = '';
   try {
     localStorage.removeItem(FILTER_STORAGE_KEY);
-  } catch(_err) {
+  } catch (e) {
+    // Ignore storage delete errors.
   }
   if(loadSessionsTimer){
     clearTimeout(loadSessionsTimer);
     loadSessionsTimer = null;
   }
-  loadSessions();
+  loadSessions({ mode: 'clear' });
 }
 
 function applyFilter(){
-  const projectQ = document.getElementById('project_q').value.toLowerCase().trim();
-  const sourceFilter = document.getElementById('source_filter').value;
-  const fromTs = parseOptionalDateStart(document.getElementById('date_from').value);
-  const toTs = parseOptionalDateEnd(document.getElementById('date_to').value);
+  const projectQ = document.getElementById('cwd_q').value.toLowerCase().trim();
+  const sourceFilter = normalizeSourceFilter(document.getElementById('source_filter').value || 'all');
+  const fromRaw = document.getElementById('date_from').value;
+  const toRaw = document.getElementById('date_to').value;
+  const fromTs = parseOptionalDateStart(fromRaw);
+  const toTs = parseOptionalDateEnd(toRaw);
   state.filtered = state.sessions.filter(s => {
     const projectTarget = ((s.project || '') + ' ' + (s.relative_path || '')).toLowerCase();
     const projectTargetNorm = normalizePathForMatch(projectTarget);
@@ -2574,17 +3734,23 @@ function applyFilter(){
       !projectQ ||
       projectTarget.includes(projectQ) ||
       (projectQNorm && projectTargetNorm.includes(projectQNorm));
-    const sourceMatched = !sourceFilter || s.source_type === sourceFilter;
+    const sourceMatched = sourceFilter === 'all' || normalizeSourceFilter(s.source_type || s.source) === sourceFilter;
+
     let dateMatched = true;
     if(fromTs !== null || toTs !== null){
       const sessionTs = toTimestamp(s.started_at || s.mtime);
       if(Number.isNaN(sessionTs)){
         dateMatched = false;
       } else {
-        if(fromTs !== null && sessionTs < fromTs) dateMatched = false;
-        if(toTs !== null && sessionTs > toTs) dateMatched = false;
+        if(fromTs !== null && sessionTs < fromTs){
+          dateMatched = false;
+        }
+        if(toTs !== null && sessionTs > toTs){
+          dateMatched = false;
+        }
       }
     }
+
     return projectMatched && sourceMatched && dateMatched;
   });
   saveFilters();
@@ -2593,18 +3759,55 @@ function applyFilter(){
 
 function renderSessionList(){
   const box = document.getElementById('sessions');
-  box.innerHTML = state.filtered.map(s => `
-    <div class="session-item ${state.activePath === s.path ? 'active' : ''}" data-path="${esc(s.path)}" data-source="${esc(s.source_type)}">
-      <div class="session-path">${esc(s.relative_path)}</div>
-      <div class="session-preview">${esc(s.first_user_text || '(previewなし)')}</div>
-      <div class="session-label-row">${renderAssignedLabels(s.session_labels || [])}</div>
-      <div class="session-meta-row">
-        <span class="badge session-project">project: ${esc(s.project || '-')}</span>
-        <span class="badge session-source ${s.source_type === 'claude_cli' ? 'cli' : 'desktop'}">${s.source_type === 'claude_cli' ? 'CLI(JSONL)' : 'Desktop(LevelDB)'}</span>
-        <span class="badge session-time">${esc(fmt(s.started_at || s.mtime))}</span>
+  updateReloadButtonState();
+  if(state.isSessionsLoading && !state.hasLoadedSessions){
+    box.innerHTML = renderInlineStatus(
+      'セッション一覧を読み込み中...',
+      '最新のセッションを確認しています。',
+      'loading'
+    );
+  } else if(state.sessionsError && !state.sessions.length){
+    box.innerHTML = renderInlineStatus(
+      '一覧の取得に失敗しました',
+      state.sessionsError,
+      'error'
+    );
+  } else if(!state.filtered.length){
+    box.innerHTML = hasListFilter()
+      ? renderInlineStatus(
+          '条件に一致するセッションはありません',
+          'フィルタ条件を見直すか、Reload を実行してください。',
+          'empty'
+        )
+      : renderInlineStatus(
+          'セッションがまだ見つかりません',
+          '読み込み対象ディレクトリにセッションがあるか確認してください。',
+          'empty'
+        );
+  } else {
+    box.innerHTML = state.filtered.map(s => `
+      <div class="session-item ${state.activePath === s.path ? 'active' : ''}" data-path="${esc(s.path)}" data-source="${esc(s.source_type || '')}">
+        <div class="session-path">${highlightSessionPath(s.relative_path || '')}</div>
+        <div class="session-preview">${esc(s.first_user_text || '(previewなし)')}</div>
+        <div class="session-label-row">${renderAssignedLabels(s.session_labels || [])}</div>
+        <div class="session-meta-row">
+          <div class="session-badge session-project">project: ${esc(s.project || '-')}</div>
+          <div class="session-badge session-source source-${esc(normalizeSource(s.source_type || s.source))}">${esc(sourceLabel(s.source_type || s.source))}</div>
+          <div class="session-badge session-time">${esc(fmt(s.started_at || s.mtime))}</div>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+  if(state.isSessionsLoading && state.hasLoadedSessions && state.sessionsLoadMode === 'reload'){
+    setStatusLayer(
+      'sessions_status',
+      '一覧を更新中...',
+      '最新のセッションを再取得しています。',
+      'loading'
+    );
+  } else {
+    setStatusLayer('sessions_status');
+  }
   box.querySelectorAll('.session-item').forEach(el => {
     el.onclick = () => openSession(el.dataset.path, el.dataset.source);
   });
@@ -2624,54 +3827,192 @@ function getDisplayEvents(){
       return (showOnlyUser && ev.role === 'user') || (showOnlyAssistant && ev.role === 'assistant');
     });
   }
+  if(detailKeywordFilterTerm !== ''){
+    events = events.filter(ev => containsLiteralKeyword(getEventBodyText(ev), detailKeywordFilterTerm));
+  }
   if(document.getElementById('reverse_order').checked){
     events = [...events].reverse();
   }
   return events;
 }
 
+function formatCopiedMessages(events){
+  return events.map(ev => {
+    const role = ev.role || 'system';
+    const timestamp = fmt(ev.timestamp) || ev.timestamp || '-';
+    return `[${role}] ${timestamp}\n${ev.text || ''}`;
+  }).join('\\n\\n-----\\n\\n');
+}
+
 async function removeSessionLabel(labelId){
   if(!state.activePath) return;
-  const data = await postJson('/api/session-label/remove', { path: state.activePath, label_id: labelId });
+  const data = await postJson('/api/session-label/remove', {
+    path: state.activePath,
+    label_id: labelId,
+  });
   if(data.error){
     alert(data.error);
     return;
   }
-  await loadSessions();
+  await loadSessions({ mode: 'labels' });
 }
 
 async function addSessionLabelFromButton(button){
   if(!state.activePath) return;
   showLabelPicker(button, async (labelId) => {
-    const data = await postJson('/api/session-label/add', { path: state.activePath, label_id: labelId });
+    const data = await postJson('/api/session-label/add', {
+      path: state.activePath,
+      label_id: labelId,
+    });
     if(data.error){
       alert(data.error);
       return;
     }
-    await loadSessions();
+    await loadSessions({ mode: 'labels' });
   });
 }
 
 async function addEventLabelFromButton(button, eventId){
   if(!state.activePath || !eventId) return;
   showLabelPicker(button, async (labelId) => {
-    const data = await postJson('/api/event-label/add', { path: state.activePath, event_id: eventId, label_id: labelId });
+    const data = await postJson('/api/event-label/add', {
+      path: state.activePath,
+      event_id: eventId,
+      label_id: labelId,
+    });
     if(data.error){
       alert(data.error);
       return;
     }
-    await loadSessions();
+    await loadSessions({ mode: 'labels' });
   });
 }
 
 async function removeEventLabel(eventId, labelId){
   if(!state.activePath || !eventId) return;
-  const data = await postJson('/api/event-label/remove', { path: state.activePath, event_id: eventId, label_id: labelId });
+  const data = await postJson('/api/event-label/remove', {
+    path: state.activePath,
+    event_id: eventId,
+    label_id: labelId,
+  });
   if(data.error){
     alert(data.error);
     return;
   }
-  await loadSessions();
+  await loadSessions({ mode: 'labels' });
+}
+
+async function copyDisplayedMessages(){
+  const messages = getDisplayMessageEvents();
+  if(!messages.length){
+    return;
+  }
+  const copied = await copyTextToClipboard(formatCopiedMessages(messages));
+  if(copied){
+    const button = document.getElementById('copy_displayed_messages');
+    flashButtonLabel(button, `${messages.length}件コピー`, '表示中メッセージコピー');
+  }
+}
+
+async function copySelectedMessages(){
+  const messages = getSelectedMessageEvents();
+  if(!messages.length){
+    return;
+  }
+  const copied = await copyTextToClipboard(formatCopiedMessages(messages));
+  if(copied){
+    const copiedCount = messages.length;
+    const button = document.getElementById('copy_selected_messages');
+    flashButtonLabel(button, `${copiedCount}件コピー`, '選択コピー', BUTTON_FEEDBACK_MS);
+    await waitForUiFeedback(BUTTON_FEEDBACK_MS);
+    state.isEventSelectionMode = false;
+    clearSelectedEventIds();
+    renderActiveSession();
+  }
+}
+
+async function copyEventMessage(button, eventId){
+  const event = (state.activeEvents || []).find(ev => ev.event_id === eventId && ev.kind === 'message');
+  if(!event || !event.text){
+    return;
+  }
+  const copied = await copyTextToClipboard(event.text);
+  if(copied){
+    flashButtonLabel(button, 'コピーしました', 'コピー');
+  }
+}
+
+function toggleEventSelectionMode(){
+  state.isEventSelectionMode = !state.isEventSelectionMode;
+  if(!state.isEventSelectionMode){
+    clearSelectedEventIds();
+  }
+  renderActiveSession();
+}
+
+function updateEventSelection(eventId, checked, card){
+  const key = String(eventId || '');
+  if(!key){
+    return;
+  }
+  if(checked){
+    state.selectedEventIds.add(key);
+  } else {
+    state.selectedEventIds.delete(key);
+  }
+  if(card){
+    card.classList.toggle('copy-selected', checked);
+  }
+  updateCopySelectedMessagesButtonState();
+}
+
+function applyDetailKeywordFilter(){
+  noteDetailInteraction();
+  detailKeywordFilterTerm = getDetailKeywordInputValue();
+  const eventsBox = document.getElementById('events');
+  if(eventsBox){
+    eventsBox.scrollTop = 0;
+  }
+  renderActiveSession();
+}
+
+function runDetailKeywordSearch(){
+  noteDetailInteraction();
+  detailKeywordSearchTerm = getDetailKeywordInputValue();
+  const searchMeta = buildDetailKeywordSearchMeta(getDisplayEvents(), detailKeywordSearchTerm);
+  detailKeywordSearchTotal = searchMeta.total;
+  detailKeywordCurrentMatchIndex = searchMeta.total ? 0 : -1;
+  pendingDetailKeywordFocusIndex = detailKeywordCurrentMatchIndex;
+  renderActiveSession();
+}
+
+function moveDetailKeywordSearch(step){
+  noteDetailInteraction();
+  const searchMeta = buildDetailKeywordSearchMeta(getDisplayEvents(), detailKeywordSearchTerm);
+  detailKeywordSearchTotal = searchMeta.total;
+  if(!searchMeta.total){
+    detailKeywordCurrentMatchIndex = -1;
+    pendingDetailKeywordFocusIndex = -1;
+    renderActiveSession();
+    return;
+  }
+  if(detailKeywordCurrentMatchIndex < 0 || detailKeywordCurrentMatchIndex >= searchMeta.total){
+    detailKeywordCurrentMatchIndex = 0;
+  } else {
+    detailKeywordCurrentMatchIndex = (detailKeywordCurrentMatchIndex + step + searchMeta.total) % searchMeta.total;
+  }
+  pendingDetailKeywordFocusIndex = detailKeywordCurrentMatchIndex;
+  renderActiveSession();
+}
+
+function clearDetailKeyword(){
+  noteDetailInteraction();
+  const input = document.getElementById('detail_keyword_q');
+  if(input){
+    input.value = '';
+  }
+  resetDetailKeywordState();
+  renderActiveSession();
 }
 
 function renderActiveSession(){
@@ -2679,93 +4020,180 @@ function renderActiveSession(){
   const eventsBox = document.getElementById('events');
   updateRefreshDetailButtonState();
   if(!state.activeSession){
-    meta.textContent = 'セッションを選択してください';
-    eventsBox.innerHTML = '';
+    detailKeywordSearchTotal = 0;
+    normalizeDetailKeywordSearchPosition({ total: 0 });
+    if(state.isDetailLoading && state.activePath){
+      meta.textContent = 'セッション詳細を読み込み中...';
+      eventsBox.innerHTML = renderInlineStatus(
+        'セッション詳細を読み込み中...',
+        'イベントを取得しています。',
+        'loading'
+      );
+    } else if(state.detailError){
+      meta.textContent = state.detailError;
+      eventsBox.innerHTML = renderInlineStatus(
+        '詳細の取得に失敗しました',
+        state.detailError,
+        'error'
+      );
+    } else {
+      meta.textContent = 'セッションを選択してください';
+      eventsBox.innerHTML = '';
+    }
+    setStatusLayer('detail_status');
     updateCopyResumeButtonState();
+    updateDisplayedMessagesCopyButtonState();
+    updateEventSelectionModeButtonState();
+    updateCopySelectedMessagesButtonState();
+    updateDetailKeywordControls({ total: 0 });
     renderSessionLabelStrip();
     updateSessionLabelButtonState();
     return;
   }
+
+  syncSelectedEventIdsToActiveEvents();
   const displayEvents = getDisplayEvents();
-  const sourceType = state.activeSession.source_type || '';
-  const sourceClass = sourceType === 'claude_cli' ? 'cli' : 'desktop';
+  const searchMeta = buildDetailKeywordSearchMeta(displayEvents, detailKeywordSearchTerm);
+  detailKeywordSearchTotal = searchMeta.total;
+  normalizeDetailKeywordSearchPosition(searchMeta);
+  const sourceType = state.activeSession.source_type || state.activeSession.source || '';
+  const sourceClass = normalizeSource(sourceType);
+  const eventsSummary = state.isDetailLoading && state.activeEvents.length === 0
+    ? 'events: loading...'
+    : `events: ${displayEvents.length}/${state.activeEvents.length}`;
+  const rawSummary = state.isDetailLoading && state.activeEvents.length === 0
+    ? '...'
+    : state.activeRawLineCount;
+  const errorNote = state.detailError
+    ? ` | status: <span class="meta-note error">${esc(state.detailError)}</span>`
+    : '';
   meta.innerHTML =
-    `source: <code class="source-code ${sourceClass}">${esc(state.activeSession.source)}</code> | ` +
-    `path: <code class="path-code">${esc(state.activeSession.relative_path)}</code> | ` +
-    `project: <code class="project-code">${esc(state.activeSession.project || '-')}</code> | ` +
-    `events: ${displayEvents.length}/${state.activeEvents.length} | raw lines/snippets: ${state.activeRawLineCount}`;
-  const selectedEventLabelId = getSelectedDetailEventLabelFilter();
-  eventsBox.innerHTML = displayEvents.map(ev => {
-    const role = ev.role || 'system';
-    const roleLabel = ev.role_label || role;
-    const kind = ev.kind || 'event';
-    const safeKind = String(kind).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
-    const safeRole = String(role).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
-    const rawText = ev.text || '';
-    const lineCount = rawText ? rawText.split('\\n').length : 0;
-    const isLong = rawText.length > 1800 || lineCount > 35;
-    const systemLabels = Array.isArray(ev.system_labels) ? ev.system_labels : [];
-    const userLabels = ev.labels || [];
-    const matchesSelectedLabel = selectedEventLabelId && userLabels.some(label => String(label.id) === selectedEventLabelId);
-    const systemLabelsHtml = systemLabels.length
-      ? `<span class="ev-badges">${systemLabels.map(v => `<span class="ev-badge">[${esc(String(v))}]</span>`).join('')}</span>`
-      : '';
-    const userLabelsHtml = renderAssignedLabels(userLabels, 'event', { eventId: ev.event_id });
-    const body = isLong
-      ? `<details class="ev-details"><summary>本文を展開 (${lineCount} lines)</summary><pre>${esc(rawText)}</pre></details>`
-      : `<pre>${esc(rawText)}</pre>`;
-    return `<div class="ev ${safeRole} kind-${safeKind} ${matchesSelectedLabel ? 'label-match' : ''}"><div class="ev-head"><span class="badge-kind">${esc(kind)}</span><span class="badge-role ${esc(safeRole)}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${userLabelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>ラベル追加</button></span></div>${body}</div>`;
-  }).join('');
+    `source: <code class="source-code source-${esc(sourceClass)}">${esc(sourceLabel(sourceType))}</code> | path: <code class="path-code">${highlightSessionPath(state.activeSession.relative_path || '')}</code> | project: <code class="project-code">${esc(state.activeSession.project || '-')}</code> | time: <code class="time-code">${esc(fmt(state.activeSession.started_at || state.activeSession.mtime))}</code> | ${eventsSummary} | raw lines/snippets: ${rawSummary}${errorNote}`;
+
+  if(state.isDetailLoading && state.activeEvents.length === 0){
+    eventsBox.innerHTML = renderInlineStatus(
+      'セッション詳細を読み込み中...',
+      'イベントを取得しています。',
+      'loading'
+    );
+  } else if(state.detailError && state.activeEvents.length === 0){
+    eventsBox.innerHTML = renderInlineStatus(
+      '詳細の取得に失敗しました',
+      state.detailError,
+      'error'
+    );
+  } else if(displayEvents.length === 0){
+    eventsBox.innerHTML = state.activeEvents.length === 0
+      ? renderInlineStatus(
+          '表示できるイベントはありません',
+          'このセッションには表示対象のイベントがありません。',
+          'empty'
+        )
+      : renderInlineStatus(
+          '条件に一致するイベントはありません',
+          '表示条件を変更するとイベントが表示される可能性があります。',
+          'empty'
+        );
+  } else {
+    renderEventList(eventsBox, displayEvents, getSelectedDetailEventLabelFilter(), searchMeta);
+  }
+  if(state.isDetailLoading && state.activeEvents.length > 0 && state.detailLoadMode === 'refresh'){
+    setStatusLayer(
+      'detail_status',
+      'セッション詳細を更新中...',
+      '最新のイベントを再取得しています。',
+      'loading'
+    );
+  } else {
+    setStatusLayer('detail_status');
+  }
   renderSessionLabelStrip();
   updateSessionLabelButtonState();
-  eventsBox.querySelectorAll('.event-label-add-button').forEach(button => {
-    button.onclick = async () => {
-      await addEventLabelFromButton(button, button.dataset.eventId);
-    };
-  });
-  eventsBox.querySelectorAll('.label-remove-button[data-remove-type="event"]').forEach(button => {
-    button.onclick = async () => {
-      await removeEventLabel(button.dataset.eventId, Number(button.dataset.labelId));
-    };
-  });
+  updateDisplayedMessagesCopyButtonState();
+  updateEventSelectionModeButtonState();
+  updateCopySelectedMessagesButtonState();
+  updateDetailKeywordControls(searchMeta);
   updateCopyResumeButtonState();
 }
 
-async function openSession(path, sourceType){
+async function openSession(path, sourceTypeOrOptions, maybeOptions){
+  let sourceType = '';
+  let options = maybeOptions || {};
+  if(sourceTypeOrOptions && typeof sourceTypeOrOptions === 'object' && !Array.isArray(sourceTypeOrOptions)){
+    options = sourceTypeOrOptions;
+  } else {
+    sourceType = sourceTypeOrOptions || '';
+  }
+
+  const requestId = ++loadSessionDetailRequestSeq;
+  const nextSession = state.sessions.find(s => s.path === path) || null;
+  const previousPath = state.activeSession && state.activeSession.path ? state.activeSession.path : state.activePath;
+  const loadMode = options && options.mode ? options.mode : 'open';
+  if(loadMode !== 'sync'){
+    pendingAutomaticDetailSync = false;
+    clearDeferredDetailSyncTimer();
+  }
   state.activePath = path;
-  renderSessionList();
-  const r = await fetch('/api/session?path=' + encodeURIComponent(path) + '&source=' + encodeURIComponent(sourceType || '') + '&ts=' + Date.now(), { cache: 'no-store' });
-  const data = await r.json();
-  if(data.error){
-    state.activeSession = null;
+  state.isDetailLoading = true;
+  state.detailError = '';
+  state.detailLoadMode = loadMode;
+  if(nextSession){
+    state.activeSession = nextSession;
+  }
+  if(!state.activeSession || state.activeSession.path !== path){
+    state.activeSession = nextSession;
+  }
+  if(previousPath !== path){
     state.activeEvents = [];
     state.activeRawLineCount = 0;
-    document.getElementById('meta').textContent = data.error;
-    document.getElementById('events').innerHTML = '';
-    updateRefreshDetailButtonState();
-    updateCopyResumeButtonState();
-    renderSessionLabelStrip();
-    updateSessionLabelButtonState();
-    return;
+    clearSelectedEventIds();
   }
-  state.activeSession = data.session;
-  state.activeEvents = data.events || [];
-  state.activeRawLineCount = data.raw_line_count || 0;
+  renderSessionList();
   renderActiveSession();
+  const resolvedSourceType = sourceType || (nextSession ? (nextSession.source_type || '') : '') || (state.activeSession ? (state.activeSession.source_type || '') : '');
+  try {
+    const r = await fetch('/api/session?path=' + encodeURIComponent(path) + '&source=' + encodeURIComponent(resolvedSourceType || '') + '&ts=' + Date.now(), { cache: 'no-store' });
+    const data = await r.json();
+    if(requestId !== loadSessionDetailRequestSeq){
+      return;
+    }
+    if(data.error){
+      state.detailError = data.error;
+      if(!state.activeEvents.length){
+        state.activeRawLineCount = 0;
+      }
+      return;
+    }
+    state.activeSession = data.session || nextSession;
+    state.activeEvents = data.events || [];
+    state.activeRawLineCount = data.raw_line_count || 0;
+    state.detailError = '';
+    syncSelectedEventIdsToActiveEvents();
+  } catch (error) {
+    if(requestId !== loadSessionDetailRequestSeq){
+      return;
+    }
+    state.detailError = normalizeRequestError(error, 'セッション詳細の取得に失敗しました');
+  } finally {
+    if(requestId === loadSessionDetailRequestSeq){
+      state.isDetailLoading = false;
+      state.detailLoadMode = '';
+      renderActiveSession();
+    }
+  }
 }
 
 async function refreshActiveSession(){
   if(!state.activePath) return;
-  const sourceType = state.activeSession ? (state.activeSession.source_type || '') : '';
-  await openSession(state.activePath, sourceType);
+  await openSession(state.activePath, { mode: 'refresh' });
 }
 
-document.getElementById('project_q').addEventListener('input', applyFilter);
+document.getElementById('cwd_q').addEventListener('input', applyFilter);
 document.getElementById('date_from').addEventListener('change', applyFilter);
 document.getElementById('date_to').addEventListener('change', applyFilter);
 document.getElementById('q').addEventListener('input', scheduleLoadSessions);
-document.getElementById('source_filter').addEventListener('change', applyFilter);
 document.getElementById('mode').addEventListener('change', scheduleLoadSessions);
+document.getElementById('source_filter').addEventListener('change', applyFilter);
 document.getElementById('session_label_filter').addEventListener('change', scheduleLoadSessions);
 document.getElementById('event_label_filter').addEventListener('change', scheduleLoadSessions);
 document.getElementById('detail_event_label_filter').addEventListener('change', () => {
@@ -2775,21 +4203,75 @@ document.getElementById('detail_event_label_filter').addEventListener('change', 
 document.getElementById('toggle_filters').addEventListener('click', () => {
   setFiltersVisible(!filtersVisible);
 });
+document.getElementById('toggle_session_list_mobile').addEventListener('click', () => {
+  setLeftPaneVisible(!leftPaneVisible);
+});
+document.getElementById('toggle_detail_actions').addEventListener('click', () => {
+  setDetailActionsVisible(!detailActionsVisible);
+});
 document.getElementById('reload').addEventListener('click', () => {
   if(loadSessionsTimer){
     clearTimeout(loadSessionsTimer);
     loadSessionsTimer = null;
   }
-  loadSessions();
+  loadSessions({ mode: 'reload' });
 });
 document.getElementById('clear').addEventListener('click', clearFilters);
-document.getElementById('only_user_instruction').addEventListener('change', renderActiveSession);
-document.getElementById('only_ai_response').addEventListener('change', renderActiveSession);
-document.getElementById('reverse_order').addEventListener('change', renderActiveSession);
+document.getElementById('only_user_instruction').addEventListener('change', () => {
+  renderActiveSession();
+});
+document.getElementById('only_ai_response').addEventListener('change', () => {
+  renderActiveSession();
+});
+document.getElementById('reverse_order').addEventListener('change', () => {
+  renderActiveSession();
+});
 document.getElementById('refresh_detail').addEventListener('click', refreshActiveSession);
-document.getElementById('copy_resume_cmd').addEventListener('click', copyResumeCommand);
+document.getElementById('copy_resume_command').addEventListener('click', copyResumeCommand);
+document.getElementById('copy_displayed_messages').addEventListener('click', copyDisplayedMessages);
+document.getElementById('event_selection_mode').addEventListener('click', toggleEventSelectionMode);
+document.getElementById('copy_selected_messages').addEventListener('click', copySelectedMessages);
+document.getElementById('detail_keyword_q').addEventListener('input', () => {
+  updateDetailKeywordControls();
+});
+document.getElementById('detail_keyword_q').addEventListener('keydown', (event) => {
+  if(event.key === 'Enter' && !event.isComposing){
+    event.preventDefault();
+    runDetailKeywordSearch();
+  }
+});
+document.getElementById('detail_keyword_filter').addEventListener('click', applyDetailKeywordFilter);
+document.getElementById('detail_keyword_search').addEventListener('click', runDetailKeywordSearch);
+document.getElementById('detail_keyword_prev').addEventListener('click', () => {
+  moveDetailKeywordSearch(-1);
+});
+document.getElementById('detail_keyword_next').addEventListener('click', () => {
+  moveDetailKeywordSearch(1);
+});
+document.getElementById('detail_keyword_clear').addEventListener('click', clearDetailKeyword);
 document.getElementById('add_session_label').addEventListener('click', async (event) => {
   await addSessionLabelFromButton(event.currentTarget);
+});
+document.getElementById('events').addEventListener('pointerdown', (event) => {
+  if(event.target.closest('pre')){
+    detailPointerDown = true;
+    noteDetailInteraction();
+  }
+});
+window.addEventListener('pointerup', () => {
+  if(!detailPointerDown){
+    return;
+  }
+  detailPointerDown = false;
+  noteDetailInteraction();
+  scheduleDeferredAutomaticDetailSync();
+});
+document.addEventListener('selectionchange', () => {
+  if(hasDetailTextSelection()){
+    noteDetailInteraction();
+    return;
+  }
+  scheduleDeferredAutomaticDetailSync();
 });
 document.getElementById('open_label_manager').addEventListener('click', openLabelManagerWindow);
 document.addEventListener('click', (event) => {
@@ -2803,17 +4285,30 @@ document.addEventListener('click', (event) => {
 window.addEventListener('message', async (event) => {
   if(!event.data || event.data.type !== 'labels-updated') return;
   await loadLabels(false);
-  await loadSessions();
+  await loadSessions({ mode: 'labels' });
 });
 window.addEventListener('focus', async () => {
   await loadLabels(false);
-  await loadSessions();
+  await loadSessions({ mode: 'focus' });
+});
+window.addEventListener('resize', () => {
+  updateLeftPaneVisibility();
 });
 updateCopyResumeButtonState();
+updateDisplayedMessagesCopyButtonState();
+updateEventSelectionModeButtonState();
+updateCopySelectedMessagesButtonState();
+updateDetailKeywordControls({ total: 0 });
 updateRefreshDetailButtonState();
 updateFilterVisibility();
 restoreFilters();
-loadLabels(false).then(() => loadSessions());
+updateLeftPaneVisibility();
+updateDetailActionsVisibility();
+state.isSessionsLoading = true;
+renderSessionList();
+loadLabels(false)
+  .catch(() => {})
+  .finally(() => loadSessions({ mode: 'initial' }));
 </script>
 </body>
 </html>
@@ -2821,10 +4316,10 @@ loadLabels(false).then(() => loadSessions());
 
 
 LABELS_PAGE = """<!doctype html>
-<html lang="ja">
+<html lang=\"ja\">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset=\"utf-8\" />
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
 <title>ラベル管理</title>
 <style>
 :root {
@@ -3065,23 +4560,24 @@ button {
   cursor: pointer;
   font-weight: 700;
   letter-spacing: 0.01em;
-  box-shadow: 0 16px 30px rgba(15, 118, 110, 0.22);
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.16);
   transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 18px 34px rgba(15, 118, 110, 0.24);
+  box-shadow: 0 12px 24px rgba(15, 118, 110, 0.18);
 }
 button:active {
   transform: translateY(0);
+  box-shadow: 0 5px 12px rgba(15, 118, 110, 0.14);
 }
 .secondary {
   background: linear-gradient(135deg, #64748b 0%, #475569 100%);
-  box-shadow: 0 14px 26px rgba(71, 85, 105, 0.2);
+  box-shadow: 0 8px 18px rgba(71, 85, 105, 0.14);
 }
 .danger {
   background: linear-gradient(135deg, var(--danger) 0%, #e11d48 100%);
-  box-shadow: 0 14px 26px rgba(190, 18, 60, 0.2);
+  box-shadow: 0 8px 18px rgba(190, 18, 60, 0.14);
 }
 .preset-list {
   display: flex;
@@ -3233,7 +4729,7 @@ button:active {
   box-shadow: none;
 }
 .label-row-actions button:hover {
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
 }
 .dialog-backdrop {
   position: fixed;
@@ -3477,13 +4973,13 @@ async function loadLabels(){
   const data = await r.json();
   const list = document.getElementById('label_list');
   const countBadge = document.getElementById('label_count_badge');
-  const labels = Array.isArray(data.labels) ? data.labels : [];
-  countBadge.textContent = `${labels.length} labels`;
-  if(!labels.length){
-    list.innerHTML = '<div class="empty-state">ラベルはまだありません。上のフォームから名前と色を設定して保存してください。</div>';
+  const count = (data.labels || []).length;
+  countBadge.textContent = `${count} label${count === 1 ? '' : 's'}`;
+  if(!data.labels || !data.labels.length){
+    list.innerHTML = '<div class="empty-state">ラベルはまだありません。上のフォームから最初のラベルを作成してください。</div>';
     return;
   }
-  list.innerHTML = labels.map(label => `
+  list.innerHTML = data.labels.map(label => `
     <div class="label-row">
       <div class="label-main">
         <div class="label-topline">
@@ -3492,14 +4988,14 @@ async function loadLabels(){
         </div>
       </div>
       <div class="label-row-actions">
-        <button type="button" class="secondary edit-label" data-label-id="${esc(label.id)}">編集</button>
-        <button type="button" class="danger delete-label" data-label-id="${esc(label.id)}">削除</button>
+        <button class="secondary edit-label" data-label-id="${esc(label.id)}">編集</button>
+        <button class="danger delete-label" data-label-id="${esc(label.id)}">削除</button>
       </div>
     </div>
   `).join('');
   list.querySelectorAll('.edit-label').forEach(button => {
     button.onclick = () => {
-      const label = labels.find(item => String(item.id) === button.dataset.labelId);
+      const label = data.labels.find(item => String(item.id) === button.dataset.labelId);
       if(label) editLabel(label);
     };
   });
@@ -3523,24 +5019,27 @@ document.getElementById('save_label').addEventListener('click', async () => {
     return;
   }
   notifyParent();
-  resetForm();
   await loadLabels();
-});
-
-document.getElementById('label_color').addEventListener('input', () => {
-  const color = document.getElementById('label_color').value.trim().toLowerCase();
-  const matched = Object.entries(PRESETS).find(([, value]) => value.color === color);
-  document.getElementById('label_family').value = matched ? matched[0] : '';
-  renderPresetPreview();
+  resetForm();
 });
 
 document.getElementById('error_dialog_close').addEventListener('click', hideErrorDialog);
-document.getElementById('error_dialog').addEventListener('click', event => {
+document.getElementById('error_dialog').addEventListener('click', (event) => {
   if(event.target.id === 'error_dialog'){
     hideErrorDialog();
   }
 });
-
+document.addEventListener('keydown', (event) => {
+  if(event.key === 'Escape'){
+    hideErrorDialog();
+  }
+});
+document.getElementById('label_color').addEventListener('input', () => {
+  const color = document.getElementById('label_color').value.trim().toLowerCase();
+  const matched = Object.entries(PRESETS).find(([, value]) => value.color.toLowerCase() === color);
+  document.getElementById('label_family').value = matched ? matched[0] : '';
+  renderPresetPreview();
+});
 renderPresetPreview();
 loadLabels();
 </script>

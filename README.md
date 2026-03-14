@@ -110,32 +110,50 @@ python viewer.py
 ## 画面機能
 
 - 左ペイン: セッション一覧（最新順）
-  - 一覧にセッション `source` ラベル（`CLI(JSONL)` / `Desktop(LevelDB)`）とセッションラベルを表示
+  - 一覧にセッション `source` ラベル（`Claude Code CLI` / `Claude Desktop`）とセッションラベルを表示
+  - 初回起動時は一覧のローディング状態を表示
   - `Reload` ボタンで一覧を再読み込み
+    - 手動 `Reload` 時は一覧の更新中オーバーレイとボタン状態を表示
   - `Clear` ボタンで左ペインの検索条件を初期化
   - `Hide` / `Show` ボタンで検索条件欄を折りたたみ / 展開可能
+  - 縦表示時はヘッダー右上の「一覧を隠す / 一覧を表示」ボタンで左ペイン全体を切り替え可能
 - 左上 filter
   - `project/path` / 日付範囲 / キーワード / `source` / セッションラベル / イベントラベルで絞り込み
   - キーワード検索は SQLite インデックスを使う全文検索
   - `project/path` 検索は `project` と `relative_path` の両方を対象にし、`-` / `/` / `\` を同一視して判定
-  - `message` だけでなく、`function_call.arguments` / `function_output.output` / `agent_update.message` も検索対象
+  - `message` / `tool_result` / `queue` / `progress` / `notice` / `snippet` など、イベント本文として抽出された文字列を検索対象
   - `project/path` / 日付範囲 / `source` / ラベル条件は常に AND 条件で評価
   - `AND/OR` 切替はキーワード欄内のみ
     - `AND`: スペース区切りキーワードをすべて含む
     - `OR`: スペース区切りキーワードのどれかを含む
 - 右ペイン: 選択セッションのイベント時系列表示
+  - 初回詳細読み込み時はローディング表示、手動 `Refresh` 時は詳細更新中オーバーレイを表示
   - 詳細ヘッダーに `source` ラベル（`Claude Code CLI` / `Claude Desktop`）を表示
+  - 詳細ヘッダーは 3 段構成
+    - 1 段目: 表示フィルター群、`Refresh`、2 段目 / 3 段目をまとめて畳む `Hide` / `Show`
+    - 2 段目: コピー、ラベル追加、選択コピー関連の操作ボタン
+    - 3 段目: キーワード検索欄、`フィルター`、`検索`、`前へ`、`次へ`、`Keyword Clear`
   - 表示オプション
     - 「ユーザー指示のみ表示」
     - 「AIレスポンスのみ表示」
     - 「表示順を逆にする」
     - `event label: all` フィルタ
+  - キーワード検索
+    - `フィルター`: キーワードを含むイベントだけを表示
+    - `検索`: 一致箇所をハイライトし、`前へ` / `次へ` で候補間を移動
+    - `Keyword Clear`: 入力欄、フィルター、検索状態をまとめて解除
+    - AND / OR ではなく、入力した文字列そのままの部分一致で判定
+    - 検索対象は表示中イベントの本文全体
   - `Refresh` ボタンで選択中セッションだけを再取得
   - 「セッション再開コマンドコピー」ボタンで `claude --resume <セッションID>` をコピー
+  - 「表示中メッセージコピー」ボタンで、現在の表示フィルター結果をまとめてコピー
   - セッションラベル表示と「セッションにラベル追加」
   - イベントごとのラベル表示 / 追加 / 削除
-  - `message`（`user` / `assistant`）および `function_call` / `function_output` / `agent_update` を表示
-  - `user` は薄青背景、`assistant` は薄緑背景、`AGENTS.md` / `environment_context` などの実行コンテキストはグレー背景で表示
+  - 各 `message` イベントに「コピー」ボタンを表示
+  - 「選択モード」で `message` イベントごとにチェックを付けて、「選択コピー」でまとめてコピー可能
+    - フィルター適用中でも、すでに選択済みの `message` は保持される
+  - `message`（`user` / `assistant`）、`tool_result`、`queue`、`progress`、`notice`、`snippet` などを表示
+  - `user` は薄青背景、`assistant` は薄緑背景、system / notice 系はグレー系背景、tool 系は青緑系背景で表示
 - ラベル管理
   - 右上の「ラベル管理」ボタンから別ウィンドウで開く
   - セッションラベル / イベントラベルを共通管理
