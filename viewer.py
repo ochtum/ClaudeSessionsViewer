@@ -2187,6 +2187,10 @@ button:disabled {
   padding-top: 8px;
   border-top: 1px solid rgba(204, 216, 228, 0.56);
 }
+.detail-toolbar-row.range {
+  padding-top: 8px;
+  border-top: 1px solid rgba(204, 216, 228, 0.56);
+}
 .detail-toolbar-row.hidden {
   display: none;
 }
@@ -2258,6 +2262,83 @@ button:disabled {
 }
 .detail-toolbar #copy_selected_messages:disabled {
   background: #94a3b8;
+  cursor: not-allowed;
+}
+.detail-toolbar #message_range_selection_mode {
+  --button-shadow: rgba(14, 116, 144, 0.14);
+  background: #0e7490;
+}
+.detail-toolbar #message_range_selection_mode.selection-active {
+  background: #155e75;
+}
+.detail-toolbar #clear_message_range_selection {
+  --button-shadow: rgba(71, 85, 105, 0.08);
+  background: #f8fafc;
+  color: #475569;
+  border-color: #94a3b8;
+}
+.detail-toolbar #clear_message_range_selection:hover:not(:disabled) {
+  background: #eef2f7;
+}
+.detail-toolbar #detail_message_range_after {
+  --button-shadow: rgba(8, 145, 178, 0.14);
+  background: #0891b2;
+}
+.detail-toolbar #detail_message_range_before {
+  --button-shadow: rgba(21, 128, 61, 0.14);
+  background: #15803d;
+}
+.detail-toolbar #detail_message_range_after.contrast-dim,
+.detail-toolbar #detail_message_range_before.contrast-dim {
+  opacity: 0.62;
+  filter: saturate(0.55) brightness(0.96);
+  transform: none;
+  box-shadow: 0 2px 8px rgba(71, 85, 105, 0.1);
+}
+.detail-toolbar #detail_message_range_after.contrast-dim:hover:not(:disabled),
+.detail-toolbar #detail_message_range_before.contrast-dim:hover:not(:disabled) {
+  transform: none;
+  filter: saturate(0.65) brightness(0.98);
+  box-shadow: 0 4px 10px rgba(71, 85, 105, 0.12);
+}
+.detail-toolbar #detail_message_range_after.active {
+  background: linear-gradient(135deg, #0f9fc2 0%, #0e7490 100%);
+  border-color: rgba(224, 242, 254, 0.92);
+  color: #f8fdff;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(8, 47, 73, 0.28);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 0 0 3px rgba(14, 116, 144, 0.24),
+    0 12px 24px rgba(14, 116, 144, 0.24);
+}
+.detail-toolbar #detail_message_range_before.active {
+  background: linear-gradient(135deg, #16a34a 0%, #166534 100%);
+  border-color: rgba(220, 252, 231, 0.92);
+  color: #fbfffc;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(20, 83, 45, 0.28);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 0 0 3px rgba(22, 101, 52, 0.24),
+    0 12px 24px rgba(22, 101, 52, 0.24);
+}
+.detail-toolbar #detail_message_range_after.active:hover:not(:disabled),
+.detail-toolbar #detail_message_range_before.active:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.02);
+  filter: none;
+}
+.detail-toolbar #message_range_selection_mode:disabled,
+.detail-toolbar #clear_message_range_selection:disabled,
+.detail-toolbar #detail_message_range_after:disabled,
+.detail-toolbar #detail_message_range_before:disabled {
+  background: #94a3b8;
+  color: #ffffff;
+  border-color: #94a3b8;
   cursor: not-allowed;
 }
 .detail-toolbar #detail_keyword_filter {
@@ -2444,6 +2525,9 @@ button:disabled {
   outline: 2px solid rgba(37, 99, 235, 0.24);
   outline-offset: 1px;
 }
+.ev.range-anchor-selected {
+  box-shadow: 0 0 0 2px rgba(14, 116, 144, 0.2);
+}
 .detail-keyword-hit {
   background: #fde68a;
   color: inherit;
@@ -2484,6 +2568,22 @@ button:disabled {
 .event-select-toggle input {
   margin: 0;
   accent-color: #2563eb;
+}
+.event-range-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #a5f3fc;
+  background: rgba(255, 255, 255, 0.8);
+  color: #155e75;
+  font-size: 11px;
+  font-weight: 700;
+}
+.event-range-toggle input {
+  margin: 0;
+  accent-color: #0e7490;
 }
 .event-label-add-button {
   --button-shadow: rgba(124, 58, 237, 0.14);
@@ -2774,6 +2874,12 @@ pre {
         <button id="detail_keyword_next" disabled>次へ</button>
         <button id="detail_keyword_clear" disabled>Keyword Clear</button>
       </div>
+      <div id="detail_message_range_row" class="detail-toolbar-row range">
+        <button id="message_range_selection_mode" disabled>起点選択モード</button>
+        <button id="clear_message_range_selection" disabled>起点解除</button>
+        <button id="detail_message_range_after" disabled>起点以降のみ表示</button>
+        <button id="detail_message_range_before" disabled>起点以前のみ表示</button>
+      </div>
     </div>
     <div class="session-label-strip empty" id="session_label_strip">セッションラベルはまだありません</div>
     <div class="events-shell">
@@ -2801,6 +2907,9 @@ const state = {
   detailLoadMode: '',
   isEventSelectionMode: false,
   selectedEventIds: new Set(),
+  isMessageRangeSelectionMode: false,
+  selectedMessageRangeEventId: '',
+  detailMessageRangeMode: '',
 };
 
 const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v3';
@@ -2891,12 +3000,14 @@ function setFiltersVisible(nextVisible){
 function updateDetailActionsVisibility(){
   const actionRow = document.getElementById('detail_action_row');
   const keywordRow = document.getElementById('detail_keyword_row');
+  const messageRangeRow = document.getElementById('detail_message_range_row');
   const button = document.getElementById('toggle_detail_actions');
-  if(!actionRow || !keywordRow || !button){
+  if(!actionRow || !keywordRow || !messageRangeRow || !button){
     return;
   }
   actionRow.classList.toggle('hidden', !detailActionsVisible);
   keywordRow.classList.toggle('hidden', !detailActionsVisible);
+  messageRangeRow.classList.toggle('hidden', !detailActionsVisible);
   button.textContent = detailActionsVisible ? 'Hide' : 'Show';
 }
 
@@ -3108,8 +3219,13 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const selectionKey = getEventSelectionKey(ev);
   const isSelectable = state.isEventSelectionMode && isSelectableMessageEvent(ev);
   const isSelected = selectionKey && state.selectedEventIds.has(selectionKey);
+  const isRangeSelectable = state.isMessageRangeSelectionMode && isSelectableMessageEvent(ev);
+  const isRangeSelected = selectionKey && state.selectedMessageRangeEventId === selectionKey;
   const selectionCheckboxHtml = isSelectable
     ? `<label class="event-select-toggle"><input type="checkbox" class="event-select-checkbox" data-event-id="${esc(selectionKey)}" ${isSelected ? 'checked' : ''} />選択</label>`
+    : '';
+  const rangeSelectionHtml = isRangeSelectable
+    ? `<label class="event-range-toggle"><input type="radio" name="message-range-selection" class="event-range-radio" data-event-id="${esc(selectionKey)}" ${isRangeSelected ? 'checked' : ''} />起点</label>`
     : '';
   const labelsHtml = renderAssignedLabels(labels, 'event', { eventId: ev.event_id });
   const systemLabels = Array.isArray(ev.system_labels) ? ev.system_labels : [];
@@ -3119,7 +3235,7 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const copyButtonHtml = ev.kind === 'message'
     ? `<button class="event-copy-button" data-event-id="${esc(ev.event_id || '')}">コピー</button>`
     : '';
-  return `<div class="ev ${safeRole} kind-${safeKind} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${safeRole}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>ラベル追加</button>${copyButtonHtml}</span></div>${body}</div>`;
+  return `<div class="ev ${safeRole} kind-${safeKind} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${safeRole}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>ラベル追加</button>${copyButtonHtml}</span></div>${body}</div>`;
 }
 
 function attachVisibleEventCardHandlers(eventsBox){
@@ -3136,6 +3252,13 @@ function attachVisibleEventCardHandlers(eventsBox){
   eventsBox.querySelectorAll('.event-select-checkbox').forEach(input => {
     input.onchange = () => {
       updateEventSelection(input.dataset.eventId, input.checked, input.closest('.ev'));
+    };
+  });
+  eventsBox.querySelectorAll('.event-range-radio').forEach(input => {
+    input.onchange = () => {
+      if(input.checked){
+        updateMessageRangeSelection(input.dataset.eventId);
+      }
     };
   });
   eventsBox.querySelectorAll('.label-remove-button[data-remove-type="event"]').forEach(button => {
@@ -3605,6 +3728,14 @@ function getSelectedMessageEvents(){
   return (state.activeEvents || []).filter(ev => isSelectableMessageEvent(ev) && selectedIds.has(getEventSelectionKey(ev)));
 }
 
+function getSelectedMessageRangeEvent(){
+  const selectedId = state.selectedMessageRangeEventId || '';
+  if(!selectedId){
+    return null;
+  }
+  return (state.activeEvents || []).find(ev => isSelectableMessageEvent(ev) && getEventSelectionKey(ev) === selectedId) || null;
+}
+
 function clearSelectedEventIds(){
   state.selectedEventIds = new Set();
 }
@@ -3612,6 +3743,23 @@ function clearSelectedEventIds(){
 function syncSelectedEventIdsToActiveEvents(){
   const validIds = new Set((state.activeEvents || []).filter(isSelectableMessageEvent).map(getEventSelectionKey));
   state.selectedEventIds = new Set(Array.from(state.selectedEventIds || []).filter(id => validIds.has(id)));
+}
+
+function clearMessageRangeSelection(){
+  state.isMessageRangeSelectionMode = false;
+  state.selectedMessageRangeEventId = '';
+  state.detailMessageRangeMode = '';
+}
+
+function syncSelectedMessageRangeToActiveEvents(){
+  if(!state.selectedMessageRangeEventId){
+    return;
+  }
+  if(getSelectedMessageRangeEvent()){
+    return;
+  }
+  state.selectedMessageRangeEventId = '';
+  state.detailMessageRangeMode = '';
 }
 
 function updateDisplayedMessagesCopyButtonState(){
@@ -3653,6 +3801,48 @@ function updateCopySelectedMessagesButtonState(){
   button.dataset.defaultLabel = defaultLabel;
 }
 
+function updateMessageRangeSelectionModeButtonState(){
+  const button = document.getElementById('message_range_selection_mode');
+  if(!button){
+    return;
+  }
+  const hasSelectableMessages = !!getSelectableDisplayMessageEvents().length;
+  const hasSelectedMessage = !!getSelectedMessageRangeEvent();
+  button.disabled = !state.activeSession || (!hasSelectableMessages && !hasSelectedMessage && !state.isMessageRangeSelectionMode);
+  button.textContent = state.isMessageRangeSelectionMode ? '起点選択終了' : '起点選択モード';
+  button.classList.toggle('selection-active', state.isMessageRangeSelectionMode);
+}
+
+function updateClearMessageRangeSelectionButtonState(){
+  const button = document.getElementById('clear_message_range_selection');
+  if(!button){
+    return;
+  }
+  button.disabled = !state.activeSession || (!getSelectedMessageRangeEvent() && !state.detailMessageRangeMode);
+}
+
+function updateMessageRangeFilterButtonsState(){
+  const afterButton = document.getElementById('detail_message_range_after');
+  const beforeButton = document.getElementById('detail_message_range_before');
+  if(!afterButton || !beforeButton){
+    return;
+  }
+  const hasSelectedMessage = !!getSelectedMessageRangeEvent();
+  const isAfterActive = state.detailMessageRangeMode === 'after';
+  const isBeforeActive = state.detailMessageRangeMode === 'before';
+  const hasActiveRangeMode = isAfterActive || isBeforeActive;
+  afterButton.disabled = state.isDetailLoading || !hasSelectedMessage;
+  beforeButton.disabled = state.isDetailLoading || !hasSelectedMessage;
+  afterButton.classList.toggle('active', isAfterActive);
+  beforeButton.classList.toggle('active', isBeforeActive);
+  afterButton.classList.toggle('contrast-dim', hasActiveRangeMode && !isAfterActive);
+  beforeButton.classList.toggle('contrast-dim', hasActiveRangeMode && !isBeforeActive);
+  afterButton.textContent = isAfterActive ? '起点以降のみ表示中' : '起点以降のみ表示';
+  beforeButton.textContent = isBeforeActive ? '起点以前のみ表示中' : '起点以前のみ表示';
+  afterButton.setAttribute('aria-pressed', isAfterActive ? 'true' : 'false');
+  beforeButton.setAttribute('aria-pressed', isBeforeActive ? 'true' : 'false');
+}
+
 function updateRefreshDetailButtonState(){
   const button = document.getElementById('refresh_detail');
   const isManualRefresh = state.isDetailLoading && state.detailLoadMode === 'refresh';
@@ -3670,7 +3860,8 @@ function hasDetailFilter(){
     document.getElementById('only_ai_response').checked ||
     document.getElementById('turn_boundary_only').checked ||
     document.getElementById('reverse_order').checked ||
-    getSelectedDetailEventLabelFilter()
+    getSelectedDetailEventLabelFilter() ||
+    state.detailMessageRangeMode
   );
 }
 
@@ -3991,6 +4182,32 @@ function getDisplayEvents(){
       return (showOnlyUser && ev.role === 'user') || (showOnlyAssistant && ev.role === 'assistant');
     });
   }
+  if(state.detailMessageRangeMode){
+    const selectedMessage = getSelectedMessageRangeEvent();
+    if(selectedMessage){
+      const activeEvents = state.activeEvents || [];
+      const selectedIndex = activeEvents.findIndex(ev => ev === selectedMessage);
+      const rawIndexByEvent = new Map(activeEvents.map((ev, index) => [ev, index]));
+      if(selectedIndex >= 0){
+        events = events.filter(ev => {
+          if(ev.kind !== 'message'){
+            return false;
+          }
+          const rawIndex = rawIndexByEvent.get(ev);
+          if(typeof rawIndex !== 'number'){
+            return false;
+          }
+          if(state.detailMessageRangeMode === 'after'){
+            return rawIndex >= selectedIndex;
+          }
+          if(state.detailMessageRangeMode === 'before'){
+            return rawIndex <= selectedIndex;
+          }
+          return true;
+        });
+      }
+    }
+  }
   if(detailKeywordFilterTerm !== ''){
     events = events.filter(ev => containsLiteralKeyword(getEventBodyText(ev), detailKeywordFilterTerm));
   }
@@ -4107,8 +4324,11 @@ async function copyEventMessage(button, eventId){
 }
 
 function toggleEventSelectionMode(){
-  state.isEventSelectionMode = !state.isEventSelectionMode;
-  if(!state.isEventSelectionMode){
+  const nextEnabled = !state.isEventSelectionMode;
+  state.isEventSelectionMode = nextEnabled;
+  if(nextEnabled){
+    state.isMessageRangeSelectionMode = false;
+  } else {
     clearSelectedEventIds();
   }
   renderActiveSession();
@@ -4128,6 +4348,45 @@ function updateEventSelection(eventId, checked, card){
     card.classList.toggle('copy-selected', checked);
   }
   updateCopySelectedMessagesButtonState();
+}
+
+function toggleMessageRangeSelectionMode(){
+  const nextEnabled = !state.isMessageRangeSelectionMode;
+  state.isMessageRangeSelectionMode = nextEnabled;
+  if(nextEnabled){
+    state.isEventSelectionMode = false;
+    clearSelectedEventIds();
+  }
+  renderActiveSession();
+}
+
+function updateMessageRangeSelection(eventId){
+  const key = String(eventId || '');
+  if(!key){
+    return;
+  }
+  noteDetailInteraction();
+  state.selectedMessageRangeEventId = key;
+  renderActiveSession();
+}
+
+function applyDetailMessageRange(mode){
+  if(!getSelectedMessageRangeEvent()){
+    return;
+  }
+  noteDetailInteraction();
+  state.detailMessageRangeMode = mode === 'before' ? 'before' : 'after';
+  const eventsBox = document.getElementById('events');
+  if(eventsBox){
+    eventsBox.scrollTop = 0;
+  }
+  renderActiveSession();
+}
+
+function clearDetailMessageRangeSelection(){
+  noteDetailInteraction();
+  clearMessageRangeSelection();
+  renderActiveSession();
 }
 
 function applyDetailKeywordFilter(){
@@ -4185,6 +4444,7 @@ function clearDetailFilters(){
   document.getElementById('only_ai_response').checked = false;
   document.getElementById('turn_boundary_only').checked = false;
   document.getElementById('reverse_order').checked = false;
+  state.detailMessageRangeMode = '';
   const detailEventLabelFilter = document.getElementById('detail_event_label_filter');
   detailEventLabelFilter.value = '';
   delete detailEventLabelFilter.dataset.pendingValue;
@@ -4222,6 +4482,9 @@ function renderActiveSession(){
     updateDisplayedMessagesCopyButtonState();
     updateEventSelectionModeButtonState();
     updateCopySelectedMessagesButtonState();
+    updateMessageRangeSelectionModeButtonState();
+    updateClearMessageRangeSelectionButtonState();
+    updateMessageRangeFilterButtonsState();
     updateDetailKeywordControls({ total: 0 });
     renderSessionLabelStrip();
     updateSessionLabelButtonState();
@@ -4229,6 +4492,7 @@ function renderActiveSession(){
   }
 
   syncSelectedEventIdsToActiveEvents();
+  syncSelectedMessageRangeToActiveEvents();
   const displayEvents = getDisplayEvents();
   const searchMeta = buildDetailKeywordSearchMeta(displayEvents, detailKeywordSearchTerm);
   detailKeywordSearchTotal = searchMeta.total;
@@ -4289,6 +4553,9 @@ function renderActiveSession(){
   updateDisplayedMessagesCopyButtonState();
   updateEventSelectionModeButtonState();
   updateCopySelectedMessagesButtonState();
+  updateMessageRangeSelectionModeButtonState();
+  updateClearMessageRangeSelectionButtonState();
+  updateMessageRangeFilterButtonsState();
   updateDetailKeywordControls(searchMeta);
   updateCopyResumeButtonState();
 }
@@ -4324,6 +4591,7 @@ async function openSession(path, sourceTypeOrOptions, maybeOptions){
     state.activeEvents = [];
     state.activeRawLineCount = 0;
     clearSelectedEventIds();
+    clearMessageRangeSelection();
   }
   renderSessionList();
   renderActiveSession();
@@ -4346,6 +4614,7 @@ async function openSession(path, sourceTypeOrOptions, maybeOptions){
     state.activeRawLineCount = data.raw_line_count || 0;
     state.detailError = '';
     syncSelectedEventIdsToActiveEvents();
+    syncSelectedMessageRangeToActiveEvents();
   } catch (error) {
     if(requestId !== loadSessionDetailRequestSeq){
       return;
@@ -4412,6 +4681,14 @@ document.getElementById('copy_resume_command').addEventListener('click', copyRes
 document.getElementById('copy_displayed_messages').addEventListener('click', copyDisplayedMessages);
 document.getElementById('event_selection_mode').addEventListener('click', toggleEventSelectionMode);
 document.getElementById('copy_selected_messages').addEventListener('click', copySelectedMessages);
+document.getElementById('message_range_selection_mode').addEventListener('click', toggleMessageRangeSelectionMode);
+document.getElementById('clear_message_range_selection').addEventListener('click', clearDetailMessageRangeSelection);
+document.getElementById('detail_message_range_after').addEventListener('click', () => {
+  applyDetailMessageRange('after');
+});
+document.getElementById('detail_message_range_before').addEventListener('click', () => {
+  applyDetailMessageRange('before');
+});
 document.getElementById('detail_keyword_q').addEventListener('input', () => {
   updateDetailKeywordControls();
 });
@@ -4479,6 +4756,9 @@ updateCopyResumeButtonState();
 updateDisplayedMessagesCopyButtonState();
 updateEventSelectionModeButtonState();
 updateCopySelectedMessagesButtonState();
+updateMessageRangeSelectionModeButtonState();
+updateClearMessageRangeSelectionButtonState();
+updateMessageRangeFilterButtonsState();
 updateDetailKeywordControls({ total: 0 });
 updateRefreshDetailButtonState();
 updateFilterVisibility();

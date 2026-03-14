@@ -129,10 +129,11 @@ python viewer.py
 - Right pane: chronological event view for the selected session
   - Shows a loading state during the first detail load, and an updating overlay during manual `Refresh`
   - The detail header shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
-  - The detail header uses a 3-row layout
-    - Row 1: display filters, `Clear`, `Refresh`, and `Hide` / `Show` to collapse rows 2 and 3 together
+  - The detail header uses a 4-row layout
+    - Row 1: display filters, `Clear`, `Refresh`, and `Hide` / `Show` to collapse rows 2, 3, and 4 together
     - Row 2: copy actions, label actions, and selection-copy actions
     - Row 3: keyword input, `Filter`, `Search`, `Previous`, `Next`, and `Keyword Clear`
+    - Row 4: single-`message` anchor selection mode, clear-anchor action, and before/after message filtering
   - Display options
     - `Show only user instructions`
     - `Show only AI responses`
@@ -155,6 +156,7 @@ python viewer.py
   - Each `message` event has its own `Copy` button
   - `Selection Mode` lets you check individual `message` events and copy them together with `Copy Selected`
     - Even when filters are applied, already selected `message` events remain selected
+  - `Anchor Selection Mode` lets you choose one `message` event and filter the view to messages before or after that anchor
   - Displays `message` (`user` / `assistant`), `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other extracted textual events
   - `user` messages use a light blue background, `assistant` uses light green, system / notice events use gray tones, and tool events use teal tones
 - Label Manager
