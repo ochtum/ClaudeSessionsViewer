@@ -130,7 +130,7 @@ python viewer.py
   - Shows a loading state during the first detail load, and an updating overlay during manual `Refresh`
   - The detail header shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
   - The detail header uses a 3-row layout
-    - Row 1: display filters, `Refresh`, and `Hide` / `Show` to collapse rows 2 and 3 together
+    - Row 1: display filters, `Clear`, `Refresh`, and `Hide` / `Show` to collapse rows 2 and 3 together
     - Row 2: copy actions, label actions, and selection-copy actions
     - Row 3: keyword input, `Filter`, `Search`, `Previous`, `Next`, and `Keyword Clear`
   - Display options
@@ -146,6 +146,7 @@ python viewer.py
     - `Keyword Clear`: clears the input, filter state, and search state together
     - Matching is a literal substring match, not AND / OR parsing
     - Search targets include the full displayed event body text
+  - `Clear` resets the detail-side display filters
   - `Refresh` reloads only the currently selected session
   - `Copy Resume Command` copies `claude --resume <session_id>`
   - `Copy Displayed Messages` copies all messages currently visible under the active display filters

@@ -2213,8 +2213,20 @@ button:disabled {
   --button-shadow: rgba(29, 78, 216, 0.17);
   background: #1d4ed8;
 }
+.detail-toolbar #clear_detail {
+  --button-shadow: rgba(71, 85, 105, 0.08);
+  background: #f8fafc;
+  color: #475569;
+  border-color: #94a3b8;
+}
+.detail-toolbar #clear_detail:hover:not(:disabled) {
+  background: #eef2f7;
+}
+.detail-toolbar #clear_detail:disabled,
 .detail-toolbar #refresh_detail:disabled {
   background: #94a3b8;
+  color: #ffffff;
+  border-color: #94a3b8;
   cursor: not-allowed;
 }
 .detail-toolbar #toggle_detail_actions {
@@ -2742,6 +2754,7 @@ pre {
         <select id="detail_event_label_filter">
           <option value="">event label: all</option>
         </select>
+        <button id="clear_detail" disabled>Clear</button>
         <button id="refresh_detail" disabled>Refresh</button>
         <span class="detail-toolbar-spacer"></span>
         <button id="toggle_detail_actions" class="secondary-button">Hide</button>
@@ -3445,6 +3458,7 @@ function updateDetailKeywordControls(searchMeta){
   clearButton.disabled = !hasKeywordState;
   filterButton.classList.toggle('active', hasActiveSession && detailKeywordFilterTerm !== '');
   searchButton.classList.toggle('active', hasActiveSession && detailKeywordSearchTerm !== '');
+  updateClearDetailButtonState();
 }
 
 function resetDetailKeywordState(){
@@ -3648,6 +3662,24 @@ function updateRefreshDetailButtonState(){
     return;
   }
   button.textContent = 'Refreshing...';
+}
+
+function hasDetailFilter(){
+  return Boolean(
+    document.getElementById('only_user_instruction').checked ||
+    document.getElementById('only_ai_response').checked ||
+    document.getElementById('turn_boundary_only').checked ||
+    document.getElementById('reverse_order').checked ||
+    getSelectedDetailEventLabelFilter()
+  );
+}
+
+function updateClearDetailButtonState(){
+  const button = document.getElementById('clear_detail');
+  if(!button){
+    return;
+  }
+  button.disabled = !hasDetailFilter();
 }
 
 function hasListFilter(){
@@ -4147,6 +4179,19 @@ function clearDetailKeyword(){
   renderActiveSession();
 }
 
+function clearDetailFilters(){
+  noteDetailInteraction();
+  document.getElementById('only_user_instruction').checked = false;
+  document.getElementById('only_ai_response').checked = false;
+  document.getElementById('turn_boundary_only').checked = false;
+  document.getElementById('reverse_order').checked = false;
+  const detailEventLabelFilter = document.getElementById('detail_event_label_filter');
+  detailEventLabelFilter.value = '';
+  delete detailEventLabelFilter.dataset.pendingValue;
+  saveFilters();
+  renderActiveSession();
+}
+
 function renderActiveSession(){
   const meta = document.getElementById('meta');
   const eventsBox = document.getElementById('events');
@@ -4361,6 +4406,7 @@ document.getElementById('turn_boundary_only').addEventListener('change', () => {
 document.getElementById('reverse_order').addEventListener('change', () => {
   renderActiveSession();
 });
+document.getElementById('clear_detail').addEventListener('click', clearDetailFilters);
 document.getElementById('refresh_detail').addEventListener('click', refreshActiveSession);
 document.getElementById('copy_resume_command').addEventListener('click', copyResumeCommand);
 document.getElementById('copy_displayed_messages').addEventListener('click', copyDisplayedMessages);
