@@ -136,6 +136,8 @@ python viewer.py
   - Display options
     - `Show only user instructions`
     - `Show only AI responses`
+    - `Show only each input and final response`
+      - For each turn, keeps one `user` message and only the last `assistant` message before the next `user`
     - `Reverse display order`
     - `event label: all` filter
   - Keyword search

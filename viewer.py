@@ -2737,6 +2737,7 @@ pre {
       <div class="detail-toolbar-row primary">
         <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
         <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
+        <label title="各ターンの user 入力と、その直後の最後の assistant 応答だけを表示"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
         <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
         <select id="detail_event_label_filter">
           <option value="">event label: all</option>
@@ -2951,6 +2952,49 @@ function getSelectedListEventLabelFilter(){
 
 function getSelectedDetailEventLabelFilter(){
   return document.getElementById('detail_event_label_filter').value || '';
+}
+
+function isTurnBoundaryFilterEnabled(){
+  const checkbox = document.getElementById('turn_boundary_only');
+  return !!(checkbox && checkbox.checked);
+}
+
+function filterEventsToTurnBoundaries(events){
+  if(!Array.isArray(events) || events.length === 0){
+    return Array.isArray(events) ? events : [];
+  }
+  const filtered = [];
+  let pendingUser = null;
+  let lastAssistant = null;
+
+  function flushTurn(){
+    if(!pendingUser){
+      return;
+    }
+    filtered.push(pendingUser);
+    if(lastAssistant){
+      filtered.push(lastAssistant);
+    }
+    pendingUser = null;
+    lastAssistant = null;
+  }
+
+  events.forEach(ev => {
+    if(ev.kind !== 'message'){
+      return;
+    }
+    if(ev.role === 'user'){
+      flushTurn();
+      pendingUser = ev;
+      return;
+    }
+    if(ev.role === 'assistant' && pendingUser){
+      lastAssistant = ev;
+    }
+  });
+
+  flushTurn();
+  return filtered;
 }
 
 function populateLabelSelect(selectId, allLabel){
@@ -3900,6 +3944,9 @@ function renderSessionList(){
 
 function getDisplayEvents(){
   let events = state.activeEvents || [];
+  if(isTurnBoundaryFilterEnabled()){
+    events = filterEventsToTurnBoundaries(events);
+  }
   const selectedEventLabelId = getSelectedDetailEventLabelFilter();
   if(selectedEventLabelId){
     events = events.filter(ev => (ev.labels || []).some(label => String(label.id) === selectedEventLabelId));
@@ -4306,6 +4353,9 @@ document.getElementById('only_user_instruction').addEventListener('change', () =
   renderActiveSession();
 });
 document.getElementById('only_ai_response').addEventListener('change', () => {
+  renderActiveSession();
+});
+document.getElementById('turn_boundary_only').addEventListener('change', () => {
   renderActiveSession();
 });
 document.getElementById('reverse_order').addEventListener('change', () => {
