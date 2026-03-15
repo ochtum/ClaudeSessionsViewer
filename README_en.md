@@ -11,6 +11,9 @@ It scans the following two storage families:
 - `~/.claude/projects/` (Claude Code CLI / JSONL)
 - `%APPDATA%\Claude\IndexedDB\` (Claude Desktop / LevelDB)
 
+- This tool supports Japanese, English, Simplified Chinese, and Traditional Chinese.
+- Feedback and feature requests are welcome via issues.
+
 ## Screen Layout
 
 ### Main Screen
@@ -167,7 +170,7 @@ python viewer.py
 
 ## Keyboard Shortcuts
 
-You can also open the shortcut dialog from the `Shortcuts` button in the upper-right header.
+Shortcuts do not run while an input is focused. Press `Esc` to close the shortcut dialog or label picker, or to leave a search field.
 
 | Key | Action |
 | --- | --- |
