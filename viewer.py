@@ -1916,6 +1916,17 @@ HTML_PAGE = """<!doctype html>
   --dev: #b45309;
   --system: #64748b;
   --sidebar-width: 320px;
+  --font-sans: "Aptos", "Segoe UI", "Yu Gothic UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text-kicker: 10px;
+  --text-label: 11px;
+  --text-caption: 12px;
+  --text-body: 13px;
+  --text-title-sm: 16px;
+  --text-title-md: 18px;
+  --text-title-lg: 20px;
+  --text-display: clamp(28px, 1.55vw, 32px);
+  --text-display-compact: 28px;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -1925,7 +1936,9 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-family: "Aptos", "Segoe UI", "Yu Gothic UI", sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.5;
   background:
     radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.16), transparent 24%),
     radial-gradient(circle at 88% 14%, rgba(15, 118, 110, 0.14), transparent 22%),
@@ -2006,7 +2019,7 @@ header h1 {
   background: transparent;
   box-shadow: none;
   color: #27446d;
-  font-size: clamp(28px, 1.55vw, 32px);
+  font-size: var(--text-display);
   font-weight: 900;
   line-height: 0.96;
   letter-spacing: -0.06em;
@@ -2023,7 +2036,7 @@ header h1 {
   margin-top: 4px;
   margin-bottom: 8px;
   color: #637796;
-  font-size: 13px;
+  font-size: var(--text-body);
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.35;
@@ -2049,7 +2062,7 @@ header h1 {
 .header-meta-label {
   flex: 0 0 auto;
   color: #536272;
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2057,13 +2070,13 @@ header h1 {
 .header-meta-value {
   min-width: 0;
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
 .header-meta-text {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-label);
   line-height: 1.5;
 }
 .header-meta-text.error {
@@ -2079,7 +2092,7 @@ header h1 {
   border: 1px solid #d7e1ea;
   background: rgba(255, 255, 255, 0.86);
   color: #334155;
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 700;
 }
 .meta-tag.source-desktop {
@@ -2153,7 +2166,7 @@ header h1 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 10px;
+  font-size: var(--text-kicker);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2183,7 +2196,7 @@ header h1 {
 .toolbar-heading,
 .detail-toolbar-heading {
   margin-top: 8px;
-  font-size: 18px;
+  font-size: var(--text-title-md);
   line-height: 1.08;
   letter-spacing: -0.03em;
 }
@@ -2191,7 +2204,7 @@ header h1 {
 .detail-toolbar-copy {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.55;
 }
 .toolbar-utility,
@@ -2237,7 +2250,7 @@ header h1 {
 }
 .toolbar-section-title,
 .detail-group-title {
-  font-size: 13px;
+  font-size: var(--text-body);
   font-weight: 800;
   color: #0f5a73;
   letter-spacing: 0.03em;
@@ -2245,7 +2258,7 @@ header h1 {
 .toolbar-section-copy,
 .detail-group-copy {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 .field-grid {
@@ -2259,7 +2272,7 @@ header h1 {
 }
 .field > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-kicker);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -2274,7 +2287,9 @@ header h1 {
 input,
 select,
 button {
-  font: inherit;
+  font-family: inherit;
+  font-size: var(--text-body);
+  line-height: 1.4;
 }
 input:not([type="checkbox"]):not([type="radio"]),
 select {
@@ -2319,7 +2334,6 @@ button {
   white-space: nowrap;
   font-weight: 700;
   letter-spacing: 0.01em;
-  font-size: 12px;
   box-shadow: none;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
 }
@@ -2436,7 +2450,7 @@ button:disabled {
   border: 1px solid var(--line);
   background: rgba(248, 251, 255, 0.82);
   color: #334155;
-  font-size: 12px;
+  font-size: var(--text-caption);
   font-weight: 600;
   user-select: none;
 }
@@ -2451,14 +2465,17 @@ button:disabled {
 }
 #sessions {
   height: 100%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 10px;
   display: grid;
   gap: 8px;
+  min-width: 0;
   background: linear-gradient(180deg, rgba(248, 251, 255, 0.66), rgba(239, 246, 253, 0.94));
 }
 .session-item {
   padding: 10px 12px;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
@@ -2477,7 +2494,7 @@ button:disabled {
   box-shadow: var(--shadow-medium);
 }
 .session-path {
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -2490,7 +2507,9 @@ button:disabled {
   border: 1px solid #bfe8cf;
   border-radius: 999px;
   padding: 2px 8px;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
   max-width: 100%;
 }
 .session-time {
@@ -2513,8 +2532,8 @@ button:disabled {
   padding: 0 6px;
 }
 .session-preview {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 8px;
+  font-size: var(--text-caption);
   line-height: 1.5;
   color: #354252;
 }
@@ -2524,21 +2543,33 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
+}
+.session-meta-row-secondary {
+  margin-top: 0;
 }
 .session-badge {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
+  min-width: 0;
   padding: 0 8px;
   border-radius: 999px;
   border: 1px solid #d7e1ea;
   background: #f3f8ff;
-  font-size: 11px;
+  font-size: var(--text-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.session-id {
-  color: #334155;
-  background: #eef3f8;
-  border-color: #d7e1ea;
+.session-label-row:empty {
+  display: none;
+}
+.session-meta-row-secondary .session-cwd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
 }
 .session-source {
   font-weight: 700;
@@ -2637,7 +2668,7 @@ button:disabled {
 }
 .session-label-strip.empty {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-body);
 }
 #events {
   height: 100%;
@@ -2687,12 +2718,12 @@ button:disabled {
 }
 .status-title {
   color: #0f172a;
-  font-size: 14px;
+  font-size: var(--text-body);
   font-weight: 700;
 }
 .status-copy {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.7;
 }
 .status-spinner,
@@ -2783,7 +2814,7 @@ button:disabled {
   flex-wrap: wrap;
   margin-bottom: 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-caption);
 }
 .event-actions {
   display: inline-flex;
@@ -2800,7 +2831,7 @@ button:disabled {
   min-height: 24px;
   padding: 0 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 700;
   background: rgba(255, 255, 255, 0.82);
 }
@@ -2826,7 +2857,7 @@ button:disabled {
 .event-copy-button {
   min-height: 28px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--text-caption);
 }
 .badge-kind,
 .badge-role,
@@ -2886,7 +2917,7 @@ button:disabled {
   border: 1px solid var(--label-color);
   background: rgba(255, 255, 255, 0.94);
   color: #1f2937;
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 700;
 }
 .data-label-badge .label-dot {
@@ -2937,7 +2968,7 @@ button:disabled {
 .label-picker-empty {
   padding: 6px 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-caption);
 }
 .shortcut-dialog {
   position: fixed;
@@ -2972,13 +3003,13 @@ button:disabled {
   gap: 12px;
 }
 .shortcut-title {
-  font-size: 16px;
+  font-size: var(--text-title-sm);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 .shortcut-copy {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.5;
 }
 .shortcut-list {
@@ -3013,17 +3044,17 @@ button:disabled {
   border-radius: 8px;
   background: #ffffff;
   color: #334155;
-  font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font: 700 var(--text-label)/1 var(--font-mono);
 }
 .shortcut-plus {
   color: #64748b;
-  font-size: 12px;
+  font-size: var(--text-caption);
   font-weight: 700;
   line-height: 1;
 }
 .shortcut-desc {
   color: #334155;
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.45;
 }
 pre {
@@ -3035,9 +3066,9 @@ pre {
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
-  font-size: 13px;
+  font-size: var(--text-body);
   line-height: 1.65;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono);
 }
 @media (max-width: 1180px) {
   :root {
@@ -3126,10 +3157,10 @@ pre {
     border-radius: 18px;
   }
   header h1 {
-    font-size: 28px;
+    font-size: var(--text-display-compact);
   }
   .header-subtitle {
-    font-size: 13px;
+    font-size: var(--text-body);
   }
   .toolbar,
   .detail-toolbar {
@@ -5497,17 +5528,15 @@ function renderSessionList(){
   } else {
     box.innerHTML = state.filtered.map(s => `
       <div class="session-item ${state.activePath === s.path ? 'active' : ''}" data-path="${esc(s.path)}">
-        <div class="session-path">${highlightSessionPath(s.relative_path)}</div>
-        <div class="session-preview">${esc(s.first_real_user_text || s.first_user_text || t('session.preview.empty'))}</div>
-        <div class="session-meta-row">
+        <div class="session-meta-row session-meta-row-secondary">
+          <div class="session-badge session-cwd">${esc(s.cwd || '-')}</div>
+        </div>
+        <div class="session-meta-row session-meta-row-primary">
           <div class="session-badge session-time">${esc(fmt(s.started_at || s.mtime))}</div>
           <div class="session-badge session-source source-${esc(normalizeSource(s.source_type || s.source))}">${esc(sourceLabel(s.source_type || s.source))}</div>
         </div>
-        <div class="session-label-row">${renderAssignedLabels(s.session_labels || [])}</div>
-        <div class="session-meta-row">
-          <div class="session-badge session-cwd">cwd: ${esc(s.cwd || '-')}</div>
-          <div class="session-badge session-id">id: ${esc(s.session_id || s.id || '')}</div>
-        </div>
+        <div class="session-preview">${esc(s.first_real_user_text || s.first_user_text || t('session.preview.empty'))}</div>
+        ${(s.session_labels || []).length ? `<div class="session-label-row">${renderAssignedLabels(s.session_labels || [])}</div>` : ''}
       </div>
     `).join('');
   }
@@ -6534,6 +6563,17 @@ LABELS_PAGE = """<!doctype html>
   --danger: #be123c;
   --shadow: 0 28px 70px rgba(15, 23, 42, 0.14);
   --shadow-soft: 0 16px 36px rgba(15, 23, 42, 0.1);
+  --font-sans: "Aptos", "Segoe UI", "Yu Gothic UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text-kicker: 10px;
+  --text-label: 11px;
+  --text-caption: 12px;
+  --text-body: 13px;
+  --text-title-sm: 16px;
+  --text-title-md: 18px;
+  --text-title-lg: 20px;
+  --text-display: clamp(28px, 1.55vw, 32px);
+  --text-display-compact: 28px;
 }
 * { box-sizing: border-box; }
 html, body { min-height: 100%; }
@@ -6541,7 +6581,9 @@ body {
   margin: 0;
   position: relative;
   overflow-x: hidden;
-  font-family: "Aptos", "Segoe UI", "Yu Gothic UI", sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.5;
   background:
     radial-gradient(circle at 12% 18%, rgba(59, 130, 246, 0.18), transparent 24%),
     radial-gradient(circle at 88% 14%, rgba(15, 118, 110, 0.16), transparent 22%),
@@ -6599,7 +6641,7 @@ body::after {
   border: 1px solid rgba(255, 255, 255, 0.78);
   background: rgba(255, 255, 255, 0.72);
   color: #0f5a73;
-  font-size: 10px;
+  font-size: var(--text-kicker);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -6607,7 +6649,7 @@ body::after {
 }
 .hero-title {
   margin: 10px 0 0;
-  font-size: 32px;
+  font-size: var(--text-display);
   line-height: 1.08;
   letter-spacing: -0.03em;
 }
@@ -6615,7 +6657,7 @@ body::after {
   margin-top: 8px;
   max-width: 760px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-body);
   line-height: 1.6;
 }
 .panel {
@@ -6659,19 +6701,19 @@ body::after {
 }
 .editor-panel .panel-title {
   margin-top: 2px;
-  font-size: 18px;
+  font-size: var(--text-title-md);
 }
 .editor-panel .panel-copy {
   margin-top: 2px;
   max-width: 520px;
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.5;
 }
 .editor-panel .panel-chip {
   align-self: flex-start;
   margin-top: 0;
   padding: 5px 8px;
-  font-size: 10px;
+  font-size: var(--text-kicker);
 }
 .list-head {
   align-items: center;
@@ -6682,30 +6724,30 @@ body::after {
 }
 .list-head .panel-title {
   margin-top: 2px;
-  font-size: 18px;
+  font-size: var(--text-title-md);
 }
 .list-head .panel-chip {
   padding: 5px 8px;
-  font-size: 10px;
+  font-size: var(--text-kicker);
   align-self: center;
 }
 .panel-kicker {
   color: #0f5a73;
-  font-size: 10px;
+  font-size: var(--text-kicker);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .panel-title {
   margin-top: 6px;
-  font-size: 20px;
+  font-size: var(--text-title-lg);
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
 .panel-copy,
 .muted {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-body);
   line-height: 1.6;
 }
 .panel-chip {
@@ -6716,7 +6758,7 @@ body::after {
   border: 1px solid rgba(15, 118, 110, 0.12);
   background: rgba(15, 118, 110, 0.08);
   color: var(--accent-strong);
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 700;
 }
 .form-grid {
@@ -6731,7 +6773,7 @@ body::after {
 label {
   display: grid;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--text-kicker);
   color: #475569;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -6739,7 +6781,8 @@ label {
 }
 input, select, button {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--text-body);
+  line-height: 1.4;
 }
 input, select {
   min-height: 40px;
@@ -6814,7 +6857,7 @@ button:active {
   align-self: stretch;
 }
 .preset-field-title {
-  font-size: 10px;
+  font-size: var(--text-kicker);
   color: #475569;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -6829,7 +6872,7 @@ button:active {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   padding: 5px 8px;
-  font-size: 10px;
+  font-size: var(--text-kicker);
   font-weight: 700;
   line-height: 1;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
@@ -6903,7 +6946,7 @@ button:active {
   background: #ffffff;
   border-color: var(--label-color);
   padding: 5px 8px 5px 8px;
-  font-size: 12px;
+  font-size: var(--text-caption);
 }
 .label-badge .dot {
   width: 8px;
@@ -6918,12 +6961,12 @@ button:active {
   align-items: center;
   gap: 6px;
   margin-left: 2px;
-  font-size: 12px;
+  font-size: var(--text-caption);
   color: var(--muted);
 }
 .label-meta-prefix {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--text-label);
 }
 .label-code {
   display: inline-flex;
@@ -6934,8 +6977,8 @@ button:active {
   border: 1px solid rgba(148, 163, 184, 0.24);
   background: rgba(238, 246, 255, 0.9);
   color: #0f3d57;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
 }
 .label-row-actions {
   display: flex;
@@ -6948,7 +6991,7 @@ button:active {
   min-height: 30px;
   border-radius: 10px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--text-caption);
   box-shadow: none;
 }
 .label-row-actions button:hover {
@@ -6988,20 +7031,20 @@ button:active {
 }
 .dialog-kicker {
   color: #be123c;
-  font-size: 11px;
+  font-size: var(--text-label);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .dialog-title {
   margin: 8px 0 0;
-  font-size: 20px;
+  font-size: var(--text-title-lg);
   letter-spacing: -0.02em;
 }
 .dialog-message {
   margin-top: 10px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--text-body);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -7018,14 +7061,14 @@ button:active {
   text-align: center;
   background: rgba(255, 255, 255, 0.56);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-body);
 }
 @media (max-width: 760px) {
   .page {
     padding: 24px 14px 32px;
   }
   .hero-title {
-    font-size: 28px;
+    font-size: var(--text-display-compact);
   }
   .panel {
     padding: 16px;
