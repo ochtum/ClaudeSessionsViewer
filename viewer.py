@@ -22,6 +22,7 @@ SEARCH_TEXT_LIMIT = 50000
 SEARCH_INDEX_TEXT_LIMIT = SEARCH_TEXT_LIMIT
 SEARCH_INDEX_SCHEMA_VERSION = 3
 SEARCH_INDEX_DB_PATH = Path(__file__).resolve().parent / ".cache" / "search_index.sqlite3"
+ICON_DIR = Path(__file__).resolve().parent / 'icons'
 MAX_JSON_BODY_BYTES = 1_000_000
 _SESSION_CACHE = {}
 _SESSION_CACHE_LOCK = threading.Lock()
@@ -1887,68 +1888,250 @@ HTML_PAGE = """<!doctype html>
 <meta charset=\"utf-8\" />
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
 <title>Claude Sessions Viewer</title>
+<link rel=\"icon\" href=\"/icons/claude-sessions-viewer.svg\" type=\"image/svg+xml\" />
 <style>
 :root {
-  --bg: #f2f6fb;
-  --panel: #ffffff;
-  --line: #ccd8e4;
-  --text: #18232f;
-  --muted: #57697c;
-  --accent: #0d6d77;
-  --user: #1b5fd6;
-  --assistant: #0f7c4f;
-  --dev: #8a5a00;
-  --system: #4b5563;
-  --sidebar-width: 360px;
+  --bg: #edf4fb;
+  --bg-strong: #e6eef8;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: rgba(255, 255, 255, 0.96);
+  --surface-soft: rgba(255, 255, 255, 0.68);
+  --line: rgba(148, 163, 184, 0.24);
+  --line-strong: rgba(148, 163, 184, 0.46);
+  --text: #102033;
+  --muted: #5b6b7c;
+  --accent: #0f766e;
+  --accent-strong: #0b5c57;
+  --accent-soft: rgba(15, 118, 110, 0.12);
+  --info: #1d4ed8;
+  --info-soft: rgba(29, 78, 216, 0.1);
+  --support: #7c3aed;
+  --support-soft: rgba(124, 58, 237, 0.1);
+  --danger: #be123c;
+  --danger-soft: rgba(190, 18, 60, 0.1);
+  --shadow-soft: 0 14px 30px rgba(15, 23, 42, 0.06);
+  --shadow-medium: 0 24px 46px rgba(15, 23, 42, 0.09);
+  --user: #2563eb;
+  --assistant: #0f766e;
+  --dev: #b45309;
+  --system: #64748b;
+  --sidebar-width: 320px;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: "Segoe UI", "Yu Gothic UI", sans-serif;
-  background: radial-gradient(circle at top right, #e6f4ff 0%, var(--bg) 45%);
-  color: var(--text);
+  position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  font-family: "Aptos", "Segoe UI", "Yu Gothic UI", sans-serif;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.16), transparent 24%),
+    radial-gradient(circle at 88% 14%, rgba(15, 118, 110, 0.14), transparent 22%),
+    linear-gradient(180deg, #eef5fc 0%, var(--bg) 52%, var(--bg-strong) 100%);
+  color: var(--text);
+}
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  width: 320px;
+  height: 320px;
+  border-radius: 999px;
+  filter: blur(44px);
+  pointer-events: none;
+  opacity: 0.46;
+}
+body::before {
+  top: -130px;
+  left: -100px;
+  background: rgba(96, 165, 250, 0.26);
+}
+body::after {
+  right: -120px;
+  bottom: -150px;
+  background: rgba(15, 118, 110, 0.18);
 }
 header {
-  padding: 14px 16px;
+  position: relative;
+  z-index: 2;
+  padding: 12px 18px 10px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255,255,255,0.9);
-  backdrop-filter: blur(4px);
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(16px);
 }
-header h1 { margin: 0; font-size: 18px; }
-header small { color: var(--muted); }
-.header-bar {
+.header-main {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px 18px 9px;
+  border: 1px solid rgba(190, 208, 233, 0.9);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(234, 241, 251, 0.92));
+  box-shadow: 0 14px 32px rgba(43, 87, 145, 0.11);
+}
+.header-main::before {
+  content: "";
+  position: absolute;
+  inset: -28px auto auto -18px;
+  width: 150px;
+  height: 92px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.22) 0%, rgba(125, 211, 252, 0) 72%);
+  pointer-events: none;
+}
+.header-main::after {
+  content: "";
+  position: absolute;
+  inset: auto -32px -40px auto;
+  width: 180px;
+  height: 120px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(15, 118, 110, 0.12) 0%, rgba(15, 118, 110, 0) 74%);
+  pointer-events: none;
+}
+header h1 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #27446d;
+  font-size: clamp(28px, 1.55vw, 32px);
+  font-weight: 900;
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  filter: drop-shadow(0 4px 10px rgba(15, 118, 110, 0.14));
+}
+.header-subtitle {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  color: #637796;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+}
+.header-meta {
+  display: grid;
+  gap: 4px;
+  margin-top: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.28);
+  max-width: min(72vw, 980px);
+}
+.header-meta.hidden {
+  display: none;
+}
+.header-meta-row {
   display: flex;
   align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.header-meta-label {
+  flex: 0 0 auto;
+  color: #536272;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.header-meta-value {
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.header-meta-text {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.header-meta-text.error {
+  color: #991b1b;
+  font-weight: 700;
+}
+.meta-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #d7e1ea;
+  background: rgba(255, 255, 255, 0.86);
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+}
+.meta-tag.source-desktop {
+  color: #0f5a5a;
+  background: #e5f7f7;
+  border-color: #bfe8e8;
+}
+.meta-tag.source-cli {
+  color: #0b3a67;
+  background: #e7f1ff;
+  border-color: #bdd9f7;
+}
+.header-bar {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 .header-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  padding-top: 6px;
+}
+.language-select {
+  width: auto;
+  min-width: 114px;
 }
 #toggle_session_list_mobile {
   display: none;
 }
 .container {
   position: relative;
-  height: calc(100vh - 64px);
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 .left {
   position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
+  inset: 0 auto 0 0;
   width: var(--sidebar-width);
-  background: #f9fcff;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.42);
+  border-right: 1px solid var(--line);
+  backdrop-filter: blur(16px);
   transition: transform 0.16s ease, opacity 0.12s ease;
   will-change: transform;
 }
@@ -1958,82 +2141,7 @@ header small { color: var(--muted); }
   min-width: 0;
   display: flex;
   flex-direction: column;
-}
-.toolbar {
-  padding: 10px;
-  border-bottom: 1px solid var(--line);
-  display: grid;
-  gap: 8px;
-}
-.toolbar-fields,
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.toolbar-actions {
-  justify-content: flex-start;
-}
-.toolbar.collapsed {
-  grid-template-columns: 1fr;
-}
-.toolbar.collapsed .toolbar-fields,
-.toolbar.collapsed #clear {
-  display: none;
-}
-input, select, button {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-}
-#cwd_q, #q { flex: 1 1 220px; }
-#date_from, #date_to { flex: 1 1 185px; }
-#mode { flex: 0 0 auto; }
-button {
-  --button-shadow: rgba(13, 109, 119, 0.12);
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px var(--button-shadow);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
-}
-button:hover:not(:disabled):not(.label-remove-button) {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px var(--button-shadow);
-  filter: saturate(1.03);
-}
-button:active:not(:disabled):not(.label-remove-button) {
-  transform: translateY(0);
-  box-shadow: 0 3px 10px var(--button-shadow);
-}
-button:disabled {
-  box-shadow: none;
-  transform: none;
-  filter: none;
-}
-#reload {
-  background: #0f766e;
-  --button-shadow: rgba(15, 118, 110, 0.16);
-}
-#reload:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-}
-#clear {
-  --button-shadow: rgba(71, 85, 105, 0.08);
-  background: #f8fafc;
-  color: #475569;
-  border-color: #94a3b8;
-}
-#clear:hover {
-  background: #eef2f7;
-}
-.secondary-button {
-  --button-shadow: rgba(53, 92, 125, 0.14);
-  background: #355c7d;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(248, 251, 255, 0.72));
 }
 .content-shell,
 .events-shell {
@@ -2041,17 +2149,333 @@ button:disabled {
   flex: 1;
   min-height: 0;
 }
-#sessions {
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f5a73;
+}
+.toolbar,
+.detail-toolbar {
+  display: grid;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.toolbar {
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 250, 255, 0.94));
+  flex: 0 1 auto;
+  min-height: 0;
   overflow: auto;
+}
+.toolbar-topline,
+.detail-toolbar-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.toolbar-heading,
+.detail-toolbar-heading {
+  margin-top: 8px;
+  font-size: 18px;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+.toolbar-copy,
+.detail-toolbar-copy {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.toolbar-utility,
+.detail-toolbar-utility,
+.button-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.toolbar-body,
+.detail-toolbar-main {
+  display: grid;
+  gap: 10px;
+}
+.detail-toolbar-main {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+.toolbar.collapsed .toolbar-body {
+  display: none;
+}
+.toolbar-section,
+.detail-toolbar-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+.detail-toolbar-row.primary,
+.detail-toolbar-row.range {
+  grid-column: 1 / -1;
+}
+.detail-toolbar-row.hidden {
+  display: none;
+}
+.toolbar-section-head,
+.detail-group-head {
+  display: grid;
+  gap: 4px;
+}
+.toolbar-section-title,
+.detail-group-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f5a73;
+  letter-spacing: 0.03em;
+}
+.toolbar-section-copy,
+.detail-group-copy {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.field-grid {
+  display: grid;
+  gap: 10px;
+}
+.field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.field > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.field.inline-field {
+  max-width: 260px;
+}
+.field.field-grow,
+.field.field-grow > input {
+  width: 100%;
+}
+input,
+select,
+button {
+  font: inherit;
+}
+input:not([type="checkbox"]):not([type="radio"]),
+select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+input:not([type="checkbox"]):not([type="radio"])::placeholder {
+  color: #95a3b3;
+}
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus {
+  outline: none;
+  border-color: rgba(15, 118, 110, 0.46);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  flex: 0 0 auto;
+}
+button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  font-size: 12px;
+  box-shadow: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+button:hover:not(:disabled):not(.label-remove-button) {
+  transform: translateY(-1px);
+  border-color: rgba(15, 118, 110, 0.24);
+  background: #f8fbff;
+}
+button:active:not(:disabled):not(.label-remove-button) {
+  transform: translateY(0);
+}
+button:disabled {
+  background: #eef3f8;
+  color: #98a6b6;
+  border-color: #d6e0ea;
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+.primary-action,
+#reload,
+#refresh_detail {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #0d625b 0%, #084d48 100%);
+  box-shadow: 0 6px 14px rgba(8, 77, 72, 0.2);
+}
+.primary-action:hover:not(:disabled),
+#reload:hover:not(:disabled),
+#refresh_detail:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0f6f68 0%, #095752 100%);
+  box-shadow: 0 8px 16px rgba(8, 77, 72, 0.22);
+}
+.secondary-action,
+#clear,
+#clear_detail,
+#copy_resume_command,
+#copy_displayed_messages,
+#copy_selected_messages,
+#detail_keyword_prev,
+#detail_keyword_next,
+#detail_keyword_clear,
+#clear_message_range_selection,
+.event-copy-button {
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+}
+.utility-action,
+.secondary-button,
+#toggle_filters,
+#toggle_detail_actions,
+#toggle_session_list_mobile,
+#open_label_manager {
+  background: transparent;
+  color: #536272;
+  box-shadow: none;
+}
+.utility-action:hover:not(:disabled),
+.secondary-button:hover:not(:disabled),
+#toggle_filters:hover:not(:disabled),
+#toggle_detail_actions:hover:not(:disabled),
+#toggle_meta:hover:not(:disabled),
+#toggle_session_list_mobile:hover:not(:disabled),
+#open_label_manager:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.76);
+}
+#add_session_label,
+.event-label-add-button,
+#event_selection_mode,
+#message_range_selection_mode,
+#detail_keyword_filter,
+#detail_keyword_search,
+#detail_message_range_after,
+#detail_message_range_before {
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+}
+#event_selection_mode.selection-active,
+#message_range_selection_mode.selection-active,
+#detail_keyword_filter.active,
+#detail_keyword_search.active,
+#detail_message_range_after.active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
+}
+#detail_message_range_before.active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
+}
+#detail_message_range_after.contrast-dim,
+#detail_message_range_before.contrast-dim {
+  opacity: 0.56;
+}
+#detail_keyword_q:disabled {
+  background: #eef3f8;
+  color: #98a6b6;
+}
+.toggle-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(248, 251, 255, 0.82);
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+}
+.toggle-chip.disabled {
+  border-color: #d6e0ea;
+  background: #eef3f8;
+  color: #98a6b6;
+}
+.toggle-chip input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+#sessions {
   height: 100%;
+  overflow: auto;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.66), rgba(239, 246, 253, 0.94));
 }
 .session-item {
   padding: 10px 12px;
-  border-bottom: 1px solid #e7eef6;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
   cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
-.session-item:hover { background: #eef7ff; }
-.session-item.active { background: #dff0ff; }
+.session-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 118, 110, 0.2);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
+}
+.session-item.active {
+  border-color: rgba(15, 118, 110, 0.28);
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.08), rgba(255, 255, 255, 0.96));
+  box-shadow: var(--shadow-medium);
+}
 .session-path {
   font-size: 12px;
   color: var(--muted);
@@ -2062,406 +2486,163 @@ button:disabled {
 .session-cwd {
   color: #0b5f3d;
   font-weight: 700;
-  background: #e8f7ef;
+  background: #e9f7ef;
   border: 1px solid #bfe8cf;
-  border-radius: 6px;
-  padding: 2px 6px;
+  border-radius: 999px;
+  padding: 2px 8px;
   display: inline-block;
   max-width: 100%;
 }
 .session-time {
-  color: #6b4300;
+  color: #7a4b00;
   font-weight: 700;
-  background: #fff3de;
-  border: 1px solid #f0d3a1;
-  border-radius: 6px;
-  padding: 2px 6px;
+  background: #fff4df;
+  border: 1px solid #f2d4a5;
+  border-radius: 999px;
+  padding: 2px 8px;
   display: inline-block;
   max-width: 100%;
   font-variant-numeric: tabular-nums;
 }
-.session-path .ts {
+.session-path .ts,
+.header-meta-value .ts {
   color: #0b4a52;
-  font-weight: 600;
+  font-weight: 700;
   background: #dff5f8;
-  border-radius: 4px;
-  padding: 0 4px;
+  border-radius: 999px;
+  padding: 0 6px;
 }
 .session-preview {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #34414f;
-}
-.session-meta-row {
   margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #354252;
+}
+.session-meta-row,
+.session-label-row {
+  margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 .session-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #d7e1ea;
+  background: #f3f8ff;
   font-size: 11px;
-  border-radius: 6px;
-  padding: 2px 6px;
-  border: 1px solid #c7d8ea;
-  background: #f2f8ff;
 }
 .session-id {
   color: #334155;
-  background: #eef2f7;
-  border-color: #d4dde8;
-}
-.session-project {
-  color: #0b5f3d;
-  background: #e8f7ef;
-  border-color: #bfe8cf;
+  background: #eef3f8;
+  border-color: #d7e1ea;
 }
 .session-source {
   font-weight: 700;
 }
-.session-source.source-cli {
-  color: #0a3f8a;
-  background: #e7efff;
-  border-color: #b9cdf8;
+.session-source.source-desktop,
+.meta-tag.source-desktop {
+  color: #0f5a5a;
+  background: #e5f7f7;
+  border-color: #bfe8e8;
 }
-.session-source.source-desktop {
-  color: #6b4300;
-  background: #fff3de;
-  border-color: #f0d3a1;
-}
-.session-label-row {
-  margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.right {
-  background: var(--panel);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.meta {
-  padding: 12px;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-  color: var(--muted);
-}
-.meta code.path-code {
-  color: #0b4a52;
-  background: #e5f4f6;
-  border: 1px solid #b8dee3;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-weight: 700;
-}
-.meta code.project-code {
-  color: #0b5f3d;
-  background: #e8f7ef;
-  border: 1px solid #bfe8cf;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-weight: 700;
-}
-.meta .ts {
-  color: #6b4300;
-  font-weight: 700;
-  background: #fff3de;
-  border-radius: 4px;
-  padding: 0 4px;
-}
-.meta code.time-code {
-  color: #6b4300;
-  background: #fff3de;
-  border: 1px solid #f0d3a1;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-weight: 700;
-}
-.meta code.source-code {
-  border: 1px solid #bdd9f7;
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-weight: 700;
-}
-.meta code.source-code.source-cli {
-  color: #0a3f8a;
-  background: #e7efff;
-  border-color: #b9cdf8;
-}
-.meta code.source-code.source-desktop {
-  color: #6b4300;
-  background: #fff3de;
-  border-color: #f0d3a1;
-}
-.meta-note {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid #d4dde8;
-  background: #eef2f7;
-  color: #334155;
-}
-.meta-note.error {
-  color: #991b1b;
-  background: #fee2e2;
-  border-color: #fecaca;
+.session-source.source-cli,
+.meta-tag.source-cli {
+  color: #0b3a67;
+  background: #e7f1ff;
+  border-color: #bdd9f7;
 }
 .detail-toolbar {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-  display: grid;
-  gap: 8px;
-  background: #f8fbff;
+  gap: 0;
+  padding: 4px 16px 6px;
+  background: linear-gradient(180deg, rgba(247, 250, 255, 0.95), rgba(242, 247, 253, 0.88));
 }
-.detail-toolbar-row {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.detail-toolbar-row.secondary {
-  padding-top: 8px;
-  border-top: 1px solid rgba(204, 216, 228, 0.72);
-}
-.detail-toolbar-row.keyword {
-  padding-top: 8px;
-  border-top: 1px solid rgba(204, 216, 228, 0.56);
-}
-.detail-toolbar-row.range {
-  padding-top: 8px;
-  border-top: 1px solid rgba(204, 216, 228, 0.56);
-}
-.detail-toolbar-row.hidden {
+.detail-toolbar-copy,
+.detail-toolbar .section-kicker,
+.detail-group-copy {
   display: none;
 }
-.detail-toolbar label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #324255;
-  user-select: none;
+.detail-toolbar-topline {
+  display: none;
 }
-.detail-toolbar-spacer {
-  flex: 1 1 auto;
+.detail-toolbar-main {
+  grid-template-columns: 1fr;
+  gap: 0;
 }
-.detail-toolbar #copy_resume_command {
-  --button-shadow: rgba(15, 118, 110, 0.15);
-  background: #0f766e;
+.detail-toolbar-row {
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
-.detail-toolbar #copy_resume_command:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
+.detail-toolbar-row.primary {
+  grid-template-columns: 72px minmax(0, 1fr) auto;
 }
-.detail-toolbar #refresh_detail {
-  --button-shadow: rgba(29, 78, 216, 0.17);
-  background: #1d4ed8;
+.detail-toolbar-row:first-child {
+  border-top: 0;
 }
-.detail-toolbar #clear_detail {
-  --button-shadow: rgba(71, 85, 105, 0.08);
-  background: #f8fafc;
-  color: #475569;
-  border-color: #94a3b8;
+.detail-group-head {
+  gap: 2px;
+  padding-top: 3px;
 }
-.detail-toolbar #clear_detail:hover:not(:disabled) {
-  background: #eef2f7;
+.detail-toolbar-row.primary .toggle-list {
+  grid-column: 2;
 }
-.detail-toolbar #clear_detail:disabled,
-.detail-toolbar #refresh_detail:disabled {
-  background: #94a3b8;
-  color: #ffffff;
-  border-color: #94a3b8;
-  cursor: not-allowed;
+.detail-group-title {
+  font-size: 11px;
+  color: #536272;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.detail-toolbar #toggle_detail_actions {
-  --button-shadow: rgba(53, 92, 125, 0.14);
-  background: #355c7d;
+.detail-toolbar-row.primary .field.inline-field {
+  grid-column: 2;
+  min-width: 120px;
+  max-width: 132px;
 }
-.detail-toolbar #copy_displayed_messages {
-  --button-shadow: rgba(71, 85, 105, 0.12);
-  background: #475569;
+.detail-toolbar-row.primary .detail-toolbar-utility {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: start;
+  justify-content: flex-end;
+  padding-top: 1px;
 }
-.detail-toolbar #copy_displayed_messages:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
+.detail-toolbar-row.primary .field > span {
+  display: none;
 }
-.detail-toolbar #event_selection_mode {
-  --button-shadow: rgba(8, 145, 178, 0.14);
-  background: #0891b2;
+.detail-toolbar-row.primary #detail_event_label_filter {
+  min-width: 120px;
+  padding-right: 28px;
 }
-.detail-toolbar #event_selection_mode.selection-active {
-  background: #0f766e;
-}
-.detail-toolbar #event_selection_mode:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-}
-.detail-toolbar #copy_selected_messages {
-  --button-shadow: rgba(37, 99, 235, 0.13);
-  background: #2563eb;
-}
-.detail-toolbar #copy_selected_messages:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-}
-.detail-toolbar #message_range_selection_mode {
-  --button-shadow: rgba(14, 116, 144, 0.14);
-  background: #0e7490;
-}
-.detail-toolbar #message_range_selection_mode.selection-active {
-  background: #155e75;
-}
-.detail-toolbar #clear_message_range_selection {
-  --button-shadow: rgba(71, 85, 105, 0.08);
-  background: #f8fafc;
-  color: #475569;
-  border-color: #94a3b8;
-}
-.detail-toolbar #clear_message_range_selection:hover:not(:disabled) {
-  background: #eef2f7;
-}
-.detail-toolbar #detail_message_range_after {
-  --button-shadow: rgba(8, 145, 178, 0.14);
-  background: #0891b2;
-}
-.detail-toolbar #detail_message_range_before {
-  --button-shadow: rgba(21, 128, 61, 0.14);
-  background: #15803d;
-}
-.detail-toolbar #detail_message_range_after.contrast-dim,
-.detail-toolbar #detail_message_range_before.contrast-dim {
-  opacity: 0.62;
-  filter: saturate(0.55) brightness(0.96);
-  transform: none;
-  box-shadow: 0 2px 8px rgba(71, 85, 105, 0.1);
-}
-.detail-toolbar #detail_message_range_after.contrast-dim:hover:not(:disabled),
-.detail-toolbar #detail_message_range_before.contrast-dim:hover:not(:disabled) {
-  transform: none;
-  filter: saturate(0.65) brightness(0.98);
-  box-shadow: 0 4px 10px rgba(71, 85, 105, 0.12);
-}
-.detail-toolbar #detail_message_range_after.active {
-  background: linear-gradient(135deg, #0f9fc2 0%, #0e7490 100%);
-  border-color: rgba(224, 242, 254, 0.92);
-  color: #f8fdff;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-  text-shadow: 0 1px 0 rgba(8, 47, 73, 0.28);
-  transform: translateY(-1px) scale(1.02);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    0 0 0 3px rgba(14, 116, 144, 0.24),
-    0 12px 24px rgba(14, 116, 144, 0.24);
-}
-.detail-toolbar #detail_message_range_before.active {
-  background: linear-gradient(135deg, #16a34a 0%, #166534 100%);
-  border-color: rgba(220, 252, 231, 0.92);
-  color: #fbfffc;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-  text-shadow: 0 1px 0 rgba(20, 83, 45, 0.28);
-  transform: translateY(-1px) scale(1.02);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    0 0 0 3px rgba(22, 101, 52, 0.24),
-    0 12px 24px rgba(22, 101, 52, 0.24);
-}
-.detail-toolbar #detail_message_range_after.active:hover:not(:disabled),
-.detail-toolbar #detail_message_range_before.active:hover:not(:disabled) {
-  transform: translateY(-1px) scale(1.02);
-  filter: none;
-}
-.detail-toolbar #message_range_selection_mode:disabled,
-.detail-toolbar #clear_message_range_selection:disabled,
-.detail-toolbar #detail_message_range_after:disabled,
-.detail-toolbar #detail_message_range_before:disabled {
-  background: #94a3b8;
-  color: #ffffff;
-  border-color: #94a3b8;
-  cursor: not-allowed;
-}
-.detail-toolbar #detail_keyword_filter {
-  --button-shadow: rgba(21, 128, 61, 0.14);
-  background: #15803d;
-}
-.detail-toolbar #detail_keyword_filter.active {
-  background: #166534;
-}
-.detail-toolbar #detail_keyword_search {
-  --button-shadow: rgba(217, 119, 6, 0.16);
-  background: #d97706;
-}
-.detail-toolbar #detail_keyword_search.active {
-  background: #b45309;
-}
-.detail-toolbar #detail_keyword_prev,
-.detail-toolbar #detail_keyword_next {
-  --button-shadow: rgba(71, 85, 105, 0.11);
-  background: #475569;
-}
-.detail-toolbar #detail_keyword_clear {
-  --button-shadow: rgba(71, 85, 105, 0.08);
-  background: #f8fafc;
-  color: #475569;
-  border-color: #94a3b8;
-}
-.detail-toolbar #detail_keyword_clear:hover:not(:disabled) {
-  background: #eef2f7;
-}
-.detail-toolbar #detail_keyword_filter:disabled,
-.detail-toolbar #detail_keyword_search:disabled,
-.detail-toolbar #detail_keyword_prev:disabled,
-.detail-toolbar #detail_keyword_next:disabled,
-.detail-toolbar #detail_keyword_clear:disabled {
-  background: #94a3b8;
-  color: #ffffff;
-  border-color: #94a3b8;
-  cursor: not-allowed;
-}
-#detail_keyword_q {
-  flex: 0 1 clamp(220px, 30%, 380px);
-  width: clamp(220px, 30%, 380px);
-}
-#detail_keyword_q:disabled {
-  background: #eef2f7;
-  color: #94a3b8;
-  border-color: #cbd5e1;
-  cursor: not-allowed;
-}
-#detail_keyword_q:disabled::placeholder {
-  color: #94a3b8;
-}
-#add_session_label {
-  --button-shadow: rgba(124, 58, 237, 0.18);
-  background: #7c3aed;
-}
-#add_session_label:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
+.detail-toolbar-row.keyword .button-row,
+.detail-toolbar-row.range .button-row {
+  grid-column: 2;
 }
 .session-label-strip {
-  padding: 8px 12px;
+  min-height: 40px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
-  background: #fcfdff;
-  min-height: 44px;
+  background: rgba(255, 255, 255, 0.72);
 }
 .session-label-strip.empty {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 #events {
-  padding: 14px;
-  overflow: auto;
   height: 100%;
+  overflow: auto;
+  padding: 14px 16px;
 }
 .status-wrap {
   min-height: 100%;
@@ -2477,24 +2658,24 @@ button:disabled {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(248, 251, 255, 0.78);
-  backdrop-filter: blur(3px);
+  background: rgba(248, 251, 255, 0.72);
+  backdrop-filter: blur(4px);
   z-index: 5;
 }
 .status-layer.hidden {
   display: none;
 }
 .status-card {
-  width: min(100%, 360px);
-  border: 1px solid #d7e4ef;
-  border-radius: 18px;
-  padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+  width: min(100%, 380px);
   display: grid;
-  gap: 10px;
+  gap: 12px;
   justify-items: center;
   text-align: center;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-medium);
 }
 .status-card.empty {
   border-style: dashed;
@@ -2512,12 +2693,12 @@ button:disabled {
 .status-copy {
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 .status-spinner,
 .status-icon {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -2525,7 +2706,7 @@ button:disabled {
   flex: 0 0 auto;
 }
 .status-spinner {
-  border: 3px solid #cfe3f5;
+  border: 3px solid #d6e3f2;
   border-top-color: var(--accent);
   animation: status-spin 0.9s linear infinite;
 }
@@ -2545,38 +2726,51 @@ button:disabled {
   }
 }
 .ev {
-  border: 1px solid var(--line);
-  border-left-width: 5px;
-  border-radius: 10px;
-  padding: 10px;
+  --event-accent: var(--line-strong);
+  --event-tint: rgba(255, 255, 255, 0.76);
   margin-bottom: 10px;
-  background: #fbfdff;
+  padding: 12px 14px;
+  border: 1px solid rgba(203, 213, 225, 0.84);
+  border-left: 4px solid var(--event-accent);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--event-tint), rgba(255, 255, 255, 0.97) 72%);
+  box-shadow: none;
 }
-.ev.user { border-left-color: var(--user); background: #e7f1ff; }
-.ev.user_context { border-left-color: #7f8ea0; background: #f5f7fa; }
-.ev.assistant { border-left-color: var(--assistant); background: #e8f8f0; }
-.ev.developer { border-left-color: var(--dev); background: #fff4e2; }
-.ev.system { border-left-color: var(--system); background: #f0f3f7; }
-.ev.tool { border-left-color: #0f766e; background: #e8fbf8; }
-.ev.kind-queue { border-left-color: #a855f7; background: #f5efff; }
-.ev.kind-progress { border-left-color: #f59e0b; background: #fff7e6; }
-.ev.kind-notice { border-left-color: #0ea5e9; background: #eaf7ff; }
-.ev.kind-tool_result { border-left-color: #0f766e; background: #dff7f2; }
+.ev.user {
+  --event-accent: var(--user);
+  --event-tint: rgba(37, 99, 235, 0.05);
+}
+.ev.user_context {
+  --event-accent: #94a3b8;
+  --event-tint: rgba(148, 163, 184, 0.08);
+}
+.ev.assistant {
+  --event-accent: var(--assistant);
+  --event-tint: rgba(15, 118, 110, 0.06);
+}
+.ev.developer {
+  --event-accent: var(--dev);
+  --event-tint: rgba(180, 83, 9, 0.07);
+}
+.ev.system {
+  --event-accent: var(--system);
+  --event-tint: rgba(100, 116, 139, 0.06);
+}
 .ev.label-match {
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
 }
 .ev.copy-selected {
-  outline: 2px solid rgba(37, 99, 235, 0.24);
-  outline-offset: 1px;
+  outline: 2px solid rgba(37, 99, 235, 0.18);
+  outline-offset: 2px;
 }
 .ev.range-anchor-selected {
-  box-shadow: 0 0 0 2px rgba(14, 116, 144, 0.2);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
 }
 .detail-keyword-hit {
   background: #fde68a;
   color: inherit;
-  padding: 0 1px;
-  border-radius: 3px;
+  padding: 0 2px;
+  border-radius: 4px;
 }
 .detail-keyword-hit.current {
   background: #f59e0b;
@@ -2587,146 +2781,112 @@ button:disabled {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--muted);
   margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 .event-actions {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  margin-left: auto;
 }
-.event-select-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid #bfdbfe;
-  background: rgba(255, 255, 255, 0.8);
-  color: #1e3a8a;
-  font-size: 11px;
-  font-weight: 700;
-}
-.event-select-toggle input {
-  margin: 0;
-  accent-color: #2563eb;
-}
+.event-select-toggle,
 .event-range-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid #a5f3fc;
-  background: rgba(255, 255, 255, 0.8);
-  color: #155e75;
   font-size: 11px;
   font-weight: 700;
+  background: rgba(255, 255, 255, 0.82);
 }
+.event-select-toggle {
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  color: #1e3a8a;
+}
+.event-range-toggle {
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  color: #0f5a73;
+}
+.event-select-toggle input,
 .event-range-toggle input {
   margin: 0;
-  accent-color: #0e7490;
 }
-.event-label-add-button {
-  --button-shadow: rgba(124, 58, 237, 0.14);
-  background: #7c3aed;
-  padding: 6px 9px;
-  font-size: 12px;
+.event-select-toggle input {
+  accent-color: #2563eb;
 }
-.event-label-add-button:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
+.event-range-toggle input {
+  accent-color: var(--accent);
 }
+.event-label-add-button,
 .event-copy-button {
-  --button-shadow: rgba(71, 85, 105, 0.1);
-  background: #475569;
-  padding: 6px 9px;
+  min-height: 28px;
+  padding: 0 8px;
   font-size: 12px;
-}
-.event-copy-button:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
 }
 .badge-kind,
 .badge-role,
 .badge-time {
   display: inline-flex;
   align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
   border-radius: 999px;
-  padding: 2px 8px;
   border: 1px solid transparent;
   font-weight: 700;
 }
 .badge-kind {
   color: #334155;
-  background: #edf2f7;
-  border-color: #d4dde8;
+  background: #eef3f8;
+  border-color: #d7e1ea;
 }
 .badge-time {
-  color: #5a6673;
-  background: #f6f8fb;
-  border-color: #dce4ee;
+  color: #556474;
+  background: #f7f9fc;
+  border-color: #dde6ef;
   font-variant-numeric: tabular-nums;
 }
 .badge-role.user {
   color: #0f4fbe;
   background: #dbeafe;
-  border-color: #b6d3ff;
+  border-color: #bfd7ff;
 }
 .badge-role.user_context {
-  color: #334155;
-  background: #e5e9ef;
-  border-color: #c7d0da;
+  color: #475569;
+  background: #eef2f7;
+  border-color: #d7e1ea;
 }
 .badge-role.assistant {
   color: #0b6a41;
-  background: #d8f4e3;
-  border-color: #a8debe;
+  background: #dcf6e8;
+  border-color: #b5e3cb;
 }
 .badge-role.developer {
   color: #7a4b00;
-  background: #ffe7bf;
-  border-color: #f4c97f;
+  background: #ffedd5;
+  border-color: #f5d1a1;
 }
 .badge-role.system {
   color: #44505d;
-  background: #e8edf3;
-  border-color: #ccd8e4;
-}
-.badge-role.tool {
-  color: #0f5f58;
-  background: #dcf5ef;
-  border-color: #97ddd0;
-}
-.ev-badges {
-  display: inline-flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.ev-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 2px 8px;
-  border: 1px solid #d9c289;
-  background: #fff7e6;
-  color: #8a5d00;
-  font-weight: 700;
+  background: #eef2f7;
+  border-color: #d7e1ea;
 }
 .data-label-badge {
   --label-color: #94a3b8;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid var(--label-color);
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.94);
   color: #1f2937;
-  padding: 3px 8px;
   font-size: 11px;
-  line-height: 1;
   font-weight: 700;
 }
 .data-label-badge .label-dot {
@@ -2738,80 +2898,197 @@ button:disabled {
 }
 .data-label-badge .label-remove-button {
   border: 0;
-  background: transparent;
-  color: #475569;
+  min-height: auto;
   padding: 0;
+  background: transparent;
+  color: #64748b;
   line-height: 1;
   font-size: 12px;
-  cursor: pointer;
   box-shadow: none;
-  transition: color 0.18s ease, opacity 0.18s ease;
 }
 .data-label-badge .label-remove-button:hover {
   color: #0f172a;
+  background: transparent;
 }
 .label-picker {
   position: fixed;
   z-index: 9999;
   min-width: 220px;
   max-width: 280px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
-  padding: 8px;
   display: grid;
   gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-medium);
+  backdrop-filter: blur(14px);
 }
 .label-picker.hidden {
   display: none;
 }
 .label-picker-option {
   width: 100%;
+  justify-content: flex-start;
   display: flex;
   align-items: center;
   gap: 8px;
-  justify-content: flex-start;
-  background: #ffffff;
-  color: #18232f;
 }
 .label-picker-empty {
-  font-size: 12px;
-  color: var(--muted);
   padding: 6px 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.shortcut-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(8px);
+}
+.shortcut-dialog.hidden {
+  display: none;
+}
+.shortcut-card {
+  width: min(520px, 100%);
+  max-height: min(78vh, 760px);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-medium);
+  overflow: auto;
+}
+.shortcut-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.shortcut-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.shortcut-copy {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.shortcut-list {
+  display: grid;
+  gap: 8px;
+}
+.shortcut-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(248, 251, 255, 0.82);
+}
+.shortcut-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.shortcut-keys kbd {
+  min-width: 28px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+.shortcut-plus {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.shortcut-desc {
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
 }
 pre {
   margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(203, 213, 225, 0.56);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.78);
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 13px;
-  line-height: 1.5;
   overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.65;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 8px;
-  padding: 10px 12px;
+}
+@media (max-width: 1180px) {
+  :root {
+    --sidebar-width: 304px;
+  }
+  .detail-toolbar-row.primary {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .detail-toolbar-row.primary .detail-toolbar-utility {
+    grid-column: 2;
+    grid-row: auto;
+    justify-content: flex-start;
+    padding-top: 0;
+  }
+}
+@media (max-width: 1080px) {
+  .detail-toolbar-main {
+    grid-template-columns: 1fr;
+  }
+  .detail-toolbar-row.primary,
+  .detail-toolbar-row.secondary,
+  .detail-toolbar-row.keyword,
+  .detail-toolbar-row.range {
+    grid-column: auto;
+  }
 }
 @media (max-width: 900px) {
+  .header-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .header-actions {
+    align-self: stretch;
+    justify-content: flex-start;
+    padding-top: 0;
+  }
   #toggle_session_list_mobile {
     display: inline-flex;
   }
   .container {
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: 40vh 1fr;
+    grid-template-rows: 42vh 1fr;
   }
   .container.sidebar-collapsed {
-    grid-template-columns: 1fr;
     grid-template-rows: 0 1fr;
   }
   .left,
   .right {
     position: static;
-    top: auto;
-    left: auto;
-    bottom: auto;
+    inset: auto;
     width: auto;
     margin-left: 0;
     transition: none;
@@ -2820,8 +3097,8 @@ pre {
   .left {
     grid-column: 1;
     grid-row: 1;
-    transform: none;
-    opacity: 1;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
   }
   .right {
     grid-column: 1;
@@ -2829,12 +3106,59 @@ pre {
     height: auto;
   }
   .container.sidebar-collapsed .left {
-    transform: none;
     opacity: 0;
     pointer-events: none;
   }
-  .container.sidebar-collapsed .right {
+  .toolbar,
+  .detail-toolbar,
+  .session-label-strip,
+  #events {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+@media (max-width: 640px) {
+  header {
+    padding: 10px 14px;
+  }
+  .header-main {
+    padding: 10px 14px 8px;
+    border-radius: 18px;
+  }
+  header h1 {
+    font-size: 28px;
+  }
+  .header-subtitle {
+    font-size: 13px;
+  }
+  .toolbar,
+  .detail-toolbar {
+    gap: 10px;
+  }
+  .toolbar-section,
+  .detail-toolbar-row {
+    padding: 8px 0;
+    border-radius: 0;
+  }
+  #sessions,
+  #events {
+    padding: 10px;
+  }
+  .event-actions {
     margin-left: 0;
+  }
+  .header-meta {
+    max-width: none;
+  }
+  .detail-toolbar-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .detail-toolbar-row.primary .field.inline-field,
+  .detail-toolbar-row.keyword .button-row,
+  .detail-toolbar-row.range .button-row {
+    grid-column: auto;
+    max-width: none;
   }
 }
 </style>
@@ -2842,44 +3166,100 @@ pre {
 <body>
 <header>
   <div class="header-bar">
-    <div>
-      <h1>Claude Sessions Viewer</h1>
-      <small id="roots"></small>
+    <div class="header-main">
+      <h1><img class="brand-mark" src="/icons/claude-sessions-viewer.svg" alt="" aria-hidden="true" />Claude Sessions Viewer</h1>
+      <div class="header-subtitle">Session logs, labels, and event review for Claude workflows</div>
+      <div id="meta" class="header-meta hidden" aria-live="polite"></div>
     </div>
     <div class="header-actions">
-      <button id="toggle_session_list_mobile" class="secondary-button">一覧を隠す</button>
-      <button id="open_label_manager" class="secondary-button">ラベル管理</button>
+      <select id="language_select" class="language-select" aria-label="Language">
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+        <option value="zh-Hans">简体中文</option>
+        <option value="zh-Hant">繁體中文</option>
+      </select>
+      <button id="open_label_manager" class="utility-action">ラベル管理</button>
+      <button id="toggle_meta" class="utility-action" title="M">メタ表示</button>
+      <button id="open_shortcuts" class="utility-action" title="ショートカット一覧を表示">ショートカット</button>
+      <button id="toggle_session_list_mobile" class="utility-action">一覧を隠す</button>
     </div>
   </div>
 </header>
   <div class="container">
   <aside class="left">
     <div class="toolbar">
-      <div class="toolbar-fields" id="toolbar_fields">
-        <input id="cwd_q" placeholder="project/path (部分一致)" />
-        <input id="date_from" type="date" />
-        <input id="date_to" type="date" />
-        <input id="q" placeholder="keyword filter" />
-        <select id="mode">
-          <option value="and">keyword AND</option>
-          <option value="or">keyword OR</option>
-        </select>
-        <select id="source_filter">
-          <option value="all">source: all</option>
-          <option value="claude_cli">Claude Code CLI</option>
-          <option value="claude_desktop">Claude Desktop</option>
-        </select>
-        <select id="session_label_filter">
-          <option value="">session label: all</option>
-        </select>
-        <select id="event_label_filter">
-          <option value="">event label: all</option>
-        </select>
+      <div class="toolbar-topline">
+        <div>
+          <div class="section-kicker">Session Browser</div>
+          <div class="toolbar-heading">検索と絞り込み</div>
+          <div class="toolbar-copy">候補を探してから一覧を見る、という流れに整理しました。</div>
+        </div>
+        <div class="toolbar-utility">
+          <button id="reload" class="primary-action">Reload</button>
+          <button id="clear" class="secondary-action" title="Shift + L">Clear</button>
+          <button id="toggle_filters" class="utility-action" title="Shift + F">フィルタを隠す</button>
+        </div>
       </div>
-      <div class="toolbar-actions">
-        <button id="reload">Reload</button>
-        <button id="clear">Clear</button>
-        <button id="toggle_filters" class="secondary-button">Hide</button>
+      <div class="toolbar-body">
+        <section class="toolbar-section">
+          <div class="toolbar-section-head">
+            <div class="toolbar-section-title">検索</div>
+            <div class="toolbar-section-copy">cwd とキーワードで候補を先に絞り込みます。</div>
+          </div>
+          <div class="field-grid">
+            <label class="field">
+              <span>作業ディレクトリ</span>
+              <input id="cwd_q" placeholder="cwd (部分一致)" />
+            </label>
+            <label class="field">
+              <span>キーワード</span>
+              <input id="q" placeholder="keyword filter" />
+            </label>
+            <label class="field">
+              <span>条件</span>
+              <select id="mode">
+                <option value="and">keyword AND</option>
+                <option value="or">keyword OR</option>
+              </select>
+            </label>
+          </div>
+        </section>
+        <section class="toolbar-section">
+          <div class="toolbar-section-head">
+            <div class="toolbar-section-title">フィルター</div>
+            <div class="toolbar-section-copy">期間・source・ラベルで一覧を整理します。</div>
+          </div>
+          <div class="field-grid">
+            <label class="field">
+              <span>開始日</span>
+              <input id="date_from" type="date" />
+            </label>
+            <label class="field">
+              <span>終了日</span>
+              <input id="date_to" type="date" />
+            </label>
+            <label class="field">
+              <span>source</span>
+              <select id="source_filter">
+                <option value="all">source: all</option>
+                <option value="claude_cli">source: Claude Code CLI</option>
+                <option value="claude_desktop">source: Claude Desktop</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>セッションラベル</span>
+              <select id="session_label_filter">
+                <option value="">session label: all</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>イベントラベル</span>
+              <select id="event_label_filter">
+                <option value="">event label: all</option>
+              </select>
+            </label>
+          </div>
+        </section>
       </div>
     </div>
     <div class="content-shell">
@@ -2888,41 +3268,73 @@ pre {
     </div>
   </aside>
   <main class="right">
-    <div class="meta" id="meta">セッションを選択してください</div>
     <div class="detail-toolbar">
-      <div class="detail-toolbar-row primary">
-        <label><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
-        <label><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
-        <label title="各ターンの user 入力と、その直後の最後の assistant 応答だけを表示"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
-        <label><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
-        <select id="detail_event_label_filter">
-          <option value="">event label: all</option>
-        </select>
-        <button id="clear_detail" disabled>Clear</button>
-        <button id="refresh_detail" disabled>Refresh</button>
-        <span class="detail-toolbar-spacer"></span>
-        <button id="toggle_detail_actions" class="secondary-button">Hide</button>
-      </div>
-      <div id="detail_action_row" class="detail-toolbar-row secondary">
-        <button id="copy_resume_command" disabled>セッション再開コマンドコピー</button>
-        <button id="add_session_label" disabled>セッションにラベル追加</button>
-        <button id="copy_displayed_messages" disabled>表示中メッセージコピー</button>
-        <button id="event_selection_mode" disabled>選択モード</button>
-        <button id="copy_selected_messages" disabled>選択コピー</button>
-      </div>
-      <div id="detail_keyword_row" class="detail-toolbar-row keyword">
-        <input id="detail_keyword_q" placeholder="detail keyword" />
-        <button id="detail_keyword_filter" disabled>フィルター</button>
-        <button id="detail_keyword_search" disabled>検索</button>
-        <button id="detail_keyword_prev" disabled>前へ</button>
-        <button id="detail_keyword_next" disabled>次へ</button>
-        <button id="detail_keyword_clear" disabled>Keyword Clear</button>
-      </div>
-      <div id="detail_message_range_row" class="detail-toolbar-row range">
-        <button id="message_range_selection_mode" disabled>起点選択モード</button>
-        <button id="clear_message_range_selection" disabled>起点解除</button>
-        <button id="detail_message_range_after" disabled>起点以降のみ表示</button>
-        <button id="detail_message_range_before" disabled>起点以前のみ表示</button>
+      <div class="detail-toolbar-main">
+        <section class="detail-toolbar-row primary">
+          <div class="detail-group-head">
+            <div class="detail-group-title">表示</div>
+            <div class="detail-group-copy">今見たいログだけに整えます。</div>
+          </div>
+          <div class="toggle-list">
+            <label class="toggle-chip" title="1"><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
+            <label class="toggle-chip" title="2"><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
+            <label class="toggle-chip" title="3: 各ターンの user 入力と、その直後の最後の assistant 応答だけを表示"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
+            <label class="toggle-chip" title="4"><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
+          </div>
+          <label class="field inline-field">
+            <span>イベントラベル</span>
+            <select id="detail_event_label_filter" title="ラベルで絞り込み">
+              <option value="">label</option>
+            </select>
+          </label>
+          <div class="detail-toolbar-utility">
+            <button id="refresh_detail" class="primary-action" title="F5" disabled>Refresh</button>
+            <button id="clear_detail" class="secondary-action" title="Shift + D" disabled>Clear</button>
+            <button id="toggle_detail_actions" class="utility-action" title="Shift + T">詳細操作を隠す</button>
+          </div>
+        </section>
+        <section id="detail_action_row" class="detail-toolbar-row secondary">
+          <div class="detail-group-head">
+            <div class="detail-group-title">操作</div>
+            <div class="detail-group-copy">コピー、ラベル付け、選択モードをここにまとめます。</div>
+          </div>
+          <div class="button-row">
+            <button id="copy_resume_command" class="secondary-action" title="Shift + R" disabled>セッション再開コマンドコピー</button>
+            <button id="add_session_label" disabled>セッションにラベル追加</button>
+            <button id="copy_displayed_messages" class="secondary-action" title="Shift + C" disabled>表示中メッセージコピー</button>
+            <button id="event_selection_mode" title="Shift + S" disabled>選択モード</button>
+            <button id="copy_selected_messages" class="secondary-action" title="Shift + X" disabled>選択コピー</button>
+          </div>
+        </section>
+        <section id="detail_keyword_row" class="detail-toolbar-row keyword">
+          <div class="detail-group-head">
+            <div class="detail-group-title">検索</div>
+            <div class="detail-group-copy">詳細キーワードのフィルターとヒット移動を分離しました。</div>
+          </div>
+          <label class="field field-grow">
+            <span>詳細キーワード</span>
+            <input id="detail_keyword_q" placeholder="detail keyword" title="/ でフォーカス" />
+          </label>
+          <div class="button-row">
+            <button id="detail_keyword_filter" disabled>フィルター</button>
+            <button id="detail_keyword_search" disabled>検索</button>
+            <button id="detail_keyword_prev" class="secondary-action" title="P" disabled>前へ</button>
+            <button id="detail_keyword_next" class="secondary-action" title="N" disabled>次へ</button>
+            <button id="detail_keyword_clear" class="secondary-action" disabled>検索をクリア</button>
+          </div>
+        </section>
+        <section id="detail_message_range_row" class="detail-toolbar-row range">
+          <div class="detail-group-head">
+            <div class="detail-group-title">範囲選択</div>
+            <div class="detail-group-copy">起点を決めて、前後どちらを見るかを明確に切り替えます。</div>
+          </div>
+          <div class="button-row">
+            <button id="message_range_selection_mode" title="Shift + G" disabled>起点選択モード</button>
+            <button id="clear_message_range_selection" class="secondary-action" title="Shift + H" disabled>起点解除</button>
+            <button id="detail_message_range_after" title="." disabled>起点以降のみ表示</button>
+            <button id="detail_message_range_before" title="," disabled>起点以前のみ表示</button>
+          </div>
+        </section>
       </div>
     </div>
     <div class="session-label-strip empty" id="session_label_strip">セッションラベルはまだありません</div>
@@ -2933,6 +3345,115 @@ pre {
   </main>
 </div>
 <div id="label_picker" class="label-picker hidden"></div>
+<div id="shortcut_dialog" class="shortcut-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="shortcut_dialog_title">
+  <div class="shortcut-card">
+    <div class="shortcut-head">
+      <div>
+        <div id="shortcut_dialog_title" class="shortcut-title">ショートカット</div>
+        <div class="shortcut-copy">入力欄にカーソルがある間は実行されません。`Esc` で閉じるか、検索入力からカーソルを外せます。</div>
+      </div>
+      <button id="close_shortcuts" class="utility-action" type="button">閉じる</button>
+    </div>
+    <div class="shortcut-list">
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>F5</kbd></div>
+        <div class="shortcut-desc">表示中の一覧またはセッション詳細を更新</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>F</kbd></div>
+        <div class="shortcut-desc">左ペインのフィルタ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>L</kbd></div>
+        <div class="shortcut-desc">左ペインの Clear を実行</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>/</kbd></div>
+        <div class="shortcut-desc">検索入力欄にフォーカス</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>N</kbd></div>
+        <div class="shortcut-desc">詳細検索の次のヒットへ移動</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>P</kbd></div>
+        <div class="shortcut-desc">詳細検索の前のヒットへ移動</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>M</kbd></div>
+        <div class="shortcut-desc">path / cwd / time のメタ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>[</kbd></div>
+        <div class="shortcut-desc">前のセッションを開く</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>]</kbd></div>
+        <div class="shortcut-desc">次のセッションを開く</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>1</kbd></div>
+        <div class="shortcut-desc">ユーザー指示のみ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>2</kbd></div>
+        <div class="shortcut-desc">AIレスポンスのみ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>3</kbd></div>
+        <div class="shortcut-desc">各入力と最終応答のみを切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>4</kbd></div>
+        <div class="shortcut-desc">表示順を逆にするを切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>D</kbd></div>
+        <div class="shortcut-desc">右ペインの Clear を実行</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>T</kbd></div>
+        <div class="shortcut-desc">詳細操作の表示と非表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>R</kbd></div>
+        <div class="shortcut-desc">セッション再開コマンドをコピー</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>C</kbd></div>
+        <div class="shortcut-desc">表示中メッセージをコピー</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>S</kbd></div>
+        <div class="shortcut-desc">選択モードの開始と終了を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>X</kbd></div>
+        <div class="shortcut-desc">選択中メッセージをコピー</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>G</kbd></div>
+        <div class="shortcut-desc">起点選択モードの開始と終了を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>H</kbd></div>
+        <div class="shortcut-desc">起点を解除</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>,</kbd></div>
+        <div class="shortcut-desc">起点以前のみ表示</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>.</kbd></div>
+        <div class="shortcut-desc">起点以降のみ表示</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Esc</kbd></div>
+        <div class="shortcut-desc">ショートカット一覧やラベル追加ポップアップを閉じる。検索入力欄からカーソルを外す。</div>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
 const state = {
   sessions: [],
@@ -2941,6 +3462,7 @@ const state = {
   activeSession: null,
   activeEvents: [],
   activeRawLineCount: 0,
+  sessionRoot: '',
   labels: [],
   isSessionsLoading: false,
   hasLoadedSessions: false,
@@ -2956,7 +3478,766 @@ const state = {
   detailMessageRangeMode: '',
 };
 
-const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v3';
+const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v4';
+const LANGUAGE_STORAGE_KEY = 'claude_sessions_viewer_language_v1';
+const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh-Hans', 'zh-Hant'];
+const I18N = {
+  ja: {
+    'language.selector': '言語',
+    'header.subtitle': 'Session logs, labels, and event review for Claude workflows',
+    'header.shortcuts': 'ショートカット',
+    'header.meta.show': 'メタ表示',
+    'header.meta.hide': 'メタ非表示',
+    'header.list.hide': 'セッション一覧を隠す',
+    'header.list.show': 'セッション一覧を表示',
+    'header.list.hideShort': '一覧を隠す',
+    'header.list.showShort': '一覧を表示',
+    'header.labels': 'ラベル管理',
+    'toolbar.kicker': 'Session Browser',
+    'toolbar.heading': '検索と絞り込み',
+    'toolbar.copy': '候補を探してから一覧を見る、という流れに整理しました。',
+    'toolbar.reload': 'Reload',
+    'toolbar.clear': 'Clear',
+    'toolbar.filters.hide': 'フィルタを隠す',
+    'toolbar.filters.show': 'フィルタを表示',
+    'search.title': '検索',
+    'search.copy': 'cwd とキーワードで候補を先に絞り込みます。',
+    'search.cwd': '作業ディレクトリ',
+    'search.keyword': 'キーワード',
+    'search.mode': '条件',
+    'filter.title': 'フィルター',
+    'filter.copy': '期間・source・ラベルで一覧を整理します。',
+    'filter.dateFrom': '開始日',
+    'filter.dateTo': '終了日',
+    'filter.source': 'source',
+    'filter.sessionLabel': 'セッションラベル',
+    'filter.eventLabel': 'イベントラベル',
+    'filter.source.all': 'source: all',
+    'filter.source.cli': 'source: Claude Code CLI',
+    'filter.source.vscode': 'source: Claude Desktop',
+    'filter.sessionLabel.all': 'session label: all',
+    'filter.eventLabel.all': 'event label: all',
+    'filter.mode.and': 'keyword AND',
+    'filter.mode.or': 'keyword OR',
+    'placeholder.cwd': 'cwd (部分一致)',
+    'placeholder.keyword': 'keyword filter',
+    'placeholder.detailKeyword': 'detail keyword',
+    'detail.display': '表示',
+    'detail.toggle.user': 'ユーザー指示のみ表示',
+    'detail.toggle.ai': 'AIレスポンスのみ表示',
+    'detail.toggle.turn': '各入力と最終応答のみ',
+    'detail.toggle.reverse': '表示順を逆にする',
+    'detail.label': 'イベントラベル',
+    'detail.label.all': 'label',
+    'detail.refresh': 'Refresh',
+    'detail.refreshing': 'Refreshing...',
+    'detail.clear': 'Clear',
+    'detail.actions.hide': '詳細操作を隠す',
+    'detail.actions.show': '詳細操作を表示',
+    'detail.actions': '操作',
+    'detail.copyResume': 'セッション再開コマンドコピー',
+    'detail.addSessionLabel': 'セッションにラベル追加',
+    'detail.copyDisplayed': '表示中メッセージコピー',
+    'detail.selectMode': '選択モード',
+    'detail.selectEnd': '選択終了',
+    'detail.copySelected': '選択コピー',
+    'detail.copySelectedCount': '選択コピー ({count}件)',
+    'detail.search': '検索',
+    'detail.searchKeyword': '詳細キーワード',
+    'detail.searchFilter': 'フィルター',
+    'detail.searchRun': '検索',
+    'detail.prev': '前へ',
+    'detail.next': '次へ',
+    'detail.searchClear': '検索をクリア',
+    'detail.range': '範囲選択',
+    'detail.rangeMode': '起点選択モード',
+    'detail.rangeModeEnd': '起点選択終了',
+    'detail.rangeClear': '起点解除',
+    'detail.rangeAfter': '起点以降のみ表示',
+    'detail.rangeAfterActive': '起点以降のみ表示中',
+    'detail.rangeBefore': '起点以前のみ表示',
+    'detail.rangeBeforeActive': '起点以前のみ表示中',
+    'session.labels.empty': 'セッションラベルはまだありません',
+    'session.labels.loading': 'セッションラベルを読み込み中...',
+    'shortcut.title': 'ショートカット',
+    'shortcut.copy': '入力欄にカーソルがある間は実行されません。Esc で閉じるか、検索入力からカーソルを外せます。',
+    'shortcut.close': '閉じる',
+    'shortcut.refresh': '表示中の一覧またはセッション詳細を更新',
+    'shortcut.toggleFilters': '左ペインのフィルタ表示を切り替え',
+    'shortcut.clearList': '左ペインの Clear を実行',
+    'shortcut.focusSearch': '検索入力欄にフォーカス',
+    'shortcut.nextMatch': '詳細検索の次のヒットへ移動',
+    'shortcut.prevMatch': '詳細検索の前のヒットへ移動',
+    'shortcut.meta': 'path / cwd / time のメタ表示を切り替え',
+    'shortcut.prevSession': '前のセッションを開く',
+    'shortcut.nextSession': '次のセッションを開く',
+    'shortcut.onlyUser': 'ユーザー指示のみ表示を切り替え',
+    'shortcut.onlyAi': 'AIレスポンスのみ表示を切り替え',
+    'shortcut.turnBoundary': '各入力と最終応答のみを切り替え',
+    'shortcut.reverse': '表示順を逆にするを切り替え',
+    'shortcut.clearDetail': '右ペインの表示条件と操作状態をクリア',
+    'shortcut.toggleActions': '詳細操作の表示と非表示を切り替え',
+    'shortcut.copyResume': 'セッション再開コマンドをコピー',
+    'shortcut.copyDisplayed': '表示中メッセージをコピー',
+    'shortcut.toggleSelection': '選択モードの開始と終了を切り替え',
+    'shortcut.copySelected': '選択中メッセージをコピー',
+    'shortcut.toggleRange': '起点選択モードの開始と終了を切り替え',
+    'shortcut.clearRange': '起点を解除',
+    'shortcut.before': '起点以前のみ表示',
+    'shortcut.after': '起点以降のみ表示',
+    'shortcut.escape': 'ショートカット一覧やラベル追加ポップアップを閉じる。検索入力欄からカーソルを外す。',
+    'meta.sessionRoot': 'session root',
+    'meta.path': 'path',
+    'meta.cwd': 'cwd',
+    'meta.time': 'time',
+    'meta.status': 'status',
+    'summary.events': 'events: {visible}/{total}',
+    'summary.eventsLoading': 'events: loading...',
+    'summary.raw': 'raw {count}',
+    'session.preview.empty': '(previewなし)',
+    'status.sessions.loadingTitle': 'セッション一覧を読み込み中...',
+    'status.sessions.loadingCopy': '最新のセッションを確認しています。',
+    'status.sessions.errorTitle': '一覧の取得に失敗しました',
+    'status.sessions.noMatchesTitle': '条件に一致するセッションはありません',
+    'status.sessions.noMatchesCopy': 'フィルタ条件を見直すか、Reload を実行してください。',
+    'status.sessions.emptyTitle': 'セッションがまだ見つかりません',
+    'status.sessions.emptyCopy': '読み込み対象ディレクトリに .jsonl セッションがあるか確認してください。',
+    'status.sessions.refreshTitle': '一覧を更新中...',
+    'status.sessions.refreshCopy': '最新のセッションを再取得しています。',
+    'status.detail.loadingTitle': 'セッション詳細を読み込み中...',
+    'status.detail.loadingCopy': 'イベントを取得しています。',
+    'status.detail.errorTitle': '詳細の取得に失敗しました',
+    'status.detail.selectSession': 'セッションを選択してください',
+    'status.detail.noDisplayTitle': '表示できるイベントはありません',
+    'status.detail.noDisplayCopy': 'このセッションには表示対象のイベントがありません。',
+    'status.detail.noMatchTitle': '条件に一致するイベントはありません',
+    'status.detail.noMatchCopy': '表示条件を変更するとイベントが表示される可能性があります。',
+    'status.detail.refreshTitle': 'セッション詳細を更新中...',
+    'status.detail.refreshCopy': '最新のイベントを再取得しています。',
+    'error.sessions': 'セッション一覧の取得に失敗しました',
+    'error.detail': 'セッション詳細の取得に失敗しました',
+    'picker.noLabels': 'ラベルがありません。先にラベル管理から作成してください。',
+    'picker.removeLabel': 'ラベル解除',
+    'picker.addLabel': 'ラベル追加',
+    'copy.copied': 'コピーしました',
+    'copy.displayedCount': '{count}件コピー',
+    'copy.selectedCount': '{count}件コピー',
+    'copy.single': 'コピー',
+  },
+  en: {
+    'language.selector': 'Language',
+    'header.subtitle': 'Session logs, labels, and event review for Claude workflows',
+    'header.shortcuts': 'Shortcuts',
+    'header.meta.show': 'Show meta',
+    'header.meta.hide': 'Hide meta',
+    'header.list.hide': 'Hide session list',
+    'header.list.show': 'Show session list',
+    'header.list.hideShort': 'Hide list',
+    'header.list.showShort': 'Show list',
+    'header.labels': 'Labels',
+    'toolbar.kicker': 'Session Browser',
+    'toolbar.heading': 'Search and filter',
+    'toolbar.copy': 'Find candidates first, then review the list.',
+    'toolbar.reload': 'Reload',
+    'toolbar.clear': 'Clear',
+    'toolbar.filters.hide': 'Hide filters',
+    'toolbar.filters.show': 'Show filters',
+    'search.title': 'Search',
+    'search.copy': 'Narrow candidates with cwd and keywords first.',
+    'search.cwd': 'Working directory',
+    'search.keyword': 'Keyword',
+    'search.mode': 'Mode',
+    'filter.title': 'Filters',
+    'filter.copy': 'Organize the list by time range, source, and labels.',
+    'filter.dateFrom': 'Start date',
+    'filter.dateTo': 'End date',
+    'filter.source': 'Source',
+    'filter.sessionLabel': 'Session label',
+    'filter.eventLabel': 'Event label',
+    'filter.source.all': 'source: all',
+    'filter.source.cli': 'source: Claude Code CLI',
+    'filter.source.vscode': 'source: Claude Desktop',
+    'filter.sessionLabel.all': 'session label: all',
+    'filter.eventLabel.all': 'event label: all',
+    'filter.mode.and': 'keyword AND',
+    'filter.mode.or': 'keyword OR',
+    'placeholder.cwd': 'cwd (partial match)',
+    'placeholder.keyword': 'keyword filter',
+    'placeholder.detailKeyword': 'detail keyword',
+    'detail.display': 'Display',
+    'detail.toggle.user': 'Only user instructions',
+    'detail.toggle.ai': 'Only AI responses',
+    'detail.toggle.turn': 'Only each input and final reply',
+    'detail.toggle.reverse': 'Reverse order',
+    'detail.label': 'Event label',
+    'detail.label.all': 'label',
+    'detail.refresh': 'Refresh',
+    'detail.refreshing': 'Refreshing...',
+    'detail.clear': 'Clear',
+    'detail.actions.hide': 'Hide detail actions',
+    'detail.actions.show': 'Show detail actions',
+    'detail.actions': 'Actions',
+    'detail.copyResume': 'Copy resume command',
+    'detail.addSessionLabel': 'Add session label',
+    'detail.copyDisplayed': 'Copy displayed messages',
+    'detail.selectMode': 'Selection mode',
+    'detail.selectEnd': 'End selection',
+    'detail.copySelected': 'Copy selected',
+    'detail.copySelectedCount': 'Copy selected ({count})',
+    'detail.search': 'Search',
+    'detail.searchKeyword': 'Detail keyword',
+    'detail.searchFilter': 'Filter',
+    'detail.searchRun': 'Search',
+    'detail.prev': 'Prev',
+    'detail.next': 'Next',
+    'detail.searchClear': 'Clear search',
+    'detail.range': 'Range',
+    'detail.rangeMode': 'Anchor mode',
+    'detail.rangeModeEnd': 'End anchor mode',
+    'detail.rangeClear': 'Clear anchor',
+    'detail.rangeAfter': 'Show from anchor',
+    'detail.rangeAfterActive': 'Showing from anchor',
+    'detail.rangeBefore': 'Show until anchor',
+    'detail.rangeBeforeActive': 'Showing until anchor',
+    'session.labels.empty': 'No session labels yet',
+    'session.labels.loading': 'Loading session labels...',
+    'shortcut.title': 'Shortcuts',
+    'shortcut.copy': 'Shortcuts do not run while an input is focused. Press Esc to close or leave search fields.',
+    'shortcut.close': 'Close',
+    'shortcut.refresh': 'Refresh the current list or session detail',
+    'shortcut.toggleFilters': 'Toggle the left-pane filters',
+    'shortcut.clearList': 'Run Clear on the left pane',
+    'shortcut.focusSearch': 'Focus the search input',
+    'shortcut.nextMatch': 'Move to the next detail-search match',
+    'shortcut.prevMatch': 'Move to the previous detail-search match',
+    'shortcut.meta': 'Toggle meta details for path / cwd / time',
+    'shortcut.prevSession': 'Open the previous session',
+    'shortcut.nextSession': 'Open the next session',
+    'shortcut.onlyUser': 'Toggle only user instructions',
+    'shortcut.onlyAi': 'Toggle only AI responses',
+    'shortcut.turnBoundary': 'Toggle only each input and final reply',
+    'shortcut.reverse': 'Toggle reverse order',
+    'shortcut.clearDetail': 'Clear right-pane filters and active modes',
+    'shortcut.toggleActions': 'Toggle detail actions',
+    'shortcut.copyResume': 'Copy the session resume command',
+    'shortcut.copyDisplayed': 'Copy displayed messages',
+    'shortcut.toggleSelection': 'Toggle selection mode',
+    'shortcut.copySelected': 'Copy selected messages',
+    'shortcut.toggleRange': 'Toggle anchor mode',
+    'shortcut.clearRange': 'Clear the anchor',
+    'shortcut.before': 'Show only before the anchor',
+    'shortcut.after': 'Show only after the anchor',
+    'shortcut.escape': 'Close the shortcut list or label picker, and leave search fields.',
+    'meta.sessionRoot': 'session root',
+    'meta.path': 'path',
+    'meta.cwd': 'cwd',
+    'meta.time': 'time',
+    'meta.status': 'status',
+    'summary.events': 'events: {visible}/{total}',
+    'summary.eventsLoading': 'events: loading...',
+    'summary.raw': 'raw {count}',
+    'session.preview.empty': '(no preview)',
+    'status.sessions.loadingTitle': 'Loading sessions...',
+    'status.sessions.loadingCopy': 'Checking the latest sessions.',
+    'status.sessions.errorTitle': 'Failed to load the list',
+    'status.sessions.noMatchesTitle': 'No sessions match these filters',
+    'status.sessions.noMatchesCopy': 'Review the filters or run Reload.',
+    'status.sessions.emptyTitle': 'No sessions found yet',
+    'status.sessions.emptyCopy': 'Check whether the target directory contains .jsonl sessions.',
+    'status.sessions.refreshTitle': 'Refreshing list...',
+    'status.sessions.refreshCopy': 'Fetching the latest sessions again.',
+    'status.detail.loadingTitle': 'Loading session detail...',
+    'status.detail.loadingCopy': 'Fetching events.',
+    'status.detail.errorTitle': 'Failed to load detail',
+    'status.detail.selectSession': 'Select a session',
+    'status.detail.noDisplayTitle': 'No events to display',
+    'status.detail.noDisplayCopy': 'This session has no displayable events.',
+    'status.detail.noMatchTitle': 'No events match these conditions',
+    'status.detail.noMatchCopy': 'Changing the display conditions may reveal events.',
+    'status.detail.refreshTitle': 'Refreshing session detail...',
+    'status.detail.refreshCopy': 'Fetching the latest events again.',
+    'error.sessions': 'Failed to load the session list',
+    'error.detail': 'Failed to load the session detail',
+    'picker.noLabels': 'No labels exist yet. Create one in Label Manager first.',
+    'picker.removeLabel': 'Remove label',
+    'picker.addLabel': 'Add label',
+    'copy.copied': 'Copied',
+    'copy.displayedCount': 'Copied {count}',
+    'copy.selectedCount': 'Copied {count}',
+    'copy.single': 'Copy',
+  },
+  'zh-Hans': {
+    'language.selector': '语言',
+    'header.subtitle': '用于 Claude 工作流的会话日志、标签和事件查看',
+    'header.shortcuts': '快捷键',
+    'header.meta.show': '显示元信息',
+    'header.meta.hide': '隐藏元信息',
+    'header.list.hide': '隐藏会话列表',
+    'header.list.show': '显示会话列表',
+    'header.list.hideShort': '隐藏列表',
+    'header.list.showShort': '显示列表',
+    'header.labels': '标签管理',
+    'toolbar.kicker': 'Session Browser',
+    'toolbar.heading': '搜索与筛选',
+    'toolbar.copy': '先找到候选项，再查看列表。',
+    'toolbar.reload': 'Reload',
+    'toolbar.clear': 'Clear',
+    'toolbar.filters.hide': '隐藏筛选',
+    'toolbar.filters.show': '显示筛选',
+    'search.title': '搜索',
+    'search.copy': '先用 cwd 和关键词缩小候选范围。',
+    'search.cwd': '工作目录',
+    'search.keyword': '关键词',
+    'search.mode': '模式',
+    'filter.title': '筛选',
+    'filter.copy': '按时间范围、source 和标签整理列表。',
+    'filter.dateFrom': '开始日期',
+    'filter.dateTo': '结束日期',
+    'filter.source': '来源',
+    'filter.sessionLabel': '会话标签',
+    'filter.eventLabel': '事件标签',
+    'filter.source.all': 'source: all',
+    'filter.source.cli': 'source: Claude Code CLI',
+    'filter.source.vscode': 'source: Claude Desktop',
+    'filter.sessionLabel.all': 'session label: all',
+    'filter.eventLabel.all': 'event label: all',
+    'filter.mode.and': 'keyword AND',
+    'filter.mode.or': 'keyword OR',
+    'placeholder.cwd': 'cwd（部分匹配）',
+    'placeholder.keyword': '关键词筛选',
+    'placeholder.detailKeyword': '详细关键词',
+    'detail.display': '显示',
+    'detail.toggle.user': '仅显示用户指令',
+    'detail.toggle.ai': '仅显示 AI 回复',
+    'detail.toggle.turn': '仅显示每次输入与最终回复',
+    'detail.toggle.reverse': '反转显示顺序',
+    'detail.label': '事件标签',
+    'detail.label.all': 'label',
+    'detail.refresh': 'Refresh',
+    'detail.refreshing': 'Refreshing...',
+    'detail.clear': 'Clear',
+    'detail.actions.hide': '隐藏详细操作',
+    'detail.actions.show': '显示详细操作',
+    'detail.actions': '操作',
+    'detail.copyResume': '复制恢复命令',
+    'detail.addSessionLabel': '为会话添加标签',
+    'detail.copyDisplayed': '复制当前显示消息',
+    'detail.selectMode': '选择模式',
+    'detail.selectEnd': '结束选择',
+    'detail.copySelected': '复制已选',
+    'detail.copySelectedCount': '复制已选（{count}）',
+    'detail.search': '搜索',
+    'detail.searchKeyword': '详细关键词',
+    'detail.searchFilter': '筛选',
+    'detail.searchRun': '搜索',
+    'detail.prev': '上一项',
+    'detail.next': '下一项',
+    'detail.searchClear': '清除搜索',
+    'detail.range': '范围',
+    'detail.rangeMode': '锚点模式',
+    'detail.rangeModeEnd': '结束锚点模式',
+    'detail.rangeClear': '清除锚点',
+    'detail.rangeAfter': '仅显示锚点之后',
+    'detail.rangeAfterActive': '正在显示锚点之后',
+    'detail.rangeBefore': '仅显示锚点之前',
+    'detail.rangeBeforeActive': '正在显示锚点之前',
+    'session.labels.empty': '还没有会话标签',
+    'session.labels.loading': '正在加载会话标签...',
+    'shortcut.title': '快捷键',
+    'shortcut.copy': '输入框获得焦点时不会触发快捷键。按 Esc 可关闭，或离开搜索输入框。',
+    'shortcut.close': '关闭',
+    'shortcut.refresh': '刷新当前列表或会话详情',
+    'shortcut.toggleFilters': '切换左侧筛选显示',
+    'shortcut.clearList': '执行左侧 Clear',
+    'shortcut.focusSearch': '聚焦到搜索输入框',
+    'shortcut.nextMatch': '跳到详细搜索的下一个命中',
+    'shortcut.prevMatch': '跳到详细搜索的上一个命中',
+    'shortcut.meta': '切换 path / cwd / time 元信息显示',
+    'shortcut.prevSession': '打开上一个会话',
+    'shortcut.nextSession': '打开下一个会话',
+    'shortcut.onlyUser': '切换仅显示用户指令',
+    'shortcut.onlyAi': '切换仅显示 AI 回复',
+    'shortcut.turnBoundary': '切换仅显示每次输入与最终回复',
+    'shortcut.reverse': '切换反转显示顺序',
+    'shortcut.clearDetail': '清除右侧筛选与当前模式',
+    'shortcut.toggleActions': '切换详细操作显示',
+    'shortcut.copyResume': '复制会话恢复命令',
+    'shortcut.copyDisplayed': '复制当前显示消息',
+    'shortcut.toggleSelection': '切换选择模式',
+    'shortcut.copySelected': '复制已选消息',
+    'shortcut.toggleRange': '切换锚点模式',
+    'shortcut.clearRange': '清除锚点',
+    'shortcut.before': '仅显示锚点之前',
+    'shortcut.after': '仅显示锚点之后',
+    'shortcut.escape': '关闭快捷键列表或标签选择框，并离开搜索输入框。',
+    'meta.sessionRoot': 'session root',
+    'meta.path': 'path',
+    'meta.cwd': 'cwd',
+    'meta.time': 'time',
+    'meta.status': 'status',
+    'summary.events': 'events: {visible}/{total}',
+    'summary.eventsLoading': 'events: loading...',
+    'summary.raw': 'raw {count}',
+    'session.preview.empty': '(无预览)',
+    'status.sessions.loadingTitle': '正在加载会话列表...',
+    'status.sessions.loadingCopy': '正在检查最新会话。',
+    'status.sessions.errorTitle': '加载列表失败',
+    'status.sessions.noMatchesTitle': '没有符合筛选条件的会话',
+    'status.sessions.noMatchesCopy': '请检查筛选条件或执行 Reload。',
+    'status.sessions.emptyTitle': '尚未找到会话',
+    'status.sessions.emptyCopy': '请确认目标目录中是否存在 .jsonl 会话文件。',
+    'status.sessions.refreshTitle': '正在刷新列表...',
+    'status.sessions.refreshCopy': '正在重新获取最新会话。',
+    'status.detail.loadingTitle': '正在加载会话详情...',
+    'status.detail.loadingCopy': '正在获取事件。',
+    'status.detail.errorTitle': '加载详情失败',
+    'status.detail.selectSession': '请选择一个会话',
+    'status.detail.noDisplayTitle': '没有可显示的事件',
+    'status.detail.noDisplayCopy': '此会话中没有可显示的事件。',
+    'status.detail.noMatchTitle': '没有符合条件的事件',
+    'status.detail.noMatchCopy': '调整显示条件后可能会出现事件。',
+    'status.detail.refreshTitle': '正在刷新会话详情...',
+    'status.detail.refreshCopy': '正在重新获取最新事件。',
+    'error.sessions': '获取会话列表失败',
+    'error.detail': '获取会话详情失败',
+    'picker.noLabels': '还没有标签。请先在标签管理中创建标签。',
+    'picker.removeLabel': '移除标签',
+    'picker.addLabel': '添加标签',
+    'copy.copied': '已复制',
+    'copy.displayedCount': '已复制 {count} 项',
+    'copy.selectedCount': '已复制 {count} 项',
+    'copy.single': '复制',
+  },
+};
+I18N['zh-Hant'] = {
+  ...I18N['zh-Hans'],
+  'language.selector': '語言',
+  'header.subtitle': '用於 Claude 工作流程的工作階段日誌、標籤與事件檢視',
+  'header.meta.show': '顯示中繼資訊',
+  'header.meta.hide': '隱藏中繼資訊',
+  'header.list.hide': '隱藏工作階段列表',
+  'header.list.show': '顯示工作階段列表',
+  'header.list.hideShort': '隱藏列表',
+  'header.list.showShort': '顯示列表',
+  'header.labels': '標籤管理',
+  'toolbar.heading': '搜尋與篩選',
+  'toolbar.copy': '先找到候選項，再查看列表。',
+  'toolbar.filters.hide': '隱藏篩選',
+  'toolbar.filters.show': '顯示篩選',
+  'search.title': '搜尋',
+  'search.copy': '先用 cwd 和關鍵字縮小候選範圍。',
+  'search.cwd': '工作目錄',
+  'search.keyword': '關鍵字',
+  'filter.sessionLabel': '工作階段標籤',
+  'filter.title': '篩選',
+  'filter.copy': '按時間範圍、source 和標籤整理列表。',
+  'filter.dateFrom': '開始日期',
+  'filter.dateTo': '結束日期',
+  'filter.source': '來源',
+  'filter.eventLabel': '事件標籤',
+  'placeholder.cwd': 'cwd（部分比對）',
+  'placeholder.keyword': '關鍵字篩選',
+  'placeholder.detailKeyword': '詳細關鍵字',
+  'detail.display': '顯示',
+  'detail.toggle.user': '僅顯示使用者指示',
+  'detail.toggle.ai': '僅顯示 AI 回覆',
+  'detail.toggle.turn': '僅顯示每次輸入與最終回覆',
+  'detail.toggle.reverse': '反轉顯示順序',
+  'detail.label': '事件標籤',
+  'detail.refresh': '刷新',
+  'detail.refreshing': '正在刷新...',
+  'detail.clear': '清除',
+  'detail.actions.hide': '隱藏詳細操作',
+  'detail.actions.show': '顯示詳細操作',
+  'detail.actions': '操作',
+  'detail.copyResume': '複製恢復命令',
+  'detail.addSessionLabel': '為工作階段新增標籤',
+  'detail.copyDisplayed': '複製目前顯示訊息',
+  'detail.selectMode': '選取模式',
+  'detail.selectEnd': '結束選取',
+  'detail.copySelected': '複製已選',
+  'detail.copySelectedCount': '複製已選（{count}）',
+  'detail.search': '搜尋',
+  'detail.searchKeyword': '詳細關鍵字',
+  'detail.searchRun': '搜尋',
+  'detail.searchFilter': '篩選',
+  'detail.prev': '上一項',
+  'detail.next': '下一項',
+  'detail.searchClear': '清除搜尋',
+  'detail.range': '範圍',
+  'detail.rangeMode': '錨點模式',
+  'detail.rangeModeEnd': '結束錨點模式',
+  'detail.rangeClear': '清除錨點',
+  'detail.rangeAfter': '僅顯示錨點之後',
+  'detail.rangeAfterActive': '正在顯示錨點之後',
+  'detail.rangeBefore': '僅顯示錨點之前',
+  'detail.rangeBeforeActive': '正在顯示錨點之前',
+  'session.labels.empty': '尚未有工作階段標籤',
+  'session.labels.loading': '正在載入工作階段標籤...',
+  'shortcut.title': '快捷鍵',
+  'shortcut.copy': '輸入框取得焦點時不會觸發快捷鍵。按 Esc 可關閉，或離開搜尋輸入框。',
+  'shortcut.close': '關閉',
+  'shortcut.refresh': '重新整理目前列表或工作階段詳情',
+  'shortcut.toggleFilters': '切換左側篩選顯示',
+  'shortcut.clearList': '執行左側 Clear',
+  'shortcut.focusSearch': '將焦點移到搜尋輸入框',
+  'shortcut.nextMatch': '跳到詳細搜尋的下一個命中',
+  'shortcut.prevMatch': '跳到詳細搜尋的上一個命中',
+  'shortcut.meta': '切換 path / cwd / time 中繼資訊顯示',
+  'shortcut.prevSession': '開啟上一個工作階段',
+  'shortcut.nextSession': '開啟下一個工作階段',
+  'shortcut.onlyUser': '切換僅顯示使用者指示',
+  'shortcut.onlyAi': '切換僅顯示 AI 回覆',
+  'shortcut.turnBoundary': '切換僅顯示每次輸入與最終回覆',
+  'shortcut.reverse': '切換反轉顯示順序',
+  'shortcut.clearDetail': '清除右側篩選與目前模式',
+  'shortcut.toggleActions': '切換詳細操作顯示',
+  'shortcut.copyResume': '複製工作階段恢復命令',
+  'shortcut.copyDisplayed': '複製目前顯示訊息',
+  'shortcut.toggleSelection': '切換選取模式',
+  'shortcut.copySelected': '複製已選訊息',
+  'shortcut.toggleRange': '切換錨點模式',
+  'shortcut.clearRange': '清除錨點',
+  'shortcut.before': '僅顯示錨點之前',
+  'shortcut.after': '僅顯示錨點之後',
+  'shortcut.escape': '關閉快捷鍵列表或標籤選擇框，並離開搜尋輸入框。',
+  'session.preview.empty': '(無預覽)',
+  'status.sessions.loadingTitle': '正在載入工作階段列表...',
+  'status.sessions.loadingCopy': '正在檢查最新工作階段。',
+  'status.sessions.errorTitle': '載入列表失敗',
+  'status.sessions.noMatchesTitle': '沒有符合篩選條件的工作階段',
+  'status.sessions.noMatchesCopy': '請檢查篩選條件或執行 Reload。',
+  'status.sessions.emptyTitle': '尚未找到工作階段',
+  'status.sessions.emptyCopy': '請確認目標目錄中是否存在 .jsonl 工作階段檔案。',
+  'status.sessions.refreshTitle': '正在刷新列表...',
+  'status.sessions.refreshCopy': '正在重新取得最新工作階段。',
+  'status.detail.loadingTitle': '正在載入工作階段詳情...',
+  'status.detail.loadingCopy': '正在取得事件。',
+  'status.detail.errorTitle': '載入詳情失敗',
+  'status.detail.selectSession': '請選擇一個工作階段',
+  'status.detail.noDisplayTitle': '沒有可顯示的事件',
+  'status.detail.noDisplayCopy': '此工作階段中沒有可顯示的事件。',
+  'status.detail.noMatchTitle': '沒有符合條件的事件',
+  'status.detail.noMatchCopy': '調整顯示條件後可能會出現事件。',
+  'status.detail.refreshTitle': '正在刷新工作階段詳情...',
+  'status.detail.refreshCopy': '正在重新取得最新事件。',
+  'error.sessions': '取得工作階段列表失敗',
+  'error.detail': '取得工作階段詳情失敗',
+  'picker.noLabels': '尚未有標籤。請先在標籤管理中建立標籤。',
+  'picker.removeLabel': '移除標籤',
+  'picker.addLabel': '新增標籤',
+  'copy.copied': '已複製',
+  'copy.displayedCount': '已複製 {count} 項',
+  'copy.selectedCount': '已複製 {count} 項',
+  'copy.single': '複製',
+};
+let uiLanguage = 'ja';
+
+function normalizeLanguage(value){
+  const raw = (value || '').trim();
+  if(raw === 'zh' || raw === 'zh-CN' || raw === 'zh-SG'){
+    return 'zh-Hans';
+  }
+  if(raw === 'zh-TW' || raw === 'zh-HK' || raw === 'zh-MO'){
+    return 'zh-Hant';
+  }
+  return SUPPORTED_LANGUAGES.includes(raw) ? raw : 'ja';
+}
+
+function t(key, vars){
+  const dict = I18N[uiLanguage] || I18N.ja;
+  let text = dict[key];
+  if(typeof text !== 'string'){
+    text = I18N.ja[key] || key;
+  }
+  if(vars){
+    Object.entries(vars).forEach(([name, value]) => {
+      text = text.replaceAll(`{${name}}`, String(value));
+    });
+  }
+  return text;
+}
+
+function setText(selector, value){
+  const element = document.querySelector(selector);
+  if(element){
+    element.textContent = value;
+  }
+}
+
+function setTextById(id, value){
+  const element = document.getElementById(id);
+  if(element){
+    element.textContent = value;
+  }
+}
+
+function setFieldLabel(inputId, value){
+  const input = document.getElementById(inputId);
+  const label = input ? input.closest('label') : null;
+  const span = label ? label.querySelector('span') : null;
+  if(span){
+    span.textContent = value;
+  }
+}
+
+function setToggleLabel(inputId, value){
+  const input = document.getElementById(inputId);
+  const label = input ? input.closest('label') : null;
+  if(!label){
+    return;
+  }
+  const textNode = Array.from(label.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+  if(textNode){
+    textNode.textContent = ` ${value}`;
+  }
+}
+
+function setOptionText(selectId, index, value){
+  const select = document.getElementById(selectId);
+  if(select && select.options[index]){
+    select.options[index].textContent = value;
+  }
+}
+
+function applyMainLanguage(){
+  document.documentElement.lang = uiLanguage;
+  document.title = 'Claude Sessions Viewer';
+  document.getElementById('language_select').value = uiLanguage;
+  document.getElementById('language_select').setAttribute('aria-label', t('language.selector'));
+  setText('.header-subtitle', t('header.subtitle'));
+  setTextById('open_shortcuts', t('header.shortcuts'));
+  document.getElementById('open_shortcuts').setAttribute('title', t('header.shortcuts'));
+  setTextById('open_label_manager', t('header.labels'));
+  setText('.toolbar .section-kicker', t('toolbar.kicker'));
+  setText('.toolbar .toolbar-heading', t('toolbar.heading'));
+  setText('.toolbar .toolbar-copy', t('toolbar.copy'));
+  setTextById('reload', t('toolbar.reload'));
+  setTextById('clear', t('toolbar.clear'));
+  setText('.toolbar-section:nth-of-type(1) .toolbar-section-title', t('search.title'));
+  setText('.toolbar-section:nth-of-type(1) .toolbar-section-copy', t('search.copy'));
+  setFieldLabel('cwd_q', t('search.cwd'));
+  setFieldLabel('q', t('search.keyword'));
+  setFieldLabel('mode', t('search.mode'));
+  setText('.toolbar-section:nth-of-type(2) .toolbar-section-title', t('filter.title'));
+  setText('.toolbar-section:nth-of-type(2) .toolbar-section-copy', t('filter.copy'));
+  setFieldLabel('date_from', t('filter.dateFrom'));
+  setFieldLabel('date_to', t('filter.dateTo'));
+  setFieldLabel('source_filter', t('filter.source'));
+  setFieldLabel('session_label_filter', t('filter.sessionLabel'));
+  setFieldLabel('event_label_filter', t('filter.eventLabel'));
+  document.getElementById('cwd_q').placeholder = t('placeholder.cwd');
+  document.getElementById('q').placeholder = t('placeholder.keyword');
+  document.getElementById('detail_keyword_q').placeholder = t('placeholder.detailKeyword');
+  setOptionText('mode', 0, t('filter.mode.and'));
+  setOptionText('mode', 1, t('filter.mode.or'));
+  setOptionText('source_filter', 0, t('filter.source.all'));
+  setOptionText('source_filter', 1, t('filter.source.cli'));
+  setOptionText('source_filter', 2, t('filter.source.vscode'));
+  setText('.detail-toolbar-row.primary .detail-group-title', t('detail.display'));
+  setToggleLabel('only_user_instruction', t('detail.toggle.user'));
+  setToggleLabel('only_ai_response', t('detail.toggle.ai'));
+  setToggleLabel('turn_boundary_only', t('detail.toggle.turn'));
+  document.getElementById('turn_boundary_only').closest('label').setAttribute('title', t('detail.toggle.turn'));
+  setToggleLabel('reverse_order', t('detail.toggle.reverse'));
+  setFieldLabel('detail_event_label_filter', t('detail.label'));
+  document.getElementById('detail_event_label_filter').setAttribute('title', t('detail.label'));
+  setTextById('clear_detail', t('detail.clear'));
+  setText('.detail-toolbar-row.secondary .detail-group-title', t('detail.actions'));
+  setTextById('copy_resume_command', t('detail.copyResume'));
+  setTextById('add_session_label', t('detail.addSessionLabel'));
+  setTextById('copy_displayed_messages', t('detail.copyDisplayed'));
+  setText('.detail-toolbar-row.keyword .detail-group-title', t('detail.search'));
+  setFieldLabel('detail_keyword_q', t('detail.searchKeyword'));
+  document.getElementById('detail_keyword_q').setAttribute('title', '/');
+  setTextById('detail_keyword_filter', t('detail.searchFilter'));
+  setTextById('detail_keyword_search', t('detail.searchRun'));
+  setTextById('detail_keyword_prev', t('detail.prev'));
+  setTextById('detail_keyword_next', t('detail.next'));
+  setTextById('detail_keyword_clear', t('detail.searchClear'));
+  setText('.detail-toolbar-row.range .detail-group-title', t('detail.range'));
+  setTextById('clear_message_range_selection', t('detail.rangeClear'));
+  const shortcutDescriptions = [
+    'shortcut.refresh',
+    'shortcut.toggleFilters',
+    'shortcut.clearList',
+    'shortcut.focusSearch',
+    'shortcut.nextMatch',
+    'shortcut.prevMatch',
+    'shortcut.meta',
+    'shortcut.prevSession',
+    'shortcut.nextSession',
+    'shortcut.onlyUser',
+    'shortcut.onlyAi',
+    'shortcut.turnBoundary',
+    'shortcut.reverse',
+    'shortcut.clearDetail',
+    'shortcut.toggleActions',
+    'shortcut.copyResume',
+    'shortcut.copyDisplayed',
+    'shortcut.toggleSelection',
+    'shortcut.copySelected',
+    'shortcut.toggleRange',
+    'shortcut.clearRange',
+    'shortcut.before',
+    'shortcut.after',
+    'shortcut.escape',
+  ];
+  document.querySelectorAll('.shortcut-desc').forEach((element, index) => {
+    const key = shortcutDescriptions[index];
+    if(key){
+      element.textContent = t(key);
+    }
+  });
+  setTextById('shortcut_dialog_title', t('shortcut.title'));
+  setText('.shortcut-copy', t('shortcut.copy'));
+  setTextById('close_shortcuts', t('shortcut.close'));
+  populateLabelControls();
+  updateFilterVisibility();
+  updateDetailActionsVisibility();
+  updateDetailMetaVisibility();
+  updateLeftPaneVisibility();
+  updateRefreshDetailButtonState();
+  updateDetailDisplayControlsState();
+  updateClearDetailButtonState();
+  updateCopyResumeButtonState();
+  updateDisplayedMessagesCopyButtonState();
+  updateEventSelectionModeButtonState();
+  updateCopySelectedMessagesButtonState();
+  updateMessageRangeSelectionModeButtonState();
+  updateClearMessageRangeSelectionButtonState();
+  updateMessageRangeFilterButtonsState();
+  renderSessionList();
+  renderSessionLabelStrip();
+  renderActiveSession();
+}
+
+function setUiLanguage(nextLanguage, persist){
+  const normalized = normalizeLanguage(nextLanguage);
+  uiLanguage = normalized;
+  if(persist !== false){
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+    } catch (e) {
+      // Ignore storage write errors.
+    }
+  }
+  applyMainLanguage();
+}
+
+function readStoredLanguage(){
+  try {
+    return localStorage.getItem(LANGUAGE_STORAGE_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function getRequestedLanguage(){
+  const params = new URLSearchParams(window.location.search);
+  return normalizeLanguage(params.get('lang') || readStoredLanguage() || uiLanguage);
+}
+
 const SEARCH_DEBOUNCE_MS = 180;
 const BUTTON_FEEDBACK_MS = 1200;
 const DETAIL_INTERACTION_LOCK_MS = 4000;
@@ -2969,6 +4250,7 @@ let labelManagerWindow = null;
 let labelPickerHandler = null;
 let filtersVisible = true;
 let detailActionsVisible = true;
+let detailMetaVisible = false;
 let leftPaneVisible = true;
 let pendingAutomaticDetailSync = false;
 let detailPointerDown = false;
@@ -3028,10 +4310,10 @@ function updateFilterVisibility(){
   const button = document.getElementById('toggle_filters');
   if(filtersVisible){
     toolbar.classList.remove('collapsed');
-    button.textContent = 'Hide';
+    button.textContent = t('toolbar.filters.hide');
   } else {
     toolbar.classList.add('collapsed');
-    button.textContent = 'Show';
+    button.textContent = t('toolbar.filters.show');
   }
 }
 
@@ -3052,13 +4334,31 @@ function updateDetailActionsVisibility(){
   actionRow.classList.toggle('hidden', !detailActionsVisible);
   keywordRow.classList.toggle('hidden', !detailActionsVisible);
   messageRangeRow.classList.toggle('hidden', !detailActionsVisible);
-  button.textContent = detailActionsVisible ? 'Hide' : 'Show';
+  button.textContent = detailActionsVisible ? t('detail.actions.hide') : t('detail.actions.show');
 }
 
 function setDetailActionsVisible(nextVisible){
   detailActionsVisible = !!nextVisible;
   updateDetailActionsVisibility();
   saveFiltersSoon();
+}
+
+function updateDetailMetaVisibility(){
+  const meta = document.getElementById('meta');
+  const button = document.getElementById('toggle_meta');
+  if(!meta || !button){
+    return;
+  }
+  const hasContent = meta.textContent.trim() !== '';
+  meta.classList.toggle('hidden', !detailMetaVisible || !hasContent);
+  button.textContent = detailMetaVisible ? t('header.meta.hide') : t('header.meta.show');
+  button.setAttribute('aria-pressed', detailMetaVisible ? 'true' : 'false');
+  button.disabled = !hasContent;
+}
+
+function setDetailMetaVisible(nextVisible){
+  detailMetaVisible = !!nextVisible;
+  updateDetailMetaVisibility();
 }
 
 function updateLeftPaneVisibility(){
@@ -3069,9 +4369,9 @@ function updateLeftPaneVisibility(){
     return;
   }
   container.classList.toggle('sidebar-collapsed', isMobileLayout && !leftPaneVisible);
-  const label = leftPaneVisible ? '左ペインを隠す' : '左ペインを表示';
+  const label = leftPaneVisible ? t('header.list.hide') : t('header.list.show');
   if(mobileButton){
-    mobileButton.textContent = leftPaneVisible ? '一覧を隠す' : '一覧を表示';
+    mobileButton.textContent = leftPaneVisible ? t('header.list.hideShort') : t('header.list.showShort');
     mobileButton.setAttribute('aria-label', label);
     mobileButton.title = label;
   }
@@ -3177,9 +4477,9 @@ function populateLabelSelect(selectId, allLabel){
 }
 
 function populateLabelControls(){
-  populateLabelSelect('session_label_filter', 'session label: all');
-  populateLabelSelect('event_label_filter', 'event label: all');
-  populateLabelSelect('detail_event_label_filter', 'event label: all');
+  populateLabelSelect('session_label_filter', t('filter.sessionLabel.all'));
+  populateLabelSelect('event_label_filter', t('filter.eventLabel.all'));
+  populateLabelSelect('detail_event_label_filter', t('detail.label.all'));
   ['session_label_filter', 'event_label_filter', 'detail_event_label_filter'].forEach(id => {
     const select = document.getElementById(id);
     const pending = select.dataset.pendingValue;
@@ -3203,7 +4503,7 @@ function renderAssignedLabels(labels, removeType, extra){
       (extra && extra.eventId ? ` data-event-id="${esc(extra.eventId)}"` : '')
     ) : '';
     const removeButton = removeType
-      ? `<button class="label-remove-button" title="ラベル解除"${attrs}>×</button>`
+      ? `<button class="label-remove-button" title="${esc(t('picker.removeLabel'))}"${attrs}>×</button>`
       : '';
     return `<span class="data-label-badge" style="${renderColorStyle(label.color_value)}"><span class="label-dot"></span><span>${esc(label.name)}</span>${removeButton}</span>`;
   }).join('');
@@ -3219,15 +4519,15 @@ function renderSessionLabelStrip(){
   if(!state.activeSession){
     strip.classList.add('empty');
     strip.textContent = state.isDetailLoading && state.activePath
-      ? 'セッションラベルを読み込み中...'
-      : 'セッションラベルはまだありません';
+      ? t('session.labels.loading')
+      : t('session.labels.empty');
     updateSessionLabelButtonState();
     return;
   }
   const labels = state.activeSession.session_labels || [];
   if(!labels.length){
     strip.classList.add('empty');
-    strip.textContent = 'セッションラベルはまだありません';
+    strip.textContent = t('session.labels.empty');
     updateSessionLabelButtonState();
     return;
   }
@@ -3251,9 +4551,7 @@ function getDetailEventKey(ev, fallbackIndex){
 
 function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta){
   const role = ev.role || 'system';
-  const roleLabel = ev.role_label || role.replace('_', ' ');
-  const safeRole = String(role).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
-  const safeKind = String(ev.kind || 'event').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+  const roleLabel = role.replace('_', ' ');
   const labels = ev.labels || [];
   const matchesSelectedLabel = selectedEventLabelId && labels.some(label => String(label.id) === selectedEventLabelId);
   const eventKey = getDetailEventKey(ev, fallbackIndex);
@@ -3266,20 +4564,16 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const isRangeSelectable = state.isMessageRangeSelectionMode && isSelectableMessageEvent(ev);
   const isRangeSelected = selectionKey && state.selectedMessageRangeEventId === selectionKey;
   const selectionCheckboxHtml = isSelectable
-    ? `<label class="event-select-toggle"><input type="checkbox" class="event-select-checkbox" data-event-id="${esc(selectionKey)}" ${isSelected ? 'checked' : ''} />選択</label>`
+    ? `<label class="event-select-toggle"><input type="checkbox" class="event-select-checkbox" data-event-id="${esc(selectionKey)}" ${isSelected ? 'checked' : ''} />${esc(t('detail.selectMode'))}</label>`
     : '';
   const rangeSelectionHtml = isRangeSelectable
-    ? `<label class="event-range-toggle"><input type="radio" name="message-range-selection" class="event-range-radio" data-event-id="${esc(selectionKey)}" ${isRangeSelected ? 'checked' : ''} />起点</label>`
+    ? `<label class="event-range-toggle"><input type="radio" name="message-range-selection" class="event-range-radio" data-event-id="${esc(selectionKey)}" ${isRangeSelected ? 'checked' : ''} />${esc(t('detail.rangeMode'))}</label>`
     : '';
   const labelsHtml = renderAssignedLabels(labels, 'event', { eventId: ev.event_id });
-  const systemLabels = Array.isArray(ev.system_labels) ? ev.system_labels : [];
-  const systemLabelsHtml = systemLabels.length
-    ? `<span class="ev-badges">${systemLabels.map(value => `<span class="ev-badge">[${esc(String(value))}]</span>`).join('')}</span>`
-    : '';
   const copyButtonHtml = ev.kind === 'message'
-    ? `<button class="event-copy-button" data-event-id="${esc(ev.event_id || '')}">コピー</button>`
+    ? `<button class="event-copy-button" data-event-id="${esc(ev.event_id || '')}">${esc(t('copy.single'))}</button>`
     : '';
-  return `<div class="ev ${safeRole} kind-${safeKind} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${safeRole}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>ラベル追加</button>${copyButtonHtml}</span></div>${body}</div>`;
+  return `<div class="ev ${role} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${role}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span><span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>${esc(t('picker.addLabel'))}</button>${copyButtonHtml}</span></div>${body}</div>`;
 }
 
 function attachVisibleEventCardHandlers(eventsBox){
@@ -3338,7 +4632,7 @@ function hideLabelPicker(){
 function showLabelPicker(anchor, onSelect){
   const picker = document.getElementById('label_picker');
   if(!state.labels.length){
-    alert('ラベルがありません。先にラベル管理から作成してください。');
+    alert(t('picker.noLabels'));
     return;
   }
   labelPickerHandler = onSelect;
@@ -3379,16 +4673,12 @@ function openLabelManagerWindow(){
     labelManagerWindow.focus();
     return;
   }
-  labelManagerWindow = window.open('/labels', 'claude_label_manager', features);
+  labelManagerWindow = window.open(`/labels?lang=${encodeURIComponent(uiLanguage)}`, 'claude_label_manager', features);
 }
 
 function highlightSessionPath(s){
   const safe = esc(s);
   return safe.replace(/(\\d{4}-\\d{2}-\\d{2}T\\d{2}[-:]\\d{2}[-:]\\d{2}(?:[-:]\\d{3,6})?)/g, '<span class="ts">$1</span>');
-}
-
-function normalizePathForMatch(value){
-  return (value ?? '').toString().toLowerCase().replace(/[\\/]+/g, '-').replace(/-+/g, '-').trim();
 }
 
 function normalizeSource(source){
@@ -3435,11 +4725,7 @@ function parseOptionalDateEnd(raw){
 
 function getActiveSessionId(){
   if(!state.activeSession) return '';
-  const sid = state.activeSession.session_id || state.activeSession.id || '';
-  if(sid) return sid.toString().trim();
-  const rel = state.activeSession.relative_path || '';
-  const match = rel.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
-  return match ? match[0] : '';
+  return (state.activeSession.session_id || state.activeSession.id || '').toString().trim();
 }
 
 function getButtonLabel(button, fallback){
@@ -3526,9 +4812,14 @@ function getEventBodyText(ev){
   if(!ev){
     return '';
   }
-  const text = stringifyEventBodyValue(ev.text);
-  if(text){
-    return text;
+  if(ev.kind === 'message' || ev.kind === 'agent_update'){
+    return stringifyEventBodyValue(ev.text);
+  }
+  if(ev.kind === 'function_call'){
+    return `name: ${stringifyEventBodyValue(ev.name)}\n${stringifyEventBodyValue(ev.arguments)}`;
+  }
+  if(ev.kind === 'function_output'){
+    return stringifyEventBodyValue(ev.output);
   }
   try {
     return JSON.stringify(ev, null, 2) || '';
@@ -3626,6 +4917,25 @@ function updateDetailKeywordControls(searchMeta){
   filterButton.classList.toggle('active', hasActiveSession && detailKeywordFilterTerm !== '');
   searchButton.classList.toggle('active', hasActiveSession && detailKeywordSearchTerm !== '');
   updateClearDetailButtonState();
+}
+
+function updateDetailDisplayControlsState(){
+  const hasActiveSession = !!state.activeSession;
+  ['only_user_instruction', 'only_ai_response', 'turn_boundary_only', 'reverse_order'].forEach((id) => {
+    const input = document.getElementById(id);
+    const label = input ? input.closest('.toggle-chip') : null;
+    if(input){
+      input.disabled = !hasActiveSession;
+    }
+    if(label){
+      label.classList.toggle('disabled', !hasActiveSession);
+      label.setAttribute('aria-disabled', hasActiveSession ? 'false' : 'true');
+    }
+  });
+  const detailEventLabelFilter = document.getElementById('detail_event_label_filter');
+  if(detailEventLabelFilter){
+    detailEventLabelFilter.disabled = !hasActiveSession;
+  }
 }
 
 function resetDetailKeywordState(){
@@ -3829,7 +5139,7 @@ function updateEventSelectionModeButtonState(){
   const hasSelectableMessages = !!getSelectableDisplayMessageEvents().length;
   const hasSelectedMessages = !!getSelectedMessageEvents().length;
   button.disabled = !state.activeSession || (!hasSelectableMessages && !hasSelectedMessages && !state.isEventSelectionMode);
-  button.textContent = state.isEventSelectionMode ? '選択終了' : '選択モード';
+  button.textContent = state.isEventSelectionMode ? t('detail.selectEnd') : t('detail.selectMode');
   button.classList.toggle('selection-active', state.isEventSelectionMode);
 }
 
@@ -3839,7 +5149,9 @@ function updateCopySelectedMessagesButtonState(){
     return;
   }
   const selectedMessages = getSelectedMessageEvents();
-  const defaultLabel = selectedMessages.length ? `選択コピー (${selectedMessages.length}件)` : '選択コピー';
+  const defaultLabel = selectedMessages.length
+    ? t('detail.copySelectedCount', { count: selectedMessages.length })
+    : t('detail.copySelected');
   button.disabled = state.isDetailLoading || selectedMessages.length === 0;
   button.textContent = defaultLabel;
   button.dataset.defaultLabel = defaultLabel;
@@ -3853,7 +5165,7 @@ function updateMessageRangeSelectionModeButtonState(){
   const hasSelectableMessages = !!getSelectableDisplayMessageEvents().length;
   const hasSelectedMessage = !!getSelectedMessageRangeEvent();
   button.disabled = !state.activeSession || (!hasSelectableMessages && !hasSelectedMessage && !state.isMessageRangeSelectionMode);
-  button.textContent = state.isMessageRangeSelectionMode ? '起点選択終了' : '起点選択モード';
+  button.textContent = state.isMessageRangeSelectionMode ? t('detail.rangeModeEnd') : t('detail.rangeMode');
   button.classList.toggle('selection-active', state.isMessageRangeSelectionMode);
 }
 
@@ -3881,8 +5193,8 @@ function updateMessageRangeFilterButtonsState(){
   beforeButton.classList.toggle('active', isBeforeActive);
   afterButton.classList.toggle('contrast-dim', hasActiveRangeMode && !isAfterActive);
   beforeButton.classList.toggle('contrast-dim', hasActiveRangeMode && !isBeforeActive);
-  afterButton.textContent = isAfterActive ? '起点以降のみ表示中' : '起点以降のみ表示';
-  beforeButton.textContent = isBeforeActive ? '起点以前のみ表示中' : '起点以前のみ表示';
+  afterButton.textContent = isAfterActive ? t('detail.rangeAfterActive') : t('detail.rangeAfter');
+  beforeButton.textContent = isBeforeActive ? t('detail.rangeBeforeActive') : t('detail.rangeBefore');
   afterButton.setAttribute('aria-pressed', isAfterActive ? 'true' : 'false');
   beforeButton.setAttribute('aria-pressed', isBeforeActive ? 'true' : 'false');
 }
@@ -3892,10 +5204,10 @@ function updateRefreshDetailButtonState(){
   const isManualRefresh = state.isDetailLoading && state.detailLoadMode === 'refresh';
   button.disabled = !state.activePath || isManualRefresh;
   if(!isManualRefresh){
-    button.textContent = 'Refresh';
+    button.textContent = t('detail.refresh');
     return;
   }
-  button.textContent = 'Refreshing...';
+  button.textContent = t('detail.refreshing');
 }
 
 function hasDetailFilter(){
@@ -3905,7 +5217,14 @@ function hasDetailFilter(){
     document.getElementById('turn_boundary_only').checked ||
     document.getElementById('reverse_order').checked ||
     getSelectedDetailEventLabelFilter() ||
-    state.detailMessageRangeMode
+    state.detailMessageRangeMode ||
+    getDetailKeywordInputValue() ||
+    detailKeywordFilterTerm !== '' ||
+    detailKeywordSearchTerm !== '' ||
+    state.isEventSelectionMode ||
+    ((state.selectedEventIds && state.selectedEventIds.size) || 0) > 0 ||
+    state.isMessageRangeSelectionMode ||
+    state.selectedMessageRangeEventId
   );
 }
 
@@ -3914,7 +5233,7 @@ function updateClearDetailButtonState(){
   if(!button){
     return;
   }
-  button.disabled = !hasDetailFilter();
+  button.disabled = !state.activeSession || !hasDetailFilter();
 }
 
 function hasListFilter(){
@@ -3938,7 +5257,7 @@ async function copyResumeCommand(){
 
   if(copied){
     const button = document.getElementById('copy_resume_command');
-    flashButtonLabel(button, 'コピーしました', 'セッション再開コマンドコピー');
+    flashButtonLabel(button, t('copy.copied'), t('detail.copyResume'));
   }
 }
 
@@ -3991,9 +5310,7 @@ async function loadSessions(options){
     }
     state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
     state.sessionsError = data.error || '';
-    const cliRoots = Array.isArray(data.roots && data.roots.claude_cli) ? data.roots.claude_cli : [];
-    const desktopRoots = Array.isArray(data.roots && data.roots.claude_desktop) ? data.roots.claude_desktop : [];
-    document.getElementById('roots').textContent = `CLI roots: ${cliRoots.join(', ') || '-'} | Desktop roots: ${desktopRoots.join(', ') || '-'}`;
+    state.sessionRoot = data.root || '';
     applyFilter();
     if(state.activePath){
       const exists = state.sessions.some(s => s.path === state.activePath);
@@ -4033,7 +5350,7 @@ async function loadSessions(options){
     if(requestId !== loadSessionsRequestSeq){
       return;
     }
-    state.sessionsError = normalizeRequestError(error, 'セッション一覧の取得に失敗しました');
+    state.sessionsError = normalizeRequestError(error, t('error.sessions'));
     renderSessionList();
   } finally {
     if(requestId === loadSessionsRequestSeq){
@@ -4119,20 +5436,14 @@ function clearFilters(){
 }
 
 function applyFilter(){
-  const projectQ = document.getElementById('cwd_q').value.toLowerCase().trim();
+  const cwdQ = document.getElementById('cwd_q').value.toLowerCase().trim();
   const sourceFilter = normalizeSourceFilter(document.getElementById('source_filter').value || 'all');
   const fromRaw = document.getElementById('date_from').value;
   const toRaw = document.getElementById('date_to').value;
   const fromTs = parseOptionalDateStart(fromRaw);
   const toTs = parseOptionalDateEnd(toRaw);
   state.filtered = state.sessions.filter(s => {
-    const projectTarget = ((s.project || '') + ' ' + (s.relative_path || '')).toLowerCase();
-    const projectTargetNorm = normalizePathForMatch(projectTarget);
-    const projectQNorm = normalizePathForMatch(projectQ);
-    const projectMatched =
-      !projectQ ||
-      projectTarget.includes(projectQ) ||
-      (projectQNorm && projectTargetNorm.includes(projectQNorm));
+    const cwdMatched = !cwdQ || (s.cwd || '').toLowerCase().includes(cwdQ);
     const sourceMatched = sourceFilter === 'all' || normalizeSourceFilter(s.source_type || s.source) === sourceFilter;
 
     let dateMatched = true;
@@ -4150,7 +5461,7 @@ function applyFilter(){
       }
     }
 
-    return projectMatched && sourceMatched && dateMatched;
+    return cwdMatched && sourceMatched && dateMatched;
   });
   saveFilters();
   renderSessionList();
@@ -4161,38 +5472,41 @@ function renderSessionList(){
   updateReloadButtonState();
   if(state.isSessionsLoading && !state.hasLoadedSessions){
     box.innerHTML = renderInlineStatus(
-      'セッション一覧を読み込み中...',
-      '最新のセッションを確認しています。',
+      t('status.sessions.loadingTitle'),
+      t('status.sessions.loadingCopy'),
       'loading'
     );
   } else if(state.sessionsError && !state.sessions.length){
     box.innerHTML = renderInlineStatus(
-      '一覧の取得に失敗しました',
+      t('status.sessions.errorTitle'),
       state.sessionsError,
       'error'
     );
   } else if(!state.filtered.length){
     box.innerHTML = hasListFilter()
       ? renderInlineStatus(
-          '条件に一致するセッションはありません',
-          'フィルタ条件を見直すか、Reload を実行してください。',
+          t('status.sessions.noMatchesTitle'),
+          t('status.sessions.noMatchesCopy'),
           'empty'
         )
       : renderInlineStatus(
-          'セッションがまだ見つかりません',
-          '読み込み対象ディレクトリにセッションがあるか確認してください。',
+          t('status.sessions.emptyTitle'),
+          t('status.sessions.emptyCopy'),
           'empty'
         );
   } else {
     box.innerHTML = state.filtered.map(s => `
-      <div class="session-item ${state.activePath === s.path ? 'active' : ''}" data-path="${esc(s.path)}" data-source="${esc(s.source_type || '')}">
-        <div class="session-path">${highlightSessionPath(s.relative_path || '')}</div>
-        <div class="session-preview">${esc(s.first_user_text || '(previewなし)')}</div>
+      <div class="session-item ${state.activePath === s.path ? 'active' : ''}" data-path="${esc(s.path)}">
+        <div class="session-path">${highlightSessionPath(s.relative_path)}</div>
+        <div class="session-preview">${esc(s.first_real_user_text || s.first_user_text || t('session.preview.empty'))}</div>
+        <div class="session-meta-row">
+          <div class="session-badge session-time">${esc(fmt(s.started_at || s.mtime))}</div>
+          <div class="session-badge session-source source-${esc(normalizeSource(s.source_type || s.source))}">${esc(sourceLabel(s.source_type || s.source))}</div>
+        </div>
         <div class="session-label-row">${renderAssignedLabels(s.session_labels || [])}</div>
         <div class="session-meta-row">
-          <div class="session-badge session-project">project: ${esc(s.project || '-')}</div>
-          <div class="session-badge session-source source-${esc(normalizeSource(s.source_type || s.source))}">${esc(sourceLabel(s.source_type || s.source))}</div>
-          <div class="session-badge session-time">${esc(fmt(s.started_at || s.mtime))}</div>
+          <div class="session-badge session-cwd">cwd: ${esc(s.cwd || '-')}</div>
+          <div class="session-badge session-id">id: ${esc(s.session_id || s.id || '')}</div>
         </div>
       </div>
     `).join('');
@@ -4200,15 +5514,15 @@ function renderSessionList(){
   if(state.isSessionsLoading && state.hasLoadedSessions && state.sessionsLoadMode === 'reload'){
     setStatusLayer(
       'sessions_status',
-      '一覧を更新中...',
-      '最新のセッションを再取得しています。',
+      t('status.sessions.refreshTitle'),
+      t('status.sessions.refreshCopy'),
       'loading'
     );
   } else {
     setStatusLayer('sessions_status');
   }
   box.querySelectorAll('.session-item').forEach(el => {
-    el.onclick = () => openSession(el.dataset.path, el.dataset.source);
+    el.onclick = () => openSession(el.dataset.path);
   });
 }
 
@@ -4338,7 +5652,7 @@ async function copyDisplayedMessages(){
   const copied = await copyTextToClipboard(formatCopiedMessages(messages));
   if(copied){
     const button = document.getElementById('copy_displayed_messages');
-    flashButtonLabel(button, `${messages.length}件コピー`, '表示中メッセージコピー');
+    flashButtonLabel(button, t('copy.displayedCount', { count: messages.length }), t('detail.copyDisplayed'));
   }
 }
 
@@ -4351,7 +5665,7 @@ async function copySelectedMessages(){
   if(copied){
     const copiedCount = messages.length;
     const button = document.getElementById('copy_selected_messages');
-    flashButtonLabel(button, `${copiedCount}件コピー`, '選択コピー', BUTTON_FEEDBACK_MS);
+    flashButtonLabel(button, t('copy.selectedCount', { count: copiedCount }), t('detail.copySelected'), BUTTON_FEEDBACK_MS);
     await waitForUiFeedback(BUTTON_FEEDBACK_MS);
     state.isEventSelectionMode = false;
     clearSelectedEventIds();
@@ -4366,7 +5680,7 @@ async function copyEventMessage(button, eventId){
   }
   const copied = await copyTextToClipboard(event.text);
   if(copied){
-    flashButtonLabel(button, 'コピーしました', 'コピー');
+    flashButtonLabel(button, t('copy.copied'), t('copy.single'));
   }
 }
 
@@ -4395,6 +5709,7 @@ function updateEventSelection(eventId, checked, card){
     card.classList.toggle('copy-selected', checked);
   }
   updateCopySelectedMessagesButtonState();
+  updateClearDetailButtonState();
 }
 
 function toggleMessageRangeSelectionMode(){
@@ -4491,10 +5806,18 @@ function clearDetailFilters(){
   document.getElementById('only_ai_response').checked = false;
   document.getElementById('turn_boundary_only').checked = false;
   document.getElementById('reverse_order').checked = false;
-  state.detailMessageRangeMode = '';
   const detailEventLabelFilter = document.getElementById('detail_event_label_filter');
   detailEventLabelFilter.value = '';
   delete detailEventLabelFilter.dataset.pendingValue;
+  const detailKeywordInput = document.getElementById('detail_keyword_q');
+  if(detailKeywordInput){
+    detailKeywordInput.value = '';
+  }
+  resetDetailKeywordState();
+  state.isEventSelectionMode = false;
+  clearSelectedEventIds();
+  clearMessageRangeSelection();
+  hideLabelPicker();
   saveFilters();
   renderActiveSession();
 }
@@ -4503,27 +5826,35 @@ function renderActiveSession(){
   const meta = document.getElementById('meta');
   const eventsBox = document.getElementById('events');
   updateRefreshDetailButtonState();
+  updateDetailDisplayControlsState();
+  const sessionRootRow = state.sessionRoot
+    ? `<div class="header-meta-row">
+      <span class="header-meta-label">${esc(t('meta.sessionRoot'))}</span>
+      <span class="header-meta-value">${esc(state.sessionRoot)}</span>
+    </div>`
+    : '';
   if(!state.activeSession){
     detailKeywordSearchTotal = 0;
     normalizeDetailKeywordSearchPosition({ total: 0 });
     if(state.isDetailLoading && state.activePath){
-      meta.textContent = 'セッション詳細を読み込み中...';
+      meta.innerHTML = `${sessionRootRow}<div class="header-meta-row"><span class="header-meta-text">${esc(t('status.detail.loadingTitle'))}</span></div>`;
       eventsBox.innerHTML = renderInlineStatus(
-        'セッション詳細を読み込み中...',
-        'イベントを取得しています。',
+        t('status.detail.loadingTitle'),
+        t('status.detail.loadingCopy'),
         'loading'
       );
     } else if(state.detailError){
-      meta.textContent = state.detailError;
+      meta.innerHTML = `${sessionRootRow}<div class="header-meta-row"><span class="header-meta-text error">${esc(state.detailError)}</span></div>`;
       eventsBox.innerHTML = renderInlineStatus(
-        '詳細の取得に失敗しました',
+        t('status.detail.errorTitle'),
         state.detailError,
         'error'
       );
     } else {
-      meta.textContent = 'セッションを選択してください';
+      meta.innerHTML = `${sessionRootRow}<div class="header-meta-row"><span class="header-meta-text">${esc(t('status.detail.selectSession'))}</span></div>`;
       eventsBox.innerHTML = '';
     }
+    updateDetailMetaVisibility();
     setStatusLayer('detail_status');
     updateCopyResumeButtonState();
     updateDisplayedMessagesCopyButtonState();
@@ -4545,41 +5876,58 @@ function renderActiveSession(){
   detailKeywordSearchTotal = searchMeta.total;
   normalizeDetailKeywordSearchPosition(searchMeta);
   const sourceType = state.activeSession.source_type || state.activeSession.source || '';
-  const sourceClass = normalizeSource(sourceType);
+  const source = normalizeSource(sourceType);
   const eventsSummary = state.isDetailLoading && state.activeEvents.length === 0
-    ? 'events: loading...'
-    : `events: ${displayEvents.length}/${state.activeEvents.length}`;
-  const rawSummary = state.isDetailLoading && state.activeEvents.length === 0
-    ? '...'
-    : state.activeRawLineCount;
+    ? t('summary.eventsLoading')
+    : t('summary.events', { visible: displayEvents.length, total: state.activeEvents.length });
+  const rawSummary = t('summary.raw', {
+    count: state.isDetailLoading && state.activeEvents.length === 0 ? '...' : state.activeRawLineCount,
+  });
   const errorNote = state.detailError
-    ? ` | status: <span class="meta-note error">${esc(state.detailError)}</span>`
+    ? `<span class="header-meta-text error">${esc(t('meta.status'))}: ${esc(state.detailError)}</span>`
     : '';
-  meta.innerHTML =
-    `source: <code class="source-code source-${esc(sourceClass)}">${esc(sourceLabel(sourceType))}</code> | path: <code class="path-code">${highlightSessionPath(state.activeSession.relative_path || '')}</code> | project: <code class="project-code">${esc(state.activeSession.project || '-')}</code> | time: <code class="time-code">${esc(fmt(state.activeSession.started_at || state.activeSession.mtime))}</code> | ${eventsSummary} | raw lines/snippets: ${rawSummary}${errorNote}`;
+  meta.innerHTML = `
+    ${sessionRootRow}
+    <div class="header-meta-row">
+      <span class="header-meta-label">${esc(t('meta.path'))}</span>
+      <span class="header-meta-value">${highlightSessionPath(state.activeSession.relative_path)}</span>
+    </div>
+    <div class="header-meta-row">
+      <span class="header-meta-label">${esc(t('meta.cwd'))}</span>
+      <span class="header-meta-value">${esc(state.activeSession.cwd || '-')}</span>
+    </div>
+    <div class="header-meta-row">
+      <span class="header-meta-label">${esc(t('meta.time'))}</span>
+      <span class="header-meta-value">${esc(fmt(state.activeSession.started_at || state.activeSession.mtime))}</span>
+      <span class="meta-tag source-${esc(source)}">${esc(sourceLabel(sourceType))}</span>
+      <span class="header-meta-text">${esc(eventsSummary)}</span>
+      <span class="header-meta-text">${esc(rawSummary)}</span>
+      ${errorNote}
+    </div>`;
+  updateDetailMetaVisibility();
 
   if(state.isDetailLoading && state.activeEvents.length === 0){
     eventsBox.innerHTML = renderInlineStatus(
-      'セッション詳細を読み込み中...',
-      'イベントを取得しています。',
+      t('status.detail.loadingTitle'),
+      t('status.detail.loadingCopy'),
       'loading'
     );
   } else if(state.detailError && state.activeEvents.length === 0){
     eventsBox.innerHTML = renderInlineStatus(
-      '詳細の取得に失敗しました',
+      t('status.detail.errorTitle'),
       state.detailError,
       'error'
     );
   } else if(displayEvents.length === 0){
     eventsBox.innerHTML = state.activeEvents.length === 0
       ? renderInlineStatus(
-          '表示できるイベントはありません',
-          'このセッションには表示対象のイベントがありません。',
+          t('status.detail.noDisplayTitle'),
+          t('status.detail.noDisplayCopy'),
           'empty'
         )
       : renderInlineStatus(
-          '条件に一致するイベントはありません',
-          '表示条件を変更するとイベントが表示される可能性があります。',
+          t('status.detail.noMatchTitle'),
+          t('status.detail.noMatchCopy'),
           'empty'
         );
   } else {
@@ -4588,8 +5936,8 @@ function renderActiveSession(){
   if(state.isDetailLoading && state.activeEvents.length > 0 && state.detailLoadMode === 'refresh'){
     setStatusLayer(
       'detail_status',
-      'セッション詳細を更新中...',
-      '最新のイベントを再取得しています。',
+      t('status.detail.refreshTitle'),
+      t('status.detail.refreshCopy'),
       'loading'
     );
   } else {
@@ -4607,15 +5955,7 @@ function renderActiveSession(){
   updateCopyResumeButtonState();
 }
 
-async function openSession(path, sourceTypeOrOptions, maybeOptions){
-  let sourceType = '';
-  let options = maybeOptions || {};
-  if(sourceTypeOrOptions && typeof sourceTypeOrOptions === 'object' && !Array.isArray(sourceTypeOrOptions)){
-    options = sourceTypeOrOptions;
-  } else {
-    sourceType = sourceTypeOrOptions || '';
-  }
-
+async function openSession(path, options){
   const requestId = ++loadSessionDetailRequestSeq;
   const nextSession = state.sessions.find(s => s.path === path) || null;
   const previousPath = state.activeSession && state.activeSession.path ? state.activeSession.path : state.activePath;
@@ -4642,9 +5982,8 @@ async function openSession(path, sourceTypeOrOptions, maybeOptions){
   }
   renderSessionList();
   renderActiveSession();
-  const resolvedSourceType = sourceType || (nextSession ? (nextSession.source_type || '') : '') || (state.activeSession ? (state.activeSession.source_type || '') : '');
   try {
-    const r = await fetch('/api/session?path=' + encodeURIComponent(path) + '&source=' + encodeURIComponent(resolvedSourceType || '') + '&ts=' + Date.now(), { cache: 'no-store' });
+    const r = await fetch('/api/session?path=' + encodeURIComponent(path) + '&ts=' + Date.now(), { cache: 'no-store' });
     const data = await r.json();
     if(requestId !== loadSessionDetailRequestSeq){
       return;
@@ -4666,7 +6005,7 @@ async function openSession(path, sourceTypeOrOptions, maybeOptions){
     if(requestId !== loadSessionDetailRequestSeq){
       return;
     }
-    state.detailError = normalizeRequestError(error, 'セッション詳細の取得に失敗しました');
+    state.detailError = normalizeRequestError(error, t('error.detail'));
   } finally {
     if(requestId === loadSessionDetailRequestSeq){
       state.isDetailLoading = false;
@@ -4679,6 +6018,176 @@ async function openSession(path, sourceTypeOrOptions, maybeOptions){
 async function refreshActiveSession(){
   if(!state.activePath) return;
   await openSession(state.activePath, { mode: 'refresh' });
+}
+
+function isEditableTarget(target){
+  if(!target || !(target instanceof Element)){
+    return false;
+  }
+  if(target.closest('input, select, textarea, [contenteditable="true"]')){
+    return true;
+  }
+  return false;
+}
+
+function focusShortcutSearch(){
+  if(state.activeSession){
+    if(!detailActionsVisible){
+      setDetailActionsVisible(true);
+    }
+    const input = document.getElementById('detail_keyword_q');
+    if(input && !input.disabled){
+      input.focus();
+      input.select();
+      return;
+    }
+  }
+  const input = document.getElementById('q');
+  if(input){
+    input.focus();
+    input.select();
+  }
+}
+
+function isShortcutDialogOpen(){
+  const dialog = document.getElementById('shortcut_dialog');
+  return !!dialog && !dialog.classList.contains('hidden');
+}
+
+function openShortcutDialog(){
+  hideLabelPicker();
+  const dialog = document.getElementById('shortcut_dialog');
+  if(!dialog){
+    return;
+  }
+  dialog.classList.remove('hidden');
+  const closeButton = document.getElementById('close_shortcuts');
+  if(closeButton){
+    closeButton.focus();
+  }
+}
+
+function closeShortcutDialog(){
+  const dialog = document.getElementById('shortcut_dialog');
+  if(!dialog){
+    return;
+  }
+  const hadDialogFocus = dialog.contains(document.activeElement);
+  dialog.classList.add('hidden');
+  if(hadDialogFocus){
+    const trigger = document.getElementById('open_shortcuts');
+    if(trigger){
+      trigger.focus();
+    }
+  }
+}
+
+function releaseSearchFocus(){
+  const active = document.activeElement;
+  if(!(active instanceof HTMLElement)){
+    return false;
+  }
+  if(active.id === 'q' || active.id === 'cwd_q' || active.id === 'detail_keyword_q'){
+    active.blur();
+    return true;
+  }
+  return false;
+}
+
+function handleShortcutEscape(){
+  let handled = false;
+  if(isShortcutDialogOpen()){
+    closeShortcutDialog();
+    handled = true;
+  }
+  const picker = document.getElementById('label_picker');
+  if(picker && !picker.classList.contains('hidden')){
+    hideLabelPicker();
+    handled = true;
+  }
+  if(releaseSearchFocus()){
+    handled = true;
+  }
+  return handled;
+}
+
+function openRelativeSession(step){
+  if(!Array.isArray(state.filtered) || state.filtered.length === 0){
+    return false;
+  }
+  const currentIndex = state.filtered.findIndex(session => session.path === state.activePath);
+  let nextIndex = currentIndex + step;
+  if(currentIndex < 0){
+    nextIndex = step > 0 ? 0 : state.filtered.length - 1;
+  }
+  if(nextIndex < 0 || nextIndex >= state.filtered.length){
+    return false;
+  }
+  const nextSession = state.filtered[nextIndex];
+  if(!nextSession || !nextSession.path || nextSession.path === state.activePath){
+    return false;
+  }
+  openSession(nextSession.path, { mode: 'open' });
+  return true;
+}
+
+function triggerButtonShortcut(id){
+  const button = document.getElementById(id);
+  if(!(button instanceof HTMLButtonElement) || button.disabled){
+    return false;
+  }
+  button.click();
+  return true;
+}
+
+function triggerCheckboxShortcut(id){
+  const checkbox = document.getElementById(id);
+  if(!(checkbox instanceof HTMLInputElement) || checkbox.disabled || checkbox.type !== 'checkbox'){
+    return false;
+  }
+  checkbox.click();
+  return true;
+}
+
+function triggerViewerRefresh(){
+  if(state.activePath){
+    refreshActiveSession();
+    return;
+  }
+  if(loadSessionsTimer){
+    clearTimeout(loadSessionsTimer);
+    loadSessionsTimer = null;
+  }
+  loadSessions({ mode: 'reload' });
+}
+
+function moveDetailKeywordSearchByShortcut(step){
+  if(!state.activeSession){
+    return false;
+  }
+  const term = getDetailKeywordInputValue().trim();
+  const previousTerm = detailKeywordSearchTerm;
+  if(!term && !previousTerm){
+    return false;
+  }
+  noteDetailInteraction();
+  detailKeywordSearchTerm = term || previousTerm;
+  const searchMeta = buildDetailKeywordSearchMeta(getDisplayEvents(), detailKeywordSearchTerm);
+  detailKeywordSearchTotal = searchMeta.total;
+  if(!searchMeta.total){
+    detailKeywordCurrentMatchIndex = -1;
+    pendingDetailKeywordFocusIndex = -1;
+    renderActiveSession();
+    return true;
+  }
+  if(previousTerm !== detailKeywordSearchTerm || detailKeywordCurrentMatchIndex < 0 || detailKeywordCurrentMatchIndex >= searchMeta.total){
+    detailKeywordCurrentMatchIndex = step > 0 ? 0 : searchMeta.total - 1;
+  } else {
+    detailKeywordCurrentMatchIndex = (detailKeywordCurrentMatchIndex + step + searchMeta.total) % searchMeta.total;
+  }
+  pendingDetailKeywordFocusIndex = detailKeywordCurrentMatchIndex;
+  renderActiveSession();
+  return true;
 }
 
 document.getElementById('cwd_q').addEventListener('input', applyFilter);
@@ -4701,6 +6210,11 @@ document.getElementById('toggle_session_list_mobile').addEventListener('click', 
 });
 document.getElementById('toggle_detail_actions').addEventListener('click', () => {
   setDetailActionsVisible(!detailActionsVisible);
+});
+document.getElementById('open_shortcuts').addEventListener('click', openShortcutDialog);
+document.getElementById('close_shortcuts').addEventListener('click', closeShortcutDialog);
+document.getElementById('toggle_meta').addEventListener('click', () => {
+  setDetailMetaVisible(!detailMetaVisible);
 });
 document.getElementById('reload').addEventListener('click', () => {
   if(loadSessionsTimer){
@@ -4739,10 +6253,14 @@ document.getElementById('detail_message_range_before').addEventListener('click',
 document.getElementById('detail_keyword_q').addEventListener('input', () => {
   updateDetailKeywordControls();
 });
+document.getElementById('language_select').addEventListener('change', (event) => {
+  setUiLanguage(event.target.value);
+});
 document.getElementById('detail_keyword_q').addEventListener('keydown', (event) => {
   if(event.key === 'Enter' && !event.isComposing){
     event.preventDefault();
     runDetailKeywordSearch();
+    releaseSearchFocus();
   }
 });
 document.getElementById('detail_keyword_filter').addEventListener('click', applyDetailKeywordFilter);
@@ -4754,6 +6272,158 @@ document.getElementById('detail_keyword_next').addEventListener('click', () => {
   moveDetailKeywordSearch(1);
 });
 document.getElementById('detail_keyword_clear').addEventListener('click', clearDetailKeyword);
+document.addEventListener('keydown', (event) => {
+  if(event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey){
+    return;
+  }
+  if(event.key === 'Escape'){
+    if(handleShortcutEscape()){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(isEditableTarget(event.target)){
+    return;
+  }
+  if(event.key === 'F5'){
+    event.preventDefault();
+    triggerViewerRefresh();
+    return;
+  }
+  if(event.key === '/'){
+    event.preventDefault();
+    focusShortcutSearch();
+    return;
+  }
+  if(event.shiftKey){
+    if(event.code === 'KeyF'){
+      if(triggerButtonShortcut('toggle_filters')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyL'){
+      if(triggerButtonShortcut('clear')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyD'){
+      if(triggerButtonShortcut('clear_detail')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyT'){
+      if(triggerButtonShortcut('toggle_detail_actions')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyR'){
+      if(triggerButtonShortcut('copy_resume_command')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyC'){
+      if(triggerButtonShortcut('copy_displayed_messages')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyS'){
+      if(triggerButtonShortcut('event_selection_mode')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyX'){
+      if(triggerButtonShortcut('copy_selected_messages')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyG'){
+      if(triggerButtonShortcut('message_range_selection_mode')){
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.code === 'KeyH'){
+      if(triggerButtonShortcut('clear_message_range_selection')){
+        event.preventDefault();
+      }
+      return;
+    }
+    return;
+  }
+  if(event.code === 'Digit1'){
+    if(triggerCheckboxShortcut('only_user_instruction')){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(event.code === 'Digit2'){
+    if(triggerCheckboxShortcut('only_ai_response')){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(event.code === 'Digit3'){
+    if(triggerCheckboxShortcut('turn_boundary_only')){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(event.code === 'Digit4'){
+    if(triggerCheckboxShortcut('reverse_order')){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(event.code === 'Comma'){
+    if(triggerButtonShortcut('detail_message_range_before')){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(event.code === 'Period'){
+    if(triggerButtonShortcut('detail_message_range_after')){
+      event.preventDefault();
+    }
+    return;
+  }
+  const key = event.key.toLowerCase();
+  if(event.code === 'KeyM' || key === 'm'){
+    event.preventDefault();
+    setDetailMetaVisible(!detailMetaVisible);
+    return;
+  }
+  if(event.key === '[' || event.code === 'BracketLeft'){
+    if(openRelativeSession(-1)){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(event.key === ']' || event.code === 'BracketRight'){
+    if(openRelativeSession(1)){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(key === 'n'){
+    if(moveDetailKeywordSearchByShortcut(1)){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(key === 'p'){
+    if(moveDetailKeywordSearchByShortcut(-1)){
+      event.preventDefault();
+    }
+  }
+});
 document.getElementById('add_session_label').addEventListener('click', async (event) => {
   await addSessionLabelFromButton(event.currentTarget);
 });
@@ -4787,6 +6457,11 @@ document.addEventListener('click', (event) => {
   if(event.target.closest('#add_session_label')) return;
   hideLabelPicker();
 });
+document.getElementById('shortcut_dialog').addEventListener('click', (event) => {
+  if(event.target.id === 'shortcut_dialog'){
+    closeShortcutDialog();
+  }
+});
 window.addEventListener('message', async (event) => {
   if(event.origin !== location.origin) return;
   if(labelManagerWindow && !labelManagerWindow.closed && event.source !== labelManagerWindow) return;
@@ -4797,6 +6472,15 @@ window.addEventListener('message', async (event) => {
 window.addEventListener('focus', async () => {
   await loadLabels(false);
   await loadSessions({ mode: 'focus' });
+});
+window.addEventListener('storage', (event) => {
+  if(event.key !== LANGUAGE_STORAGE_KEY){
+    return;
+  }
+  const nextLanguage = normalizeLanguage(event.newValue || 'ja');
+  if(nextLanguage !== uiLanguage){
+    setUiLanguage(nextLanguage, false);
+  }
 });
 window.addEventListener('resize', () => {
   updateLeftPaneVisibility();
@@ -4812,7 +6496,9 @@ updateDetailKeywordControls({ total: 0 });
 updateRefreshDetailButtonState();
 updateFilterVisibility();
 restoreFilters();
+setUiLanguage(getRequestedLanguage(), false);
 updateFilterVisibility();
+updateDetailMetaVisibility();
 updateLeftPaneVisibility();
 updateDetailActionsVisibility();
 state.isSessionsLoading = true;
@@ -4832,6 +6518,7 @@ LABELS_PAGE = """<!doctype html>
 <meta charset=\"utf-8\" />
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
 <title>ラベル管理</title>
+<link rel=\"icon\" href=\"/icons/claude-sessions-viewer.svg\" type=\"image/svg+xml\" />
 <style>
 :root {
   --bg: #f5f8ff;
@@ -4887,167 +6574,178 @@ body::after {
   z-index: 1;
   max-width: 980px;
   margin: 0 auto;
-  padding: 40px 20px 52px;
+  padding: 30px 18px 40px;
 }
 .page-header {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+.page-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.78);
   background: rgba(255, 255, 255, 0.72);
   color: #0f5a73;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 .hero-title {
-  margin: 14px 0 0;
-  font-size: 38px;
+  margin: 10px 0 0;
+  font-size: 32px;
   line-height: 1.08;
   letter-spacing: -0.03em;
 }
 .hero-copy {
-  margin-top: 12px;
+  margin-top: 8px;
   max-width: 760px;
   color: var(--muted);
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.6;
 }
 .panel {
   position: relative;
   overflow: hidden;
   background: var(--panel);
   border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 28px;
-  padding: 24px;
-  box-shadow: var(--shadow);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(18px);
 }
 .panel::before {
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
-  height: 110px;
+  height: 80px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent);
   pointer-events: none;
 }
 .panel + .panel {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 .editor-panel {
-  padding: 20px 20px 18px;
+  padding: 16px;
 }
 .list-panel {
-  padding: 18px 18px 12px;
+  padding: 16px 16px 12px;
 }
 .panel-head,
 .list-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 .editor-panel .panel-head {
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .editor-panel .panel-title {
-  margin-top: 4px;
-  font-size: 22px;
+  margin-top: 2px;
+  font-size: 18px;
 }
 .editor-panel .panel-copy {
-  margin-top: 4px;
+  margin-top: 2px;
   max-width: 520px;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .editor-panel .panel-chip {
   align-self: flex-start;
-  margin-top: 2px;
-  padding: 6px 10px;
-  font-size: 11px;
+  margin-top: 0;
+  padding: 5px 8px;
+  font-size: 10px;
 }
 .list-head {
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .list-head > div:first-child {
   min-width: 0;
 }
 .list-head .panel-title {
-  margin-top: 4px;
-  font-size: 22px;
+  margin-top: 2px;
+  font-size: 18px;
 }
 .list-head .panel-chip {
-  padding: 6px 10px;
-  font-size: 11px;
+  padding: 5px 8px;
+  font-size: 10px;
   align-self: center;
 }
 .panel-kicker {
   color: #0f5a73;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .panel-title {
-  margin-top: 8px;
-  font-size: 24px;
+  margin-top: 6px;
+  font-size: 20px;
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
 .panel-copy,
 .muted {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.6;
 }
 .panel-chip {
   flex: 0 0 auto;
   align-self: center;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid rgba(15, 118, 110, 0.12);
   background: rgba(15, 118, 110, 0.08);
   color: var(--accent-strong);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 .form-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr 1.1fr auto;
-  gap: 14px;
+  gap: 10px;
   align-items: end;
 }
 .editor-panel .form-grid {
-  gap: 10px;
+  gap: 8px;
 }
 label {
   display: grid;
-  gap: 8px;
-  font-size: 12px;
+  gap: 4px;
+  font-size: 10px;
   color: #475569;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-input, button {
+input, select, button {
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
 }
-input {
-  min-height: 48px;
+input, select {
+  min-height: 40px;
   border: 1px solid var(--line-strong);
-  border-radius: 16px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.86);
   color: var(--text);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -5056,31 +6754,45 @@ input {
 input::placeholder {
   color: #94a3b8;
 }
-input:focus {
+input:focus,
+select:focus {
   outline: none;
   border-color: rgba(15, 118, 110, 0.5);
   box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
+.language-select {
+  min-width: 132px;
+  padding-right: 34px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #0f766e 50%),
+    linear-gradient(135deg, #0f766e 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  appearance: none;
+}
 button {
-  min-height: 48px;
+  min-height: 36px;
   border: 0;
-  border-radius: 16px;
-  padding: 0 20px;
+  border-radius: 12px;
+  padding: 0 16px;
   background: linear-gradient(135deg, var(--accent) 0%, #16938a 100%);
   color: #ffffff;
   cursor: pointer;
   font-weight: 700;
   letter-spacing: 0.01em;
-  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.16);
+  box-shadow: 0 8px 16px rgba(15, 118, 110, 0.14);
   transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(15, 118, 110, 0.18);
+  box-shadow: 0 10px 20px rgba(15, 118, 110, 0.16);
 }
 button:active {
   transform: translateY(0);
-  box-shadow: 0 5px 12px rgba(15, 118, 110, 0.14);
+  box-shadow: 0 4px 10px rgba(15, 118, 110, 0.12);
 }
 .secondary {
   background: linear-gradient(135deg, #64748b 0%, #475569 100%);
@@ -5093,16 +6805,16 @@ button:active {
 .preset-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 6px;
 }
 .preset-field {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   align-self: stretch;
 }
 .preset-field-title {
-  font-size: 12px;
+  font-size: 10px;
   color: #475569;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -5112,12 +6824,12 @@ button:active {
   --label-color: #94a3b8;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
-  padding: 6px 10px;
-  font-size: 11px;
+  padding: 5px 8px;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
@@ -5126,12 +6838,12 @@ button:active {
   margin-top: 0;
 }
 .preset-badge {
-  min-height: 28px;
+  min-height: 24px;
   color: #334155;
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(148, 163, 184, 0.24);
-  border-radius: 10px;
-  padding: 0 8px;
+  border-radius: 8px;
+  padding: 0 7px;
   font-weight: 600;
   box-shadow: none;
 }
@@ -5154,17 +6866,17 @@ button:active {
 }
 .label-list {
   display: grid;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 0 22px 0 8px;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 0;
 }
 .label-row {
   border: 1px solid rgba(226, 232, 240, 0.92);
-  border-radius: 18px;
-  padding: 12px 14px;
+  border-radius: 14px;
+  padding: 10px 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.92));
   box-shadow: var(--shadow-soft);
@@ -5172,7 +6884,7 @@ button:active {
 }
 .label-row:hover {
   transform: translateY(-1px);
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.1);
 }
 .label-main {
   display: block;
@@ -5181,7 +6893,7 @@ button:active {
 .label-topline {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .label-badge {
@@ -5190,12 +6902,12 @@ button:active {
   color: #1e293b;
   background: #ffffff;
   border-color: var(--label-color);
-  padding: 6px 10px 6px 9px;
-  font-size: 13px;
+  padding: 5px 8px 5px 8px;
+  font-size: 12px;
 }
 .label-badge .dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   flex: 0 0 auto;
   box-shadow: none;
   opacity: 1;
@@ -5204,26 +6916,26 @@ button:active {
 .label-meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-left: 4px;
-  font-size: 14px;
+  gap: 6px;
+  margin-left: 2px;
+  font-size: 12px;
   color: var(--muted);
 }
 .label-meta-prefix {
   color: #64748b;
-  font-size: 12px;
+  font-size: 11px;
 }
 .label-code {
   display: inline-flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 4px 8px;
   margin-left: 0;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.24);
   background: rgba(238, 246, 255, 0.9);
   color: #0f3d57;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
+  font-size: 12px;
 }
 .label-row-actions {
   display: flex;
@@ -5233,9 +6945,9 @@ button:active {
   justify-content: flex-end;
 }
 .label-row-actions button {
-  min-height: 34px;
-  border-radius: 12px;
-  padding: 0 12px;
+  min-height: 30px;
+  border-radius: 10px;
+  padding: 0 10px;
   font-size: 12px;
   box-shadow: none;
 }
@@ -5251,7 +6963,7 @@ button:active {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 14px;
 }
 .dialog-backdrop.hidden {
   display: none;
@@ -5260,12 +6972,12 @@ button:active {
   position: relative;
   overflow: hidden;
   z-index: 1;
-  width: min(420px, 100%);
+  width: min(380px, 100%);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 251, 255, 0.94));
   border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 26px;
-  box-shadow: 0 30px 70px rgba(15, 23, 42, 0.28);
-  padding: 24px;
+  border-radius: 20px;
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.24);
+  padding: 18px;
 }
 .dialog::before {
   content: "";
@@ -5283,45 +6995,56 @@ button:active {
 }
 .dialog-title {
   margin: 8px 0 0;
-  font-size: 24px;
+  font-size: 20px;
   letter-spacing: -0.02em;
 }
 .dialog-message {
-  margin-top: 12px;
+  margin-top: 10px;
   color: #334155;
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
 }
 .dialog-actions {
-  margin-top: 20px;
+  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
 }
 .empty-state {
   border: 1px dashed rgba(148, 163, 184, 0.4);
-  border-radius: 22px;
-  padding: 26px;
+  border-radius: 18px;
+  padding: 20px;
   text-align: center;
   background: rgba(255, 255, 255, 0.56);
   color: var(--muted);
+  font-size: 13px;
 }
 @media (max-width: 760px) {
   .page {
-    padding: 28px 16px 40px;
+    padding: 24px 14px 32px;
   }
   .hero-title {
-    font-size: 32px;
+    font-size: 28px;
   }
   .panel {
-    padding: 20px;
+    padding: 16px;
   }
   .form-grid {
     grid-template-columns: 1fr;
   }
 }
 @media (max-width: 560px) {
+  .page-header-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .page-actions {
+    width: 100%;
+  }
+  .language-select {
+    width: 100%;
+  }
   .panel-head {
     flex-direction: column;
     align-items: flex-start;
@@ -5340,30 +7063,40 @@ button:active {
 <body>
 <div class="page">
   <div class="page-header">
-    <div class="eyebrow">Claude Sessions Viewer</div>
-    <h1 class="hero-title">ラベル管理</h1>
-    <div class="hero-copy">セッションとイベントに共通で使うラベルをここで整えます。色コードを直接入力するか、プリセットをクリックして素早く設定できます。</div>
+    <div class="page-header-top">
+      <div class="eyebrow" id="page_badge">Claude Sessions Viewer</div>
+      <div class="page-actions">
+        <select id="language_select" class="language-select" aria-label="Language">
+          <option value="ja">日本語</option>
+          <option value="en">English</option>
+          <option value="zh-Hans">简体中文</option>
+          <option value="zh-Hant">繁體中文</option>
+        </select>
+      </div>
+    </div>
+    <h1 class="hero-title" id="hero_title">ラベル管理</h1>
+    <div class="hero-copy" id="hero_copy">セッションとイベントに共通で使うラベルをここで整えます。色コードを直接入力するか、プリセットをクリックして素早く設定できます。</div>
   </div>
   <div class="panel editor-panel">
     <div class="panel-head">
       <div>
-        <div class="panel-kicker">Label Editor</div>
-        <div class="panel-title">新規作成 / 編集</div>
-        <div class="panel-copy">保存すると一覧フィルタと詳細画面の両方にすぐ反映されます。</div>
+        <div class="panel-kicker" id="editor_kicker">Label Editor</div>
+        <div class="panel-title" id="editor_title">新規作成 / 編集</div>
+        <div class="panel-copy" id="editor_copy">保存すると一覧フィルタと詳細画面の両方にすぐ反映されます。</div>
       </div>
-      <div class="panel-chip">即時反映</div>
+      <div class="panel-chip" id="editor_chip">即時反映</div>
     </div>
     <div class="form-grid">
       <label>
-        ラベル名
+        <span id="label_name_text">ラベル名</span>
         <input id="label_name" placeholder="例: README / 画像 / 再確認" />
       </label>
       <label>
-        色コード
+        <span id="label_color_text">色コード</span>
         <input id="label_color" placeholder="#3b82f6 / rgb(...) / oklch(...)" />
       </label>
       <div class="preset-field">
-        <div class="preset-field-title">色プリセット</div>
+        <div class="preset-field-title" id="preset_field_title">色プリセット</div>
         <div class="preset-list inline" id="preset_preview"></div>
       </div>
       <button id="save_label">保存</button>
@@ -5375,8 +7108,8 @@ button:active {
   <div class="panel list-panel">
     <div class="list-head">
       <div>
-        <div class="panel-kicker">Registered Labels</div>
-        <div class="panel-title">既存ラベル</div>
+        <div class="panel-kicker" id="list_kicker">Registered Labels</div>
+        <div class="panel-title" id="list_title">既存ラベル</div>
       </div>
       <div class="panel-chip" id="label_count_badge">0 labels</div>
     </div>
@@ -5394,26 +7127,321 @@ button:active {
   </div>
 </div>
 <script>
-const PRESETS = {
-  red: { label: '赤系', color: '#ef4444' },
-  blue: { label: '青系', color: '#3b82f6' },
-  green: { label: '緑系', color: '#22c55e' },
-  yellow: { label: '黄色系', color: '#eab308' },
-  purple: { label: '紫系', color: '#a855f7' },
+const LANGUAGE_STORAGE_KEY = 'claude_sessions_viewer_language_v1';
+const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh-Hans', 'zh-Hant'];
+const LABEL_I18N = {
+  ja: {
+    'language.selector': '言語',
+    'page.title': 'ラベル管理 | Claude Sessions Viewer',
+    'page.heroTitle': 'ラベル管理',
+    'page.heroCopy': 'セッションとイベントに共通で使うラベルをここで整えます。色コードを直接入力するか、プリセットをクリックして素早く設定できます。',
+    'editor.kicker': 'Label Editor',
+    'editor.title': '新規作成 / 編集',
+    'editor.copy': '保存すると一覧フィルタと詳細画面の両方にすぐ反映されます。',
+    'editor.chip': '即時反映',
+    'form.name': 'ラベル名',
+    'form.color': '色コード',
+    'form.presets': '色プリセット',
+    'form.save': '保存',
+    'form.name.placeholder': '例: README / 画像 / 再確認',
+    'form.color.placeholder': '#3b82f6 / rgb(...) / oklch(...)',
+    'list.kicker': 'Registered Labels',
+    'list.title': '既存ラベル',
+    'list.count': '{count}件',
+    'list.empty': 'ラベルはまだありません。上のフォームから最初のラベルを作成してください。',
+    'list.colorPrefix': 'color',
+    'action.edit': '編集',
+    'action.delete': '削除',
+    'dialog.validation.kicker': '入力チェック',
+    'dialog.validation.title': '入力エラー',
+    'dialog.error.kicker': 'エラーメッセージ',
+    'dialog.error.title': 'エラー',
+    'dialog.close': '閉じる',
+    'confirm.delete': 'このラベルを削除しますか？',
+    'preset.red': '赤系',
+    'preset.blue': '青系',
+    'preset.green': '緑系',
+    'preset.yellow': '黄色系',
+    'preset.purple': '紫系',
+    'error.loadFailed': 'ラベル一覧の取得に失敗しました。',
+    'error.saveFailed': 'ラベルの保存に失敗しました。',
+    'error.deleteFailed': 'ラベルの削除に失敗しました。',
+    'server.colorInvalid': '色コードの形式が不正です',
+    'server.colorRequired': '色コードを入力してください',
+    'server.nameRequired': 'ラベル名を入力してください',
+    'server.nameTooLong': 'ラベル名が長すぎます',
+    'server.labelMissing': 'ラベルが見つかりません',
+    'server.labelDuplicate': '同名のラベルは既に存在します',
+    'server.notFound': '見つかりません',
+    'server.labelIdRequired': 'ラベルIDが必要です',
+  },
+  en: {
+    'language.selector': 'Language',
+    'page.title': 'Label Manager | Claude Sessions Viewer',
+    'page.heroTitle': 'Label Manager',
+    'page.heroCopy': 'Manage the shared labels used across sessions and events. Enter a color directly or click a preset for quick setup.',
+    'editor.kicker': 'Label Editor',
+    'editor.title': 'Create / Edit',
+    'editor.copy': 'Saving updates both the list filters and the detail view immediately.',
+    'editor.chip': 'Live update',
+    'form.name': 'Label name',
+    'form.color': 'Color value',
+    'form.presets': 'Color presets',
+    'form.save': 'Save',
+    'form.name.placeholder': 'Example: README / Images / Recheck',
+    'form.color.placeholder': '#3b82f6 / rgb(...) / oklch(...)',
+    'list.kicker': 'Registered Labels',
+    'list.title': 'Existing labels',
+    'list.count': '{count} labels',
+    'list.empty': 'No labels yet. Create your first label from the form above.',
+    'list.colorPrefix': 'color',
+    'action.edit': 'Edit',
+    'action.delete': 'Delete',
+    'dialog.validation.kicker': 'Validation',
+    'dialog.validation.title': 'Input error',
+    'dialog.error.kicker': 'Error message',
+    'dialog.error.title': 'Error',
+    'dialog.close': 'Close',
+    'confirm.delete': 'Delete this label?',
+    'preset.red': 'Red',
+    'preset.blue': 'Blue',
+    'preset.green': 'Green',
+    'preset.yellow': 'Yellow',
+    'preset.purple': 'Purple',
+    'error.loadFailed': 'Failed to load labels.',
+    'error.saveFailed': 'Failed to save the label.',
+    'error.deleteFailed': 'Failed to delete the label.',
+    'server.colorInvalid': 'The color value format is invalid.',
+    'server.colorRequired': 'Enter a color value.',
+    'server.nameRequired': 'Enter a label name.',
+    'server.nameTooLong': 'The label name is too long.',
+    'server.labelMissing': 'The label was not found.',
+    'server.labelDuplicate': 'A label with the same name already exists.',
+    'server.notFound': 'Not found.',
+    'server.labelIdRequired': 'A label ID is required.',
+  },
+  'zh-Hans': {
+    'language.selector': '语言',
+    'page.title': '标签管理 | Claude Sessions Viewer',
+    'page.heroTitle': '标签管理',
+    'page.heroCopy': '在这里整理会话与事件共用的标签。可以直接输入颜色值，也可以点击预设快速设置。',
+    'editor.kicker': 'Label Editor',
+    'editor.title': '新建 / 编辑',
+    'editor.copy': '保存后会立即反映到列表筛选和详情视图。',
+    'editor.chip': '即时生效',
+    'form.name': '标签名',
+    'form.color': '颜色值',
+    'form.presets': '颜色预设',
+    'form.save': '保存',
+    'form.name.placeholder': '例如: README / 图片 / 再确认',
+    'form.color.placeholder': '#3b82f6 / rgb(...) / oklch(...)',
+    'list.kicker': 'Registered Labels',
+    'list.title': '现有标签',
+    'list.count': '{count} 个标签',
+    'list.empty': '还没有标签。请先在上面的表单中创建第一个标签。',
+    'list.colorPrefix': 'color',
+    'action.edit': '编辑',
+    'action.delete': '删除',
+    'dialog.validation.kicker': '输入检查',
+    'dialog.validation.title': '输入错误',
+    'dialog.error.kicker': '错误信息',
+    'dialog.error.title': '错误',
+    'dialog.close': '关闭',
+    'confirm.delete': '要删除这个标签吗？',
+    'preset.red': '红色系',
+    'preset.blue': '蓝色系',
+    'preset.green': '绿色系',
+    'preset.yellow': '黄色系',
+    'preset.purple': '紫色系',
+    'error.loadFailed': '获取标签列表失败。',
+    'error.saveFailed': '保存标签失败。',
+    'error.deleteFailed': '删除标签失败。',
+    'server.colorInvalid': '颜色值格式无效。',
+    'server.colorRequired': '请输入颜色值。',
+    'server.nameRequired': '请输入标签名。',
+    'server.nameTooLong': '标签名过长。',
+    'server.labelMissing': '未找到标签。',
+    'server.labelDuplicate': '已存在同名标签。',
+    'server.notFound': '未找到。',
+    'server.labelIdRequired': '需要标签 ID。',
+  },
 };
+LABEL_I18N['zh-Hant'] = {
+  ...LABEL_I18N['zh-Hans'],
+  'language.selector': '語言',
+  'page.title': '標籤管理 | Claude Sessions Viewer',
+  'page.heroTitle': '標籤管理',
+  'page.heroCopy': '在這裡整理工作階段與事件共用的標籤。可以直接輸入顏色值，也可以點擊預設快速設定。',
+  'editor.title': '新增 / 編輯',
+  'editor.copy': '儲存後會立即反映到列表篩選與詳情視圖。',
+  'editor.chip': '即時生效',
+  'form.name': '標籤名',
+  'form.color': '顏色值',
+  'form.presets': '顏色預設',
+  'form.save': '儲存',
+  'form.name.placeholder': '例如: README / 圖片 / 再確認',
+  'list.title': '現有標籤',
+  'list.count': '{count} 個標籤',
+  'list.empty': '還沒有標籤。請先在上面的表單中建立第一個標籤。',
+  'action.edit': '編輯',
+  'action.delete': '刪除',
+  'dialog.validation.kicker': '輸入檢查',
+  'dialog.validation.title': '輸入錯誤',
+  'dialog.error.kicker': '錯誤訊息',
+  'dialog.error.title': '錯誤',
+  'dialog.close': '關閉',
+  'confirm.delete': '要刪除這個標籤嗎？',
+  'preset.red': '紅色系',
+  'preset.blue': '藍色系',
+  'preset.green': '綠色系',
+  'preset.yellow': '黃色系',
+  'preset.purple': '紫色系',
+  'error.loadFailed': '取得標籤列表失敗。',
+  'error.saveFailed': '儲存標籤失敗。',
+  'error.deleteFailed': '刪除標籤失敗。',
+  'server.colorInvalid': '顏色值格式無效。',
+  'server.colorRequired': '請輸入顏色值。',
+  'server.nameRequired': '請輸入標籤名。',
+  'server.nameTooLong': '標籤名過長。',
+  'server.labelMissing': '找不到標籤。',
+  'server.labelDuplicate': '已存在同名標籤。',
+  'server.notFound': '找不到項目。',
+  'server.labelIdRequired': '需要標籤 ID。',
+};
+const PRESETS = {
+  red: { color: '#ef4444' },
+  blue: { color: '#3b82f6' },
+  green: { color: '#22c55e' },
+  yellow: { color: '#eab308' },
+  purple: { color: '#a855f7' },
+};
+const SERVER_ERROR_KEYS = {
+  '色コードの形式が不正です': 'server.colorInvalid',
+  '色コードを入力してください': 'server.colorRequired',
+  'ラベル名を入力してください': 'server.nameRequired',
+  'ラベル名が長すぎます': 'server.nameTooLong',
+  'ラベルが見つかりません': 'server.labelMissing',
+  '同名のラベルは既に存在します': 'server.labelDuplicate',
+  'not found': 'server.notFound',
+  'label id is required': 'server.labelIdRequired',
+};
+
+let uiLanguage = 'ja';
+let labelItems = [];
+let errorDialogTone = 'validation';
+let errorDialogMessage = '';
+
+function normalizeLanguage(value){
+  const raw = (value || '').trim();
+  if(raw === 'zh' || raw === 'zh-CN' || raw === 'zh-SG'){
+    return 'zh-Hans';
+  }
+  if(raw === 'zh-TW' || raw === 'zh-HK' || raw === 'zh-MO'){
+    return 'zh-Hant';
+  }
+  return SUPPORTED_LANGUAGES.includes(raw) ? raw : 'ja';
+}
+
+function getStoredLanguage(){
+  try {
+    return localStorage.getItem(LANGUAGE_STORAGE_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function getRequestedLanguage(){
+  const params = new URLSearchParams(window.location.search);
+  return normalizeLanguage(params.get('lang') || getStoredLanguage() || uiLanguage);
+}
+
+function t(key, vars){
+  const dict = LABEL_I18N[uiLanguage] || LABEL_I18N.ja;
+  let text = dict[key];
+  if(typeof text !== 'string'){
+    text = LABEL_I18N.ja[key] || key;
+  }
+  if(vars){
+    Object.entries(vars).forEach(([name, value]) => {
+      text = text.replaceAll(`{${name}}`, String(value));
+    });
+  }
+  return text;
+}
 
 function esc(s){
   return (s ?? '').toString().replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function presetLabel(family){
+  if(!family) return '';
+  return t(`preset.${family}`);
+}
+
+function translateServerError(message){
+  const key = SERVER_ERROR_KEYS[message || ''];
+  return key ? t(key) : (message || '');
 }
 
 function badgeHtml(label){
   return `<span class="badge label-badge" style="--label-color:${esc(label.color_value)}"><span class="dot"></span><span>${esc(label.name)}</span></span>`;
 }
 
-function showErrorDialog(message, title){
-  document.getElementById('error_dialog_title').textContent = title || '入力エラー';
-  document.getElementById('error_dialog_kicker').textContent = title === 'エラー' ? 'エラーメッセージ' : '入力チェック';
-  document.getElementById('error_dialog_message').textContent = message || '';
+function renderLabelCount(count){
+  if(uiLanguage === 'en' && count === 1){
+    return '1 label';
+  }
+  return t('list.count', { count });
+}
+
+function applyDialogLanguage(){
+  const validation = errorDialogTone !== 'error';
+  document.getElementById('error_dialog_kicker').textContent = validation ? t('dialog.validation.kicker') : t('dialog.error.kicker');
+  document.getElementById('error_dialog_title').textContent = validation ? t('dialog.validation.title') : t('dialog.error.title');
+  document.getElementById('error_dialog_message').textContent = translateServerError(errorDialogMessage);
+  document.getElementById('error_dialog_close').textContent = t('dialog.close');
+}
+
+function applyLabelLanguage(){
+  document.documentElement.lang = uiLanguage;
+  document.title = t('page.title');
+  document.getElementById('language_select').value = uiLanguage;
+  document.getElementById('language_select').setAttribute('aria-label', t('language.selector'));
+  document.getElementById('hero_title').textContent = t('page.heroTitle');
+  document.getElementById('hero_copy').textContent = t('page.heroCopy');
+  document.getElementById('editor_kicker').textContent = t('editor.kicker');
+  document.getElementById('editor_title').textContent = t('editor.title');
+  document.getElementById('editor_copy').textContent = t('editor.copy');
+  document.getElementById('editor_chip').textContent = t('editor.chip');
+  document.getElementById('label_name_text').textContent = t('form.name');
+  document.getElementById('label_color_text').textContent = t('form.color');
+  document.getElementById('preset_field_title').textContent = t('form.presets');
+  document.getElementById('save_label').textContent = t('form.save');
+  document.getElementById('label_name').placeholder = t('form.name.placeholder');
+  document.getElementById('label_color').placeholder = t('form.color.placeholder');
+  document.getElementById('list_kicker').textContent = t('list.kicker');
+  document.getElementById('list_title').textContent = t('list.title');
+  applyDialogLanguage();
+  renderPresetPreview();
+  renderLabelList();
+}
+
+function setUiLanguage(nextLanguage, persist){
+  uiLanguage = normalizeLanguage(nextLanguage);
+  if(persist !== false){
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, uiLanguage);
+    } catch (e) {
+      // Ignore storage write errors.
+    }
+  }
+  applyLabelLanguage();
+}
+
+function showErrorDialog(message, tone){
+  errorDialogTone = tone === 'error' ? 'error' : 'validation';
+  errorDialogMessage = message || '';
+  applyDialogLanguage();
   document.getElementById('error_dialog').classList.remove('hidden');
 }
 
@@ -5440,7 +7468,7 @@ function renderPresetPreview(){
   const box = document.getElementById('preset_preview');
   const selectedFamily = document.getElementById('label_family').value || '';
   box.innerHTML = Object.entries(PRESETS).map(([key, value]) =>
-    `<button type="button" class="badge preset-badge ${selectedFamily === key ? 'active' : ''}" data-family="${esc(key)}" data-color="${esc(value.color)}" style="--label-color:${esc(value.color)}"><span class="dot"></span><span>${esc(value.label)}</span></button>`
+    `<button type="button" class="badge preset-badge ${selectedFamily === key ? 'active' : ''}" data-family="${esc(key)}" data-color="${esc(value.color)}" style="--label-color:${esc(value.color)}"><span class="dot"></span><span>${esc(presetLabel(key))}</span></button>`
   ).join('');
   box.querySelectorAll('.preset-badge').forEach(button => {
     button.onclick = () => {
@@ -5467,46 +7495,34 @@ function editLabel(label){
   renderPresetPreview();
 }
 
-async function deleteLabel(id){
-  if(!confirm('このラベルを削除しますか？')) return;
-  const data = await postJson('/api/labels/delete', { id });
-  if(data.error){
-    showErrorDialog(data.error, 'エラー');
-    return;
-  }
-  notifyParent();
-  await loadLabels();
-  resetForm();
-}
-
-async function loadLabels(){
-  const r = await fetch('/api/labels?ts=' + Date.now(), { cache: 'no-store' });
-  const data = await r.json();
+function renderLabelList(){
   const list = document.getElementById('label_list');
   const countBadge = document.getElementById('label_count_badge');
-  const count = (data.labels || []).length;
-  countBadge.textContent = `${count} label${count === 1 ? '' : 's'}`;
-  if(!data.labels || !data.labels.length){
-    list.innerHTML = '<div class="empty-state">ラベルはまだありません。上のフォームから最初のラベルを作成してください。</div>';
+  countBadge.textContent = renderLabelCount(labelItems.length);
+  if(!labelItems.length){
+    list.innerHTML = `<div class="empty-state">${esc(t('list.empty'))}</div>`;
     return;
   }
-  list.innerHTML = data.labels.map(label => `
-    <div class="label-row">
-      <div class="label-main">
-        <div class="label-topline">
-          ${badgeHtml(label)}
-          <div class="label-meta"><span class="label-meta-prefix">color</span><span class="label-code">${esc(label.color_value)}</span>${label.color_family_label ? ' / ' + esc(label.color_family_label) : ''}</div>
+  list.innerHTML = labelItems.map(label => {
+    const familyText = label.color_family ? ` / ${esc(presetLabel(label.color_family))}` : '';
+    return `
+      <div class="label-row">
+        <div class="label-main">
+          <div class="label-topline">
+            ${badgeHtml(label)}
+            <div class="label-meta"><span class="label-meta-prefix">${esc(t('list.colorPrefix'))}</span><span class="label-code">${esc(label.color_value)}</span>${familyText}</div>
+          </div>
+        </div>
+        <div class="label-row-actions">
+          <button class="secondary edit-label" data-label-id="${esc(label.id)}">${esc(t('action.edit'))}</button>
+          <button class="danger delete-label" data-label-id="${esc(label.id)}">${esc(t('action.delete'))}</button>
         </div>
       </div>
-      <div class="label-row-actions">
-        <button class="secondary edit-label" data-label-id="${esc(label.id)}">編集</button>
-        <button class="danger delete-label" data-label-id="${esc(label.id)}">削除</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
   list.querySelectorAll('.edit-label').forEach(button => {
     button.onclick = () => {
-      const label = data.labels.find(item => String(item.id) === button.dataset.labelId);
+      const label = labelItems.find(item => String(item.id) === button.dataset.labelId);
       if(label) editLabel(label);
     };
   });
@@ -5517,6 +7533,33 @@ async function loadLabels(){
   });
 }
 
+async function deleteLabel(id){
+  if(!confirm(t('confirm.delete'))) return;
+  try {
+    const data = await postJson('/api/labels/delete', { id });
+    if(data.error){
+      showErrorDialog(data.error, 'error');
+      return;
+    }
+    notifyParent();
+    await loadLabels();
+    resetForm();
+  } catch (error) {
+    showErrorDialog(t('error.deleteFailed'), 'error');
+  }
+}
+
+async function loadLabels(){
+  try {
+    const r = await fetch('/api/labels?ts=' + Date.now(), { cache: 'no-store' });
+    const data = await r.json();
+    labelItems = data.labels || [];
+    renderLabelList();
+  } catch (error) {
+    showErrorDialog(t('error.loadFailed'), 'error');
+  }
+}
+
 document.getElementById('save_label').addEventListener('click', async () => {
   const payload = {
     id: document.getElementById('label_id').value || null,
@@ -5524,16 +7567,23 @@ document.getElementById('save_label').addEventListener('click', async () => {
     color_value: document.getElementById('label_color').value,
     color_family: document.getElementById('label_family').value,
   };
-  const data = await postJson('/api/labels/save', payload);
-  if(data.error){
-    showErrorDialog(data.error, '入力エラー');
-    return;
+  try {
+    const data = await postJson('/api/labels/save', payload);
+    if(data.error){
+      showErrorDialog(data.error, 'validation');
+      return;
+    }
+    notifyParent();
+    await loadLabels();
+    resetForm();
+  } catch (error) {
+    showErrorDialog(t('error.saveFailed'), 'error');
   }
-  notifyParent();
-  await loadLabels();
-  resetForm();
 });
 
+document.getElementById('language_select').addEventListener('change', (event) => {
+  setUiLanguage(event.target.value);
+});
 document.getElementById('error_dialog_close').addEventListener('click', hideErrorDialog);
 document.getElementById('error_dialog').addEventListener('click', (event) => {
   if(event.target.id === 'error_dialog'){
@@ -5551,7 +7601,17 @@ document.getElementById('label_color').addEventListener('input', () => {
   document.getElementById('label_family').value = matched ? matched[0] : '';
   renderPresetPreview();
 });
-renderPresetPreview();
+window.addEventListener('storage', (event) => {
+  if(event.key !== LANGUAGE_STORAGE_KEY){
+    return;
+  }
+  const nextLanguage = normalizeLanguage(event.newValue || 'ja');
+  if(nextLanguage !== uiLanguage){
+    setUiLanguage(nextLanguage, false);
+  }
+});
+
+setUiLanguage(getRequestedLanguage(), false);
 loadLabels();
 </script>
 </body>
@@ -5583,6 +7643,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith('/icons/'):
+            icon_name = Path(parsed.path).name
+            icon_path = ICON_DIR / icon_name
+            if icon_path.suffix == '.svg' and icon_path.is_file():
+                self._send_raw(icon_path.read_bytes(), 'image/svg+xml; charset=utf-8')
+                return
+            self._send_html('<h1>404</h1>', 404)
+            return
+
         if parsed.path == "/":
             self._send_html(HTML_PAGE)
             return
@@ -5610,8 +7679,14 @@ class Handler(BaseHTTPRequestHandler):
                 session_label_id=session_label_id,
                 event_label_id=event_label_id,
             )
+            root_parts = []
+            if roots["claude_cli"]:
+                root_parts.extend(f"Claude Code CLI: {x}" for x in roots["claude_cli"])
+            if roots["claude_desktop"]:
+                root_parts.extend(f"Claude Desktop: {x}" for x in roots["claude_desktop"])
             self._send_json(
                 {
+                    "root": " | ".join(root_parts),
                     "roots": {
                         "claude_cli": [str(x) for x in roots["claude_cli"]],
                         "claude_desktop": [str(x) for x in roots["claude_desktop"]],

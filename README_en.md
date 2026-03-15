@@ -164,6 +164,38 @@ python viewer.py
   - Manages session labels and event labels in one shared UI
   - Label colors can be entered directly as `#hex`, `rgb(...)`, or `oklch(...)`, or selected from color presets
 
+
+## Keyboard Shortcuts
+
+You can also open the shortcut dialog from the `Shortcuts` button in the upper-right header.
+
+| Key | Action |
+| --- | --- |
+| `F5` | Refresh the current list or session detail |
+| `Shift + F` | Toggle the left-pane filters |
+| `Shift + L` | Run `Clear` on the left pane |
+| `/` | Focus the search input |
+| `N` | Move to the next detail-search match |
+| `P` | Move to the previous detail-search match |
+| `M` | Toggle the `path / cwd / time` meta block |
+| `[` | Open the previous session |
+| `]` | Open the next session |
+| `1` | Toggle `Only user instructions` |
+| `2` | Toggle `Only AI responses` |
+| `3` | Toggle `Only each input and final reply` |
+| `4` | Toggle `Reverse order` |
+| `Shift + D` | Clear right-pane filters and active modes |
+| `Shift + T` | Toggle detail actions |
+| `Shift + R` | Copy the session resume command (`claude --resume <session_id>`) |
+| `Shift + C` | Copy displayed messages |
+| `Shift + S` | Toggle selection mode |
+| `Shift + X` | Copy selected messages |
+| `Shift + G` | Toggle anchor mode |
+| `Shift + H` | Clear the anchor |
+| `,` | Show only events before the anchor |
+| `.` | Show only events after the anchor |
+| `Esc` | Close the shortcut dialog or label picker, and leave search fields |
+
 ## Important Limitations
 
 - Claude Code CLI (JSONL) can be parsed and displayed structurally.
