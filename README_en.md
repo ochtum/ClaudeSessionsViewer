@@ -5,17 +5,39 @@
 
 # ClaudeSessionsViewer
 
-ClaudeSessionsViewer is a local viewer for searching and browsing Claude chat history.
-It scans the following two storage locations:
+A local viewer for searching and browsing Claude chat data.  
+It scans the following two storage families:
 
 - `~/.claude/projects/` (Claude Code CLI / JSONL)
 - `%APPDATA%\Claude\IndexedDB\` (Claude Desktop / LevelDB)
 
+- This tool supports Japanese, English, Simplified Chinese, and Traditional Chinese.
+- Feedback and feature requests are welcome via issues.
+
+## Screen Layout
+
+### Main Screen
+
 ![image](/image/00001.jpg)
+
+### Label Manager Screen
+
+![image](/image/00002.jpg)
+
+## Directory Layout
+
+```text
+.
+├─ viewer.py
+└─ scripts
+   └─ windows
+      ├─ launch_viewer.bat
+      └─ stop_viewer.bat
+```
 
 ## Prerequisites
 
-- Python 3 (`py -3`, `python`, or `python3` command available)
+- Python 3 (`py -3`, `python`, or `python3` must be available)
 - A web browser (Edge / Chrome, etc.)
 
 If Python 3 is not installed (Windows / winget):
@@ -30,20 +52,22 @@ Verify installation:
 py -3 --version
 ```
 
-## Launch on Windows
+## Launch
+
+### One-click Launch on Windows
 
 - `scripts\windows\launch_viewer.bat`
 - `scripts\windows\stop_viewer.bat`
 
-`launch_viewer.bat` starts `viewer.py` on Windows and opens your browser.
+`launch_viewer.bat` starts `viewer.py` on Windows and opens the browser.
 
-Default URL:
+Open the following URL after launch:
 
 ```text
 http://127.0.0.1:8767
 ```
 
-## Run Directly (Python)
+### Launch Directly with Python
 
 ```powershell
 python viewer.py
@@ -69,70 +93,145 @@ python3 viewer.py
   - `WIN_HOME\AppData\Roaming\Claude\IndexedDB` (when `WIN_HOME` is set)
   - `/mnt/c/Users/*/AppData/Roaming/Claude/IndexedDB`
 
-To use a custom Claude Code CLI directory:
+## Options
+
+To use custom Claude Code CLI directories, set `CLAUDE_SESSIONS_DIR`.  
+You can also override with `SESSIONS_DIR`. Multiple roots are separated with `os.pathsep` (`;` on Windows, `:` on Unix/WSL).
 
 ```powershell
 $env:CLAUDE_SESSIONS_DIR = 'C:\path\to\.claude\projects'
 python viewer.py
 ```
 
-Notes:
+To change the bind address, set `HOST`.
 
-- You can also override with `SESSIONS_DIR`.
-- Multiple paths are separated by `os.pathsep` (`;` on Windows, `:` on Unix/WSL).
-- On Windows, `viewer.py` also runs `wsl.exe -l -q` and scans each distro's `~/.claude/projects`.
-- Set `CLAUDE_WSL_DISTROS` to limit which distros are scanned (example: `Ubuntu;Debian`).
+```powershell
+$env:HOST = '0.0.0.0'
+python viewer.py
+```
 
 ## UI Features
 
-- Left pane: session list (newest first)
-- Session `source` labels (`CLI(JSONL)` / `Desktop(LevelDB)`) are shown in the list
-- Top-left filters: narrow down by `project/path`, date range, keyword, and `source`
-- Search is partial match against `project`, `relative_path`, and first user input
-- `project/path` matching checks both `project` and `relative_path`, and treats `-`, `/`, and `\` as equivalent separators
-- `project/path` / date range / keyword / `source` are always combined with AND
-- `AND/OR` switch applies only within the keyword field
-  - `AND`: must include all space-separated keywords
-  - `OR`: must include at least one space-separated keyword
-- Right pane: timeline of events for the selected session
-  - The detail header also shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
+- Left pane: session list, sorted newest first
+  - Shows session `source` labels (`Claude Code CLI` / `Claude Desktop`) and session labels in the list
+  - Shows a loading state during the initial load
+  - `Reload` reloads the session list
+    - During a manual `Reload`, the list shows an updating overlay and button state feedback
+  - `Clear` resets the left-pane search conditions
+  - `Hide` / `Show` collapses or expands the search filter area
+  - In vertical layout, the header button `Hide List` / `Show List` can hide or show the entire left pane
+- Top-left filters
+  - Filter by `project/path` / date / keyword / `source` / session label / event label
+  - Keyword search uses a SQLite-backed search index
+  - `project/path` matches both `project` and `relative_path`, and treats `-`, `/`, and `\` as equivalent separators
+  - Search targets include event text extracted from `message`, `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other textual events
+  - `project/path`, date, `source`, and label conditions are always evaluated with AND
+  - The `AND/OR` switch applies only to the keyword field
+    - `AND`: must include all space-separated keywords
+    - `OR`: must include at least one space-separated keyword
+- Right pane: chronological event view for the selected session
+  - Shows a loading state during the first detail load, and an updating overlay during manual `Refresh`
+  - The detail header shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
+  - The detail header uses a 4-row layout
+    - Row 1: display filters, `Clear`, `Refresh`, and `Hide` / `Show` to collapse rows 2, 3, and 4 together
+    - Row 2: copy actions, label actions, and selection-copy actions
+    - Row 3: keyword input, `Filter`, `Search`, `Previous`, `Next`, and `Keyword Clear`
+    - Row 4: single-`message` anchor selection mode, clear-anchor action, and before/after message filtering
   - Display options
     - `Show only user instructions`
     - `Show only AI responses`
+    - `Show only each input and final response`
+      - For each turn, keeps one `user` message and only the last `assistant` message before the next `user`
     - `Reverse display order`
-  - A `Copy Resume Command` button copies `claude --resume <session_id>`
-  - Shows `message` (`user` / `assistant`) and `function_call` / `function_output` / `agent_update`
-  - `user` messages use a light-blue background, `assistant` uses light-green, and execution context such as `AGENTS.md` / `environment_context` is shown in gray
+    - `event label: all` filter
+  - Keyword search
+    - `Filter`: shows only events that contain the keyword
+    - `Search`: highlights matches and lets you move through them with `Previous` / `Next`
+    - `Keyword Clear`: clears the input, filter state, and search state together
+    - Matching is a literal substring match, not AND / OR parsing
+    - Search targets include the full displayed event body text
+  - `Clear` resets the detail-side display filters
+  - `Refresh` reloads only the currently selected session
+  - `Copy Resume Command` copies `claude --resume <session_id>`
+  - `Copy Displayed Messages` copies all messages currently visible under the active display filters
+  - Session label display and `Add Session Label`
+  - Per-event label display / add / remove
+  - Each `message` event has its own `Copy` button
+  - `Selection Mode` lets you check individual `message` events and copy them together with `Copy Selected`
+    - Even when filters are applied, already selected `message` events remain selected
+  - `Anchor Selection Mode` lets you choose one `message` event and filter the view to messages before or after that anchor
+  - Displays `message` (`user` / `assistant`), `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other extracted textual events
+  - `user` messages use a light blue background, `assistant` uses light green, system / notice events use gray tones, and tool events use teal tones
+- Label Manager
+  - Opens in a separate window from the `Label Manager` button in the upper-right
+  - Manages session labels and event labels in one shared UI
+  - Label colors can be entered directly as `#hex`, `rgb(...)`, or `oklch(...)`, or selected from color presets
+
+
+## Keyboard Shortcuts
+
+Shortcuts do not run while an input is focused. Press `Esc` to close the shortcut dialog or label picker, or to leave a search field.
+
+| Key | Action |
+| --- | --- |
+| `F5` | Refresh the current list or session detail |
+| `Shift + F` | Toggle the left-pane filters |
+| `Shift + L` | Run `Clear` on the left pane |
+| `/` | Focus the search input |
+| `N` | Move to the next detail-search match |
+| `P` | Move to the previous detail-search match |
+| `M` | Toggle the `path / cwd / time` meta block |
+| `[` | Open the previous session |
+| `]` | Open the next session |
+| `1` | Toggle `Only user instructions` |
+| `2` | Toggle `Only AI responses` |
+| `3` | Toggle `Only each input and final reply` |
+| `4` | Toggle `Reverse order` |
+| `Shift + D` | Clear right-pane filters and active modes |
+| `Shift + T` | Toggle detail actions |
+| `Shift + R` | Copy the session resume command (`claude --resume <session_id>`) |
+| `Shift + C` | Copy displayed messages |
+| `Shift + S` | Toggle selection mode |
+| `Shift + X` | Copy selected messages |
+| `Shift + G` | Toggle anchor mode |
+| `Shift + H` | Clear the anchor |
+| `,` | Show only events before the anchor |
+| `.` | Show only events after the anchor |
+| `Esc` | Close the shortcut dialog or label picker, and leave search fields |
 
 ## Important Limitations
 
 - Claude Code CLI (JSONL) can be parsed and displayed structurally.
-- Claude Desktop (IndexedDB/LevelDB) has the following characteristics and limitations.
+- Claude Desktop (IndexedDB/LevelDB) has the following behavior and limitations.
 
 ### Claude Desktop Data Structure
 
-Investigation has revealed that Claude Desktop only stores **unsent chat draft messages** in `%APPDATA%\Claude\IndexedDB\`.
+Investigation showed that Claude Desktop stores only **unsent chat draft messages** in `%APPDATA%\Claude\IndexedDB\`.
 
 | Item | Description |
-|------|-------------|
-| What is stored | Chat input drafts (unsent messages) |
-| What is NOT stored | Sent conversation history (user messages and AI responses) |
-| Where sent conversations are stored | Anthropic's servers (not available locally) |
+| ---- | ---- |
+| Stored locally | Draft text in the chat input box (unsent messages) |
+| Not stored locally | Sent conversation history (user messages and AI responses) |
+| Actual storage for sent conversations | Anthropic servers, not local files |
 
-This viewer properly parses the LevelDB log files (`.log`) and accurately displays draft messages.
+This viewer properly parses LevelDB log files (`.log`) and reconstructs draft messages.
 
 - Decodes LevelDB WriteBatch records block by block
-- Recovers Chromium IndexedDB string keys (UTF-16BE)
+- Restores Chromium IndexedDB string keys (UTF-16BE)
 - Skips the Blink SerializedScriptValue header and extracts UTF-16LE JSON
 - Collects plain text from TipTap / ProseMirror document trees
 
-> **Why conversation history is not visible**
-> Claude Desktop is Electron wrapping the claude.ai web application. Conversation history is stored in Anthropic's cloud and is not synchronized to local IndexedDB. Therefore, this viewer can only display drafts currently being typed.
+> **Why sent conversations are not visible**  
+> Claude Desktop is an Electron wrapper around the claude.ai web app. Conversation history is stored in Anthropic's cloud and is not synchronized to local IndexedDB. Because of that, this viewer can only show drafts currently being edited.
 
-## Environment Variables
+## Notes
 
-- `HOST`: Bind address (default: `127.0.0.1`)
-- `PORT`: Port (default: `8767`)
-- `CLAUDE_SESSIONS_DIR` / `SESSIONS_DIR`: Override Claude Code CLI JSONL root path(s)
+- The search index is stored in `.cache/search_index.sqlite3` and only changed sessions are re-indexed.
+- On Windows, `viewer.py` runs `wsl.exe -l -q` and also scans each distro's `~/.claude/projects`.
+- To limit which distros are auto-detected, set `CLAUDE_WSL_DISTROS` (for example: `Ubuntu;Debian`).
+- To keep the UI responsive with large logs, the list is capped at `400` sessions and the detail view is capped at `4000` events.
+- By default, the viewer listens only on `127.0.0.1` for local use.
 
-## ❗This project is licensed under the MIT License, see the LICENSE file for details
+## License
+
+This project is provided under the MIT License. See the `LICENSE` file for details.

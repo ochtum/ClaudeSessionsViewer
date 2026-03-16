@@ -11,7 +11,29 @@ Claude のチャット履歴を検索・表示するローカル Viewer です�
 - `~/.claude/projects/`（Claude Code CLI / JSONL）
 - `%APPDATA%\Claude\IndexedDB\`（Claude Desktop / LevelDB）
 
+- 本ツールは 日本語 / English / 简体中文 / 繁體中文 に対応しています。
+- ご意見、ご要望はご遠慮なく issue に投稿ください。
+
+## 画面構成
+
+### メイン画面
+
 ![image](/image/00001.jpg)
+
+### ラベル管理画面
+
+![image](/image/00002.jpg)
+
+## ディレクトリ構成
+
+```text
+.
+├─ viewer.py
+└─ scripts
+   └─ windows
+      ├─ launch_viewer.bat
+      └─ stop_viewer.bat
+```
 
 ## 前提条件
 
@@ -30,20 +52,22 @@ winget install -e --id Python.Python.3.12
 py -3 --version
 ```
 
-## Windows から起動
+## 起動方法
+
+### Windows からワンクリック起動（バッチ）
 
 - `scripts\windows\launch_viewer.bat`
 - `scripts\windows\stop_viewer.bat`
 
 `launch_viewer.bat` は Windows 上で `viewer.py` を起動し、ブラウザを開きます。
 
-既定 URL:
+起動後、ブラウザで以下を開きます。
 
 ```text
 http://127.0.0.1:8767
 ```
 
-## 直接起動（Python）
+### 直接起動（Python）
 
 ```powershell
 python viewer.py
@@ -69,40 +93,111 @@ python3 viewer.py
   - `WIN_HOME\AppData\Roaming\Claude\IndexedDB`（`WIN_HOME` 指定時）
   - `/mnt/c/Users/*/AppData/Roaming/Claude/IndexedDB`
 
-任意の Claude Code CLI ディレクトリを使う場合:
+## オプション
+
+デフォルト以外の Claude Code CLI ディレクトリを使う場合は `CLAUDE_SESSIONS_DIR` を設定します。  
+`SESSIONS_DIR` でも上書きできます。複数指定は `os.pathsep` 区切り（Windows は `;`, Unix/WSL は `:`）です。
 
 ```powershell
 $env:CLAUDE_SESSIONS_DIR = 'C:\path\to\.claude\projects'
 python viewer.py
 ```
 
-補足:
+待ち受けアドレスを変更する場合は `HOST` を設定します。
 
-- `SESSIONS_DIR` でも上書きできます。
-- 複数指定は `os.pathsep` 区切り（Windows は `;`, Unix/WSL は `:`）です。
-- Windows 版 `viewer.py` は `wsl.exe -l -q` を使って WSL ディストリを列挙し、各ディストリの `~/.claude/projects` も自動探索します。
-- 自動検出対象のディストリを絞る場合は `CLAUDE_WSL_DISTROS` を指定できます（例: `Ubuntu;Debian`）。
+```powershell
+$env:HOST = '0.0.0.0'
+python viewer.py
+```
 
 ## 画面機能
 
 - 左ペイン: セッション一覧（最新順）
-- 一覧にセッション `source` ラベル（`CLI(JSONL)` / `Desktop(LevelDB)`）を表示
-- 左上 filter: `project/path` / 日付範囲 / キーワード / `source` で絞り込み
-- 検索は一部一致（部分一致）。`project` / `relative_path` / 最初のユーザー入力を対象
-- `project/path` 検索は `project` と `relative_path` の両方を対象にし、`-` / `/` / `\` を同一視して判定
-- `project/path` / 日付範囲 / キーワード / `source` は常に AND 条件で評価
-- `AND/OR` 切替はキーワード欄内のみ
-  - `AND`: スペース区切りキーワードをすべて含む
-  - `OR`: スペース区切りキーワードのどれかを含む
+  - 一覧にセッション `source` ラベル（`Claude Code CLI` / `Claude Desktop`）とセッションラベルを表示
+  - 初回起動時は一覧のローディング状態を表示
+  - `Reload` ボタンで一覧を再読み込み
+    - 手動 `Reload` 時は一覧の更新中オーバーレイとボタン状態を表示
+  - `Clear` ボタンで左ペインの検索条件を初期化
+  - `Hide` / `Show` ボタンで検索条件欄を折りたたみ / 展開可能
+  - 縦表示時はヘッダー右上の「一覧を隠す / 一覧を表示」ボタンで左ペイン全体を切り替え可能
+- 左上 filter
+  - `project/path` / 日付範囲 / キーワード / `source` / セッションラベル / イベントラベルで絞り込み
+  - キーワード検索は SQLite インデックスを使う全文検索
+  - `project/path` 検索は `project` と `relative_path` の両方を対象にし、`-` / `/` / `\` を同一視して判定
+  - `message` / `tool_result` / `queue` / `progress` / `notice` / `snippet` など、イベント本文として抽出された文字列を検索対象
+  - `project/path` / 日付範囲 / `source` / ラベル条件は常に AND 条件で評価
+  - `AND/OR` 切替はキーワード欄内のみ
+    - `AND`: スペース区切りキーワードをすべて含む
+    - `OR`: スペース区切りキーワードのどれかを含む
 - 右ペイン: 選択セッションのイベント時系列表示
+  - 初回詳細読み込み時はローディング表示、手動 `Refresh` 時は詳細更新中オーバーレイを表示
   - 詳細ヘッダーに `source` ラベル（`Claude Code CLI` / `Claude Desktop`）を表示
+  - 詳細ヘッダーは 4 段構成
+    - 1 段目: 表示フィルター群、`Clear`、`Refresh`、2 段目 / 3 段目 / 4 段目をまとめて畳む `Hide` / `Show`
+    - 2 段目: コピー、ラベル追加、選択コピー関連の操作ボタン
+    - 3 段目: キーワード検索欄、`フィルター`、`検索`、`前へ`、`次へ`、`Keyword Clear`
+    - 4 段目: 単一 `message` を起点として選ぶモード、起点解除、起点以前 / 以降のメッセージ表示
   - 表示オプション
     - 「ユーザー指示のみ表示」
     - 「AIレスポンスのみ表示」
+    - 「各入力と最終応答のみ」
+      - 各ターンで `user` の入力 1 件と、次の `user` が来るまでの最後の `assistant` 1 件だけを表示
     - 「表示順を逆にする」
+    - `event label: all` フィルタ
+  - キーワード検索
+    - `フィルター`: キーワードを含むイベントだけを表示
+    - `検索`: 一致箇所をハイライトし、`前へ` / `次へ` で候補間を移動
+    - `Keyword Clear`: 入力欄、フィルター、検索状態をまとめて解除
+    - AND / OR ではなく、入力した文字列そのままの部分一致で判定
+    - 検索対象は表示中イベントの本文全体
+  - `Clear` ボタンで詳細側の表示フィルターをクリア
+  - `Refresh` ボタンで選択中セッションだけを再取得
   - 「セッション再開コマンドコピー」ボタンで `claude --resume <セッションID>` をコピー
-  - `message`（`user` / `assistant`）および `function_call` / `function_output` / `agent_update` を表示
-  - `user` は薄青背景、`assistant` は薄緑背景、`AGENTS.md` / `environment_context` などの実行コンテキストはグレー背景で表示
+  - 「表示中メッセージコピー」ボタンで、現在の表示フィルター結果をまとめてコピー
+  - セッションラベル表示と「セッションにラベル追加」
+  - イベントごとのラベル表示 / 追加 / 削除
+  - 各 `message` イベントに「コピー」ボタンを表示
+  - 「選択モード」で `message` イベントごとにチェックを付けて、「選択コピー」でまとめてコピー可能
+    - フィルター適用中でも、すでに選択済みの `message` は保持される
+  - 「起点選択モード」で単一の `message` を選び、「起点以降のみ表示」 / 「起点以前のみ表示」でメッセージを絞り込み可能
+  - `message`（`user` / `assistant`）、`tool_result`、`queue`、`progress`、`notice`、`snippet` などを表示
+  - `user` は薄青背景、`assistant` は薄緑背景、system / notice 系はグレー系背景、tool 系は青緑系背景で表示
+- ラベル管理
+  - 右上の「ラベル管理」ボタンから別ウィンドウで開く
+  - セッションラベル / イベントラベルを共通管理
+  - ラベル色は `#hex` / `rgb(...)` / `oklch(...)` を直接入力、または色プリセットから選択可能
+
+
+## ショートカットキー
+
+入力欄にカーソルがある間は、ショートカットは実行されません。`Esc` でショートカット一覧やラベルピッカーを閉じるか、検索入力からカーソルを外せます。
+
+| キー | 動作 |
+| --- | --- |
+| `F5` | 表示中の一覧またはセッション詳細を更新 |
+| `Shift + F` | 左ペインのフィルタ表示を切り替え |
+| `Shift + L` | 左ペインの `Clear` を実行 |
+| `/` | 検索入力欄にフォーカス |
+| `N` | 詳細検索の次のヒットへ移動 |
+| `P` | 詳細検索の前のヒットへ移動 |
+| `M` | `path / cwd / time` のメタ表示を切り替え |
+| `[` | 前のセッションを開く |
+| `]` | 次のセッションを開く |
+| `1` | 「ユーザー指示のみ表示」を切り替え |
+| `2` | 「AIレスポンスのみ表示」を切り替え |
+| `3` | 「各入力と最終応答のみ」を切り替え |
+| `4` | 「表示順を逆にする」を切り替え |
+| `Shift + D` | 右ペインの表示条件と操作状態をクリア |
+| `Shift + T` | 詳細操作の表示と非表示を切り替え |
+| `Shift + R` | セッション再開コマンドをコピー（`claude --resume <セッションID>`） |
+| `Shift + C` | 表示中メッセージをコピー |
+| `Shift + S` | 選択モードの開始と終了を切り替え |
+| `Shift + X` | 選択中メッセージをコピー |
+| `Shift + G` | 起点選択モードの開始と終了を切り替え |
+| `Shift + H` | 起点を解除 |
+| `,` | 起点以前のみ表示 |
+| `.` | 起点以降のみ表示 |
+| `Esc` | ショートカット一覧やラベル追加ポップアップを閉じ、検索入力欄からカーソルを外す |
 
 ## 重要な制約
 
@@ -114,7 +209,7 @@ python viewer.py
 調査の結果、Claude Desktop が `%APPDATA%\Claude\IndexedDB\` に保存しているのは **送信前のチャット下書きメッセージのみ** であることが判明しました。
 
 | 項目 | 説明 |
-|------|------|
+| ---- | ---- |
 | 保存されるデータ | チャット入力欄の下書き（未送信メッセージ） |
 | 保存されないデータ | 送信済みの会話履歴（ユーザー発話・AI 応答） |
 | 送信済み会話の保存先 | Anthropic のサーバー側（ローカルには存在しない） |
@@ -126,13 +221,15 @@ python viewer.py
 - Blink SerializedScriptValue のヘッダーをスキップし、UTF-16LE の JSON を抽出
 - TipTap / ProseMirror ドキュメントツリーからプレーンテキストを収集
 
-> **なぜ会話履歴が見えないのか**
+> **なぜ会話履歴が見えないのか**  
 > Claude Desktop は claude.ai の Web アプリを Electron でラップしたものです。会話履歴は Anthropic のクラウドに保存され、ローカルの IndexedDB には同期されません。そのため、本 Viewer で表示できるのは現在入力中の下書きのみとなります。
 
-## 環境変数
+## 補足
 
-- `HOST`: バインドアドレス（既定 `127.0.0.1`）
-- `PORT`: ポート（既定 `8767`）
-- `CLAUDE_SESSIONS_DIR` / `SESSIONS_DIR`: Claude Code CLI の JSONL ルートを上書き
+- 検索インデックスは `.cache/search_index.sqlite3` に保存され、変更のあったセッションだけ差分更新します。
+- Windows 版 `viewer.py` は `wsl.exe -l -q` を使って WSL ディストリを列挙し、各ディストリの `~/.claude/projects` も自動探索します。
+- 自動検出対象のディストリを絞る場合は `CLAUDE_WSL_DISTROS` を指定できます（例: `Ubuntu;Debian`）。
+- 大量ログ対策で一覧最大 `400` 件、イベント最大 `4000` 件に制限しています。
+- Viewer はデフォルトでローカル専用 (`127.0.0.1`) で待ち受けます。
 
 ## ❗このプロジェクトは MIT ライセンスの下で提供されています。詳細は LICENSE ファイルをご覧ください。
