@@ -4,6 +4,7 @@ import json
 import locale
 import os
 import re
+import shlex
 import sqlite3
 import struct
 import subprocess
@@ -20,7 +21,7 @@ MAX_EVENTS = 4000
 MAX_DESKTOP_SCAN_BYTES = 2 * 1024 * 1024
 SEARCH_TEXT_LIMIT = 50000
 SEARCH_INDEX_TEXT_LIMIT = SEARCH_TEXT_LIMIT
-SEARCH_INDEX_SCHEMA_VERSION = 3
+SEARCH_INDEX_SCHEMA_VERSION = 4
 SEARCH_INDEX_DB_PATH = Path(__file__).resolve().parent / ".cache" / "search_index.sqlite3"
 ICON_DIR = Path(__file__).resolve().parent / 'icons'
 MAX_JSON_BODY_BYTES = 1_000_000
@@ -1088,6 +1089,14 @@ def normalize_search_text(text: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip().lower()
 
 
+def parse_search_query(query: str) -> list[str]:
+    """Split a search query while preserving quoted phrases."""
+    try:
+        return shlex.split(query)
+    except ValueError:
+        return query.split()
+
+
 def is_safe_css_color(value: str) -> bool:
     candidate = (value or "").strip()
     if not candidate or len(candidate) > 64:
@@ -1224,6 +1233,9 @@ def open_search_index_connection():
             conn.execute("DROP TABLE IF EXISTS session_index")
             conn.execute("DROP TABLE IF EXISTS session_label_links")
             conn.execute("DROP TABLE IF EXISTS event_label_links")
+    if 3 <= current_version < 4:
+        with conn:
+            conn.execute("DROP TABLE IF EXISTS session_index")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS session_index (
@@ -1241,7 +1253,9 @@ def open_search_index_connection():
             source_type TEXT NOT NULL,
             project TEXT NOT NULL,
             first_user_text TEXT NOT NULL,
-            search_text TEXT NOT NULL
+            search_text TEXT NOT NULL,
+            min_event_ts TEXT NOT NULL DEFAULT '',
+            max_event_ts TEXT NOT NULL DEFAULT ''
         )
         """
     )
@@ -1483,6 +1497,8 @@ def summary_from_index_row(row):
         "source_type": row["source_type"],
         "project": row["project"],
         "first_user_text": row["first_user_text"],
+        "min_event_ts": row["min_event_ts"],
+        "max_event_ts": row["max_event_ts"],
     }
 
 
@@ -1643,11 +1659,21 @@ def build_search_index_record(source_type: str, path: Path, root: Path, stat_res
     summary["session_id"] = summary.get("id", "")
     search_chunks = []
     search_len = 0
+    min_event_ts = ""
+    max_event_ts = ""
     for event in event_data["events"]:
+        event_ts = _iso_from_ts(event.get("timestamp"))
+        if event_ts:
+            if not min_event_ts or event_ts < min_event_ts:
+                min_event_ts = event_ts
+            if not max_event_ts or event_ts > max_event_ts:
+                max_event_ts = event_ts
         search_len = append_search_chunk(search_chunks, event.get("text", ""), search_len, SEARCH_INDEX_TEXT_LIMIT)
         for label in event.get("system_labels", []):
             search_len = append_search_chunk(search_chunks, label, search_len, SEARCH_INDEX_TEXT_LIMIT)
     search_text = " ".join(_search_prefix_from_summary(summary) + search_chunks)
+    summary["min_event_ts"] = min_event_ts
+    summary["max_event_ts"] = max_event_ts
     return summary, search_text
 
 
@@ -1719,8 +1745,8 @@ def sync_search_index(items, prune_missing=True):
                         INSERT INTO session_index (
                             path, id, relative_path, mtime_iso, mtime_ns, size,
                             session_id, started_at, cwd, model, source, source_type,
-                            project, first_user_text, search_text
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            project, first_user_text, search_text, min_event_ts, max_event_ts
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(path) DO UPDATE SET
                             id = excluded.id,
                             relative_path = excluded.relative_path,
@@ -1735,7 +1761,9 @@ def sync_search_index(items, prune_missing=True):
                             source_type = excluded.source_type,
                             project = excluded.project,
                             first_user_text = excluded.first_user_text,
-                            search_text = excluded.search_text
+                            search_text = excluded.search_text,
+                            min_event_ts = excluded.min_event_ts,
+                            max_event_ts = excluded.max_event_ts
                         """,
                         (
                             summary["path"],
@@ -1753,6 +1781,8 @@ def sync_search_index(items, prune_missing=True):
                             summary.get("project", ""),
                             summary.get("first_user_text", ""),
                             search_text,
+                            summary.get("min_event_ts", ""),
+                            summary.get("max_event_ts", ""),
                         ),
                     )
         finally:
@@ -1762,14 +1792,19 @@ def sync_search_index(items, prune_missing=True):
         set_cached_summary(session_path_key(path), signature, summary)
 
 
-def fetch_sessions_from_search_index(query: str, mode: str, limit: int, session_label_id=None, event_label_id=None):
-    normalized_terms = [normalize_search_text(term) for term in query.split() if normalize_search_text(term)]
+def fetch_sessions_from_search_index(query: str, mode: str, limit: int, session_label_id=None, event_label_id=None, sort="desc"):
+    normalized_terms = []
+    for term in parse_search_query(query):
+        normalized = normalize_search_text(term)
+        if normalized:
+            normalized_terms.append(normalized)
     with _SEARCH_INDEX_LOCK:
         conn = open_search_index_connection()
         try:
             columns = (
                 "id, path, relative_path, mtime_iso, session_id, started_at, "
-                "cwd, model, source, source_type, project, first_user_text"
+                "cwd, model, source, source_type, project, first_user_text, "
+                "min_event_ts, max_event_ts"
             )
             where_clauses = []
             params = []
@@ -1789,7 +1824,16 @@ def fetch_sessions_from_search_index(query: str, mode: str, limit: int, session_
                 )
                 params.append(event_label_id)
             where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            sql = f"SELECT {columns} FROM session_index {where_sql} ORDER BY mtime_ns DESC LIMIT ?"
+            if sort == "updated":
+                order_sql = "ORDER BY mtime_ns DESC"
+            else:
+                direction = "ASC" if sort == "asc" else "DESC"
+                order_sql = (
+                    "ORDER BY "
+                    f"CASE WHEN started_at IS NOT NULL AND started_at <> '' THEN started_at ELSE mtime_iso END {direction}, "
+                    f"mtime_ns {direction}"
+                )
+            sql = f"SELECT {columns} FROM session_index {where_sql} {order_sql} LIMIT ?"
             params.append(limit)
             rows = conn.execute(sql, params).fetchall()
             sessions = [summary_from_index_row(row) for row in rows]
@@ -1808,7 +1852,8 @@ def fetch_session_summary_from_index(path_key: str):
             row = conn.execute(
                 """
                 SELECT id, path, relative_path, mtime_iso, session_id, started_at,
-                       cwd, model, source, source_type, project, first_user_text
+                       cwd, model, source, source_type, project, first_user_text,
+                       min_event_ts, max_event_ts
                 FROM session_index
                 WHERE path = ?
                 """,
@@ -2015,21 +2060,21 @@ header {
 .header-main::before {
   content: "";
   position: absolute;
-  inset: -28px auto auto -18px;
+  inset: -48px auto auto -46px;
   width: 150px;
   height: 92px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(125, 211, 252, 0.22) 0%, rgba(125, 211, 252, 0) 72%);
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.14) 0%, rgba(125, 211, 252, 0) 72%);
   pointer-events: none;
 }
 .header-main::after {
   content: "";
   position: absolute;
-  inset: auto -32px -40px auto;
+  inset: auto -54px -56px auto;
   width: 180px;
   height: 120px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(15, 118, 110, 0.12) 0%, rgba(15, 118, 110, 0) 74%);
+  background: radial-gradient(circle, rgba(15, 118, 110, 0.08) 0%, rgba(15, 118, 110, 0) 74%);
   pointer-events: none;
 }
 header h1 {
@@ -2210,6 +2255,28 @@ header h1 {
   min-height: 0;
   overflow: auto;
 }
+.session-count {
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-kicker);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  background: rgba(246, 250, 255, 0.6);
+}
+.session-count:empty {
+  display: none;
+}
+.match-counter {
+  font-size: var(--text-kicker);
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+.match-counter.hidden {
+  display: none;
+}
 .toolbar-topline,
 .detail-toolbar-topline {
   display: flex;
@@ -2308,6 +2375,215 @@ header h1 {
 .field.field-grow,
 .field.field-grow > input {
   width: 100%;
+}
+.datetime-input-wrap {
+  position: relative;
+}
+.datetime-input-wrap > input {
+  padding-right: 38px;
+}
+.datetime-trigger {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #52637a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: none;
+}
+.datetime-trigger:hover {
+  color: #52637a;
+  transform: translateY(-50%);
+  border-color: transparent;
+  background: transparent;
+}
+.datetime-trigger:hover:not(:disabled):not(.label-remove-button),
+button.datetime-trigger:hover:not(:disabled):not(.label-remove-button),
+button.datetime-trigger:active:not(:disabled):not(.label-remove-button) {
+  transform: translateY(-50%);
+  border-color: transparent;
+  background: transparent;
+}
+.datetime-trigger:active {
+  transform: translateY(-50%);
+}
+.datetime-trigger svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+.flatpickr-calendar {
+  font-family: var(--font-sans);
+  color: var(--text);
+  font-size: 11.4px;
+  width: 238px;
+  min-width: 238px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-soft);
+  padding-top: 2px;
+}
+.flatpickr-calendar .flatpickr-months {
+  padding: 2px 6px 0;
+}
+.flatpickr-calendar .flatpickr-month {
+  height: 28px;
+}
+.flatpickr-calendar .flatpickr-current-month {
+  padding-top: 2px;
+}
+.flatpickr-calendar .flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-calendar .flatpickr-current-month .cur-month,
+.flatpickr-calendar .flatpickr-current-month input.cur-year {
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.flatpickr-calendar .flatpickr-prev-month,
+.flatpickr-calendar .flatpickr-next-month {
+  color: #5d728d;
+  fill: #5d728d;
+}
+.flatpickr-calendar .flatpickr-prev-month:hover,
+.flatpickr-calendar .flatpickr-next-month:hover {
+  color: #2f4f73;
+  fill: #2f4f73;
+}
+.flatpickr-calendar .flatpickr-time input,
+.flatpickr-calendar .numInputWrapper span {
+  font-size: 11.4px;
+}
+.flatpickr-calendar .flatpickr-innerContainer,
+.flatpickr-calendar .flatpickr-rContainer,
+.flatpickr-calendar .flatpickr-days,
+.flatpickr-calendar .flatpickr-weekdays {
+  width: 224px;
+  min-width: 224px;
+  max-width: 224px;
+  margin: 0 auto;
+}
+.flatpickr-calendar .flatpickr-day {
+  width: 32px;
+  flex: 0 0 32px;
+  max-width: 32px;
+  height: 32px;
+  line-height: 32px;
+  color: var(--text);
+  border-radius: 8px;
+  margin: 0;
+}
+.flatpickr-calendar .flatpickr-day:hover {
+  background: rgba(15, 118, 110, 0.1);
+  border-color: transparent;
+}
+.flatpickr-calendar .flatpickr-day.today {
+  border-color: rgba(15, 118, 110, 0.46);
+}
+.flatpickr-calendar .flatpickr-day.selected,
+.flatpickr-calendar .flatpickr-day.startRange,
+.flatpickr-calendar .flatpickr-day.endRange {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+.flatpickr-calendar .flatpickr-weekday {
+  width: 32px;
+  flex: 0 0 32px;
+  max-width: 32px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.flatpickr-calendar .flatpickr-weekdaycontainer,
+.flatpickr-calendar .dayContainer {
+  width: 224px;
+  min-width: 224px;
+  max-width: 224px;
+}
+.flatpickr-calendar .flatpickr-weekdays {
+  padding-bottom: 2px;
+}
+.flatpickr-calendar .flatpickr-weekdays .flatpickr-weekday:first-child {
+  color: #dc2626;
+}
+.flatpickr-calendar .flatpickr-weekdays .flatpickr-weekday:last-child {
+  color: #2563eb;
+}
+.flatpickr-calendar .dayContainer .flatpickr-day:nth-child(7n+1):not(.flatpickr-disabled):not(.selected):not(.startRange):not(.endRange):not(.inRange) {
+  color: #dc2626;
+}
+.flatpickr-calendar .dayContainer .flatpickr-day:nth-child(7n):not(.flatpickr-disabled):not(.selected):not(.startRange):not(.endRange):not(.inRange) {
+  color: #2563eb;
+}
+.flatpickr-calendar .flatpickr-rContainer {
+  padding-bottom: 2px;
+}
+.flatpickr-calendar .flatpickr-time {
+  height: 34px;
+  max-height: 34px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.76);
+}
+.flatpickr-calendar .flatpickr-time input {
+  height: 32px;
+  line-height: 32px;
+  color: var(--text);
+}
+.flatpickr-calendar .flatpickr-confirm {
+  padding: 4px 8px 6px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.84);
+}
+.flatpickr-calendar .flatpickr-confirm .flatpickr-confirm-button {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  font-weight: 700;
+}
+.flatpickr-calendar .flatpickr-confirm .flatpickr-confirm-button:hover {
+  border-color: #97abc4;
+  color: #274467;
+}
+.flatpickr-extra-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px 6px;
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.84);
+}
+.flatpickr-extra-actions button {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-family: var(--font-sans);
+  font-size: var(--text-label);
+  font-weight: 700;
+  cursor: pointer;
+}
+.flatpickr-extra-actions button:hover {
+  border-color: #97abc4;
+  color: #274467;
 }
 input,
 select,
@@ -2488,6 +2764,37 @@ button:disabled {
   margin: 0;
   accent-color: var(--accent);
 }
+.sort-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.68);
+}
+.sort-tab {
+  flex: 1;
+  padding: 7px 4px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-kicker);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sort-tab:hover {
+  color: var(--text);
+  background: rgba(15, 118, 110, 0.04);
+}
+.sort-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: rgba(15, 118, 110, 0.06);
+}
 #sessions {
   height: 100%;
   overflow-x: hidden;
@@ -2514,8 +2821,9 @@ button:disabled {
   box-shadow: var(--shadow-soft);
 }
 .session-item.active {
-  border-color: rgba(15, 118, 110, 0.28);
-  background: linear-gradient(180deg, rgba(15, 118, 110, 0.08), rgba(255, 255, 255, 0.96));
+  border-color: rgba(15, 118, 110, 0.45);
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.14), rgba(15, 118, 110, 0.06));
   box-shadow: var(--shadow-medium);
 }
 .session-path {
@@ -2686,6 +2994,23 @@ button:disabled {
 .detail-toolbar-row.keyword .button-row,
 .detail-toolbar-row.range .button-row {
   grid-column: 2;
+}
+.detail-event-date-row {
+  grid-column: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.detail-event-date-row .field {
+  flex: 0 1 240px;
+  max-width: 240px;
+}
+.detail-event-date-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .session-label-strip {
   min-height: 40px;
@@ -3001,6 +3326,13 @@ button:disabled {
   align-items: center;
   gap: 8px;
 }
+.label-picker-option .label-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--label-color);
+  flex: 0 0 auto;
+}
 .label-picker-empty {
   padding: 6px 8px;
   color: var(--muted);
@@ -3223,9 +3555,14 @@ pre {
   }
   .detail-toolbar-row.primary .field.inline-field,
   .detail-toolbar-row.keyword .button-row,
-  .detail-toolbar-row.range .button-row {
+  .detail-toolbar-row.range .button-row,
+  .detail-event-date-row {
     grid-column: auto;
     max-width: none;
+  }
+  .detail-event-date-row .field {
+    max-width: none;
+    flex: 1 1 100%;
   }
 }
 </style>
@@ -3262,7 +3599,7 @@ pre {
           <div class="toolbar-copy">候補を探してから一覧を見る、という流れに整理しました。</div>
         </div>
         <div class="toolbar-utility">
-          <button id="reload" class="primary-action">Reload</button>
+          <button id="reload" class="primary-action" title="F5">Reload</button>
           <button id="clear" class="secondary-action" title="Shift + L">Clear</button>
           <button id="toggle_filters" class="utility-action" title="Shift + F">フィルタを隠す</button>
         </div>
@@ -3299,11 +3636,39 @@ pre {
           <div class="field-grid">
             <label class="field">
               <span>開始日</span>
-              <input id="date_from" type="date" />
+              <div class="datetime-input-wrap">
+                <input id="date_from" type="text" placeholder="年 / 月 / 日" inputmode="numeric" />
+                <button type="button" class="datetime-trigger" data-target="date_from" aria-label="開始日カレンダー">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><line x1="3.5" y1="9" x2="20.5" y2="9"></line><line x1="8" y1="3.5" x2="8" y2="7"></line><line x1="16" y1="3.5" x2="16" y2="7"></line></svg>
+                </button>
+              </div>
             </label>
             <label class="field">
               <span>終了日</span>
-              <input id="date_to" type="date" />
+              <div class="datetime-input-wrap">
+                <input id="date_to" type="text" placeholder="年 / 月 / 日" inputmode="numeric" />
+                <button type="button" class="datetime-trigger" data-target="date_to" aria-label="終了日カレンダー">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><line x1="3.5" y1="9" x2="20.5" y2="9"></line><line x1="8" y1="3.5" x2="8" y2="7"></line><line x1="16" y1="3.5" x2="16" y2="7"></line></svg>
+                </button>
+              </div>
+            </label>
+            <label class="field">
+              <span>イベント開始日時</span>
+              <div class="datetime-input-wrap">
+                <input id="event_date_from" type="text" placeholder="年 / 月 / 日 --:--" inputmode="numeric" />
+                <button type="button" class="datetime-trigger" data-target="event_date_from" aria-label="イベント開始日時カレンダー">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><line x1="3.5" y1="9" x2="20.5" y2="9"></line><line x1="8" y1="3.5" x2="8" y2="7"></line><line x1="16" y1="3.5" x2="16" y2="7"></line></svg>
+                </button>
+              </div>
+            </label>
+            <label class="field">
+              <span>イベント終了日時</span>
+              <div class="datetime-input-wrap">
+                <input id="event_date_to" type="text" placeholder="年 / 月 / 日 --:--" inputmode="numeric" />
+                <button type="button" class="datetime-trigger" data-target="event_date_to" aria-label="イベント終了日時カレンダー">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><line x1="3.5" y1="9" x2="20.5" y2="9"></line><line x1="8" y1="3.5" x2="8" y2="7"></line><line x1="16" y1="3.5" x2="16" y2="7"></line></svg>
+                </button>
+              </div>
             </label>
             <label class="field">
               <span>source</span>
@@ -3336,6 +3701,12 @@ pre {
         </section>
       </div>
     </div>
+    <div id="session_count" class="session-count" aria-live="polite"></div>
+    <div class="sort-tabs" role="tablist">
+      <button class="sort-tab active" data-sort="desc" role="tab" aria-selected="true">新しい順</button>
+      <button class="sort-tab" data-sort="asc" role="tab" aria-selected="false">古い順</button>
+      <button class="sort-tab" data-sort="updated" role="tab" aria-selected="false">最終更新日時順</button>
+    </div>
     <div class="content-shell">
       <div id="sessions"></div>
       <div id="sessions_status" class="status-layer hidden" aria-live="polite"></div>
@@ -3352,7 +3723,7 @@ pre {
           <div class="toggle-list">
             <label class="toggle-chip" title="1"><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
             <label class="toggle-chip" title="2"><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
-            <label class="toggle-chip" title="3: 各ターンの user 入力と、その直後の最後の assistant 応答だけを表示"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
+            <label class="toggle-chip" title="3"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
             <label class="toggle-chip" title="4"><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
           </div>
           <label class="field inline-field">
@@ -3394,7 +3765,31 @@ pre {
             <button id="detail_keyword_search" disabled>検索</button>
             <button id="detail_keyword_prev" class="secondary-action" title="P" disabled>前へ</button>
             <button id="detail_keyword_next" class="secondary-action" title="N" disabled>次へ</button>
+            <span id="detail_keyword_match_count" class="match-counter hidden"></span>
             <button id="detail_keyword_clear" class="secondary-action" disabled>検索をクリア</button>
+          </div>
+          <div class="detail-event-date-row">
+            <label class="field">
+              <span>イベント開始日時</span>
+              <div class="datetime-input-wrap">
+                <input id="detail_event_date_from" type="text" placeholder="年 / 月 / 日 --:--" inputmode="numeric" />
+                <button type="button" class="datetime-trigger" data-target="detail_event_date_from" aria-label="詳細イベント開始日時カレンダー">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><line x1="3.5" y1="9" x2="20.5" y2="9"></line><line x1="8" y1="3.5" x2="8" y2="7"></line><line x1="16" y1="3.5" x2="16" y2="7"></line></svg>
+                </button>
+              </div>
+            </label>
+            <label class="field">
+              <span>イベント終了日時</span>
+              <div class="datetime-input-wrap">
+                <input id="detail_event_date_to" type="text" placeholder="年 / 月 / 日 --:--" inputmode="numeric" />
+                <button type="button" class="datetime-trigger" data-target="detail_event_date_to" aria-label="詳細イベント終了日時カレンダー">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><line x1="3.5" y1="9" x2="20.5" y2="9"></line><line x1="8" y1="3.5" x2="8" y2="7"></line><line x1="16" y1="3.5" x2="16" y2="7"></line></svg>
+                </button>
+              </div>
+            </label>
+            <div class="detail-event-date-actions">
+              <button id="clear_detail_event_date" class="secondary-action">日時クリア</button>
+            </div>
           </div>
         </section>
         <section id="detail_message_range_row" class="detail-toolbar-row range">
@@ -3528,6 +3923,10 @@ pre {
     </div>
   </div>
 </div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css" />
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
 <script>
 const state = {
   sessions: [],
@@ -3583,6 +3982,8 @@ const I18N = {
     'filter.copy': '期間・source・ラベルで一覧を整理します。',
     'filter.dateFrom': '開始日',
     'filter.dateTo': '終了日',
+    'filter.eventDateFrom': 'イベント開始日時',
+    'filter.eventDateTo': 'イベント終了日時',
     'filter.source': 'source',
     'filter.subagents': 'subagents',
     'filter.sessionLabel': 'セッションラベル',
@@ -3594,6 +3995,10 @@ const I18N = {
     'filter.subagents.exclude': '含まない',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
+    'filter.sort': '並び順',
+    'filter.sort.desc': '新しい順',
+    'filter.sort.asc': '古い順',
+    'filter.sort.updated': '最終更新日時順',
     'filter.mode.and': 'keyword AND',
     'filter.mode.or': 'keyword OR',
     'placeholder.cwd': 'cwd (部分一致)',
@@ -3622,10 +4027,15 @@ const I18N = {
     'detail.search': '検索',
     'detail.searchKeyword': '詳細キーワード',
     'detail.searchFilter': 'フィルター',
+    'detail.searchFilterClear': 'フィルター解除',
     'detail.searchRun': '検索',
     'detail.prev': '前へ',
     'detail.next': '次へ',
+    'detail.matchCounter': '{current} / {total}',
     'detail.searchClear': '検索をクリア',
+    'detail.eventDateFrom': 'イベント開始日時',
+    'detail.eventDateTo': 'イベント終了日時',
+    'detail.eventDateClear': '日時クリア',
     'detail.range': '範囲選択',
     'detail.rangeMode': '起点選択モード',
     'detail.rangeModeEnd': '起点選択終了',
@@ -3668,6 +4078,7 @@ const I18N = {
     'meta.cwd': 'cwd',
     'meta.time': 'time',
     'meta.status': 'status',
+    'summary.sessions': 'sessions: {filtered}/{total}',
     'summary.events': 'events: {visible}/{total}',
     'summary.eventsLoading': 'events: loading...',
     'summary.raw': 'raw {count}',
@@ -3728,6 +4139,8 @@ const I18N = {
     'filter.copy': 'Organize the list by time range, source, and labels.',
     'filter.dateFrom': 'Start date',
     'filter.dateTo': 'End date',
+    'filter.eventDateFrom': 'Event start date/time',
+    'filter.eventDateTo': 'Event end date/time',
     'filter.source': 'Source',
     'filter.subagents': 'subagents',
     'filter.sessionLabel': 'Session label',
@@ -3739,6 +4152,10 @@ const I18N = {
     'filter.subagents.exclude': 'Exclude',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
+    'filter.sort': 'Sort order',
+    'filter.sort.desc': 'Newest first',
+    'filter.sort.asc': 'Oldest first',
+    'filter.sort.updated': 'Last updated',
     'filter.mode.and': 'keyword AND',
     'filter.mode.or': 'keyword OR',
     'placeholder.cwd': 'cwd (partial match)',
@@ -3767,10 +4184,15 @@ const I18N = {
     'detail.search': 'Search',
     'detail.searchKeyword': 'Detail keyword',
     'detail.searchFilter': 'Filter',
+    'detail.searchFilterClear': 'Clear filter',
     'detail.searchRun': 'Search',
     'detail.prev': 'Prev',
     'detail.next': 'Next',
+    'detail.matchCounter': '{current} / {total}',
     'detail.searchClear': 'Clear search',
+    'detail.eventDateFrom': 'Event start date/time',
+    'detail.eventDateTo': 'Event end date/time',
+    'detail.eventDateClear': 'Clear dates',
     'detail.range': 'Range',
     'detail.rangeMode': 'Anchor mode',
     'detail.rangeModeEnd': 'End anchor mode',
@@ -3813,6 +4235,7 @@ const I18N = {
     'meta.cwd': 'cwd',
     'meta.time': 'time',
     'meta.status': 'status',
+    'summary.sessions': 'sessions: {filtered}/{total}',
     'summary.events': 'events: {visible}/{total}',
     'summary.eventsLoading': 'events: loading...',
     'summary.raw': 'raw {count}',
@@ -3873,6 +4296,8 @@ const I18N = {
     'filter.copy': '按时间范围、source 和标签整理列表。',
     'filter.dateFrom': '开始日期',
     'filter.dateTo': '结束日期',
+    'filter.eventDateFrom': '事件开始日期/时间',
+    'filter.eventDateTo': '事件结束日期/时间',
     'filter.source': '来源',
     'filter.subagents': 'subagents',
     'filter.sessionLabel': '会话标签',
@@ -3884,6 +4309,10 @@ const I18N = {
     'filter.subagents.exclude': '不包含',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
+    'filter.sort': '排序',
+    'filter.sort.desc': '最新优先',
+    'filter.sort.asc': '最旧优先',
+    'filter.sort.updated': '最后更新时间',
     'filter.mode.and': 'keyword AND',
     'filter.mode.or': 'keyword OR',
     'placeholder.cwd': 'cwd（部分匹配）',
@@ -3912,10 +4341,15 @@ const I18N = {
     'detail.search': '搜索',
     'detail.searchKeyword': '详细关键词',
     'detail.searchFilter': '筛选',
+    'detail.searchFilterClear': '清除过滤',
     'detail.searchRun': '搜索',
     'detail.prev': '上一项',
     'detail.next': '下一项',
+    'detail.matchCounter': '{current} / {total}',
     'detail.searchClear': '清除搜索',
+    'detail.eventDateFrom': '事件开始日期/时间',
+    'detail.eventDateTo': '事件结束日期/时间',
+    'detail.eventDateClear': '清除日期',
     'detail.range': '范围',
     'detail.rangeMode': '锚点模式',
     'detail.rangeModeEnd': '结束锚点模式',
@@ -3958,6 +4392,7 @@ const I18N = {
     'meta.cwd': 'cwd',
     'meta.time': 'time',
     'meta.status': 'status',
+    'summary.sessions': 'sessions: {filtered}/{total}',
     'summary.events': 'events: {visible}/{total}',
     'summary.eventsLoading': 'events: loading...',
     'summary.raw': 'raw {count}',
@@ -4016,11 +4451,17 @@ I18N['zh-Hant'] = {
   'filter.copy': '按時間範圍、source 和標籤整理列表。',
   'filter.dateFrom': '開始日期',
   'filter.dateTo': '結束日期',
+  'filter.eventDateFrom': '事件開始日期/時間',
+  'filter.eventDateTo': '事件結束日期/時間',
   'filter.source': '來源',
   'filter.subagents': 'subagents',
   'filter.eventLabel': '事件標籤',
   'filter.subagents.include': '包含',
   'filter.subagents.exclude': '不包含',
+  'filter.sort': '排序',
+  'filter.sort.desc': '最新優先',
+  'filter.sort.asc': '最舊優先',
+  'filter.sort.updated': '最後更新時間',
   'placeholder.cwd': 'cwd（部分比對）',
   'placeholder.keyword': '關鍵字篩選',
   'placeholder.detailKeyword': '詳細關鍵字',
@@ -4045,11 +4486,16 @@ I18N['zh-Hant'] = {
   'detail.copySelectedCount': '複製已選（{count}）',
   'detail.search': '搜尋',
   'detail.searchKeyword': '詳細關鍵字',
+  'detail.searchFilterClear': '清除篩選',
   'detail.searchRun': '搜尋',
   'detail.searchFilter': '篩選',
   'detail.prev': '上一項',
   'detail.next': '下一項',
+  'detail.matchCounter': '{current} / {total}',
   'detail.searchClear': '清除搜尋',
+  'detail.eventDateFrom': '事件開始日期/時間',
+  'detail.eventDateTo': '事件結束日期/時間',
+  'detail.eventDateClear': '清除日期',
   'detail.range': '範圍',
   'detail.rangeMode': '錨點模式',
   'detail.rangeModeEnd': '結束錨點模式',
@@ -4087,6 +4533,7 @@ I18N['zh-Hant'] = {
   'shortcut.before': '僅顯示錨點之前',
   'shortcut.after': '僅顯示錨點之後',
   'shortcut.escape': '關閉快捷鍵列表或標籤選擇框，並離開搜尋輸入框。',
+  'summary.sessions': 'sessions: {filtered}/{total}',
   'session.preview.empty': '(無預覽)',
   'status.sessions.loadingTitle': '正在載入工作階段列表...',
   'status.sessions.loadingCopy': '正在檢查最新工作階段。',
@@ -4209,10 +4656,16 @@ function applyMainLanguage(){
   setText('.toolbar-section:nth-of-type(2) .toolbar-section-copy', t('filter.copy'));
   setFieldLabel('date_from', t('filter.dateFrom'));
   setFieldLabel('date_to', t('filter.dateTo'));
+  setFieldLabel('event_date_from', t('filter.eventDateFrom'));
+  setFieldLabel('event_date_to', t('filter.eventDateTo'));
   setFieldLabel('source_filter', t('filter.source'));
   setFieldLabel('subagents_filter', t('filter.subagents'));
   setFieldLabel('session_label_filter', t('filter.sessionLabel'));
   setFieldLabel('event_label_filter', t('filter.eventLabel'));
+  document.querySelectorAll('.sort-tab').forEach(tab => {
+    const key = 'filter.sort.' + tab.dataset.sort;
+    tab.textContent = t(key);
+  });
   document.getElementById('cwd_q').placeholder = t('placeholder.cwd');
   document.getElementById('q').placeholder = t('placeholder.keyword');
   document.getElementById('detail_keyword_q').placeholder = t('placeholder.detailKeyword');
@@ -4227,7 +4680,7 @@ function applyMainLanguage(){
   setToggleLabel('only_user_instruction', t('detail.toggle.user'));
   setToggleLabel('only_ai_response', t('detail.toggle.ai'));
   setToggleLabel('turn_boundary_only', t('detail.toggle.turn'));
-  document.getElementById('turn_boundary_only').closest('label').setAttribute('title', t('detail.toggle.turn'));
+  document.getElementById('turn_boundary_only').closest('label').setAttribute('title', '3');
   setToggleLabel('reverse_order', t('detail.toggle.reverse'));
   setFieldLabel('detail_event_label_filter', t('detail.label'));
   document.getElementById('detail_event_label_filter').setAttribute('title', t('detail.label'));
@@ -4244,6 +4697,9 @@ function applyMainLanguage(){
   setTextById('detail_keyword_prev', t('detail.prev'));
   setTextById('detail_keyword_next', t('detail.next'));
   setTextById('detail_keyword_clear', t('detail.searchClear'));
+  setFieldLabel('detail_event_date_from', t('detail.eventDateFrom'));
+  setFieldLabel('detail_event_date_to', t('detail.eventDateTo'));
+  setTextById('clear_detail_event_date', t('detail.eventDateClear'));
   setText('.detail-toolbar-row.range .detail-group-title', t('detail.range'));
   setTextById('clear_message_range_selection', t('detail.rangeClear'));
   const shortcutDescriptions = [
@@ -4282,6 +4738,8 @@ function applyMainLanguage(){
   setText('.shortcut-copy', t('shortcut.copy'));
   setTextById('close_shortcuts', t('shortcut.close'));
   populateLabelControls();
+  initDatePickers();
+  initDateTimePickers();
   updateFilterVisibility();
   updateDetailActionsVisibility();
   updateDetailMetaVisibility();
@@ -4337,6 +4795,8 @@ let saveFiltersFrame = 0;
 let deferredDetailSyncTimer = 0;
 let labelManagerWindow = null;
 let labelPickerHandler = null;
+let datePickers = [];
+let dateTimePickers = [];
 let filtersVisible = true;
 let detailActionsVisible = true;
 let detailMetaVisible = false;
@@ -4841,16 +5301,581 @@ function toTimestamp(ts){
 
 function parseOptionalDateStart(raw){
   if(!raw) return null;
-  // raw is expected as YYYY-MM-DD from <input type="date">.
-  const ts = toTimestamp(`${raw}T00:00:00`);
+  const iso = parseDateInputToIso(raw);
+  if(!iso) return null;
+  const ts = toTimestamp(`${iso}T00:00:00`);
   return Number.isNaN(ts) ? null : ts;
 }
 
 function parseOptionalDateEnd(raw){
   if(!raw) return null;
-  // Inclusive end-of-day for date-range filtering.
-  const ts = toTimestamp(`${raw}T23:59:59.999`);
+  const iso = parseDateInputToIso(raw);
+  if(!iso) return null;
+  const ts = toTimestamp(`${iso}T23:59:59.999`);
   return Number.isNaN(ts) ? null : ts;
+}
+
+function pad2(value){
+  return String(value).padStart(2, '0');
+}
+
+function parseDateInputToIso(raw){
+  if(typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if(!trimmed) return '';
+  const canonical = trimmed
+    .replace(/\u3000/g, ' ')
+    .replace(/[年月]/g, '/')
+    .replace(/日/g, ' ')
+    .replace(/[．。]/g, '.')
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s+/g, ' ');
+  let m = canonical.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(!m){
+    m = canonical.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  }
+  if(!m){
+    m = canonical.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+  }
+  if(!m){
+    return '';
+  }
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if(!Number.isFinite(year) || year < 1900 || year > 2999) return '';
+  if(!Number.isFinite(month) || month < 1 || month > 12) return '';
+  if(!Number.isFinite(day) || day < 1 || day > 31) return '';
+  const d = new Date(year, month - 1, day, 0, 0, 0, 0);
+  if(d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day){
+    return '';
+  }
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+function formatDateInputFromIso(isoValue){
+  const iso = parseDateInputToIso(isoValue);
+  if(!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m) return '';
+  return `${m[1]} / ${m[2]} / ${m[3]}`;
+}
+
+function normalizeDateInputDisplay(raw){
+  const iso = parseDateInputToIso(raw);
+  return iso ? formatDateInputFromIso(iso) : '';
+}
+
+function parseDateTimeInputToIso(raw){
+  if(typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if(!trimmed) return '';
+  const canonical = trimmed
+    .replace(/\u3000/g, ' ')
+    .replace(/[年月]/g, '/')
+    .replace(/日/g, ' ')
+    .replace(/[：]/g, ':')
+    .replace(/[．。]/g, '.')
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s+/g, ' ');
+  let m = canonical.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2})?$/);
+  if(!m){
+    m = canonical.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2})(?::\d{1,2})?$/);
+  }
+  if(!m){
+    m = canonical.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::\d{1,2})?/);
+  }
+  if(!m){
+    return '';
+  }
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  if(!Number.isFinite(year) || year < 1900 || year > 2999) return '';
+  if(!Number.isFinite(month) || month < 1 || month > 12) return '';
+  if(!Number.isFinite(day) || day < 1 || day > 31) return '';
+  if(!Number.isFinite(hour) || hour < 0 || hour > 23) return '';
+  if(!Number.isFinite(minute) || minute < 0 || minute > 59) return '';
+  const d = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if(
+    d.getFullYear() !== year ||
+    d.getMonth() !== month - 1 ||
+    d.getDate() !== day ||
+    d.getHours() !== hour ||
+    d.getMinutes() !== minute
+  ){
+    return '';
+  }
+  return `${year}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:${pad2(minute)}`;
+}
+
+function formatDateTimeInputFromIso(isoValue){
+  const iso = parseDateTimeInputToIso(isoValue);
+  if(!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if(!m) return '';
+  return `${m[1]} / ${m[2]} / ${m[3]} ${m[4]}:${m[5]}`;
+}
+
+function normalizeDatetimeInputDisplay(raw){
+  const iso = parseDateTimeInputToIso(raw);
+  return iso ? formatDateTimeInputFromIso(iso) : '';
+}
+
+const DATETIME_INPUT_SKELETON = '0000 / 00 / 00 --:--';
+const DATETIME_INPUT_SEGMENTS = [
+  { start: 0, end: 4, fill: '0' },
+  { start: 7, end: 9, fill: '0' },
+  { start: 12, end: 14, fill: '0' },
+  { start: 15, end: 17, fill: '-' },
+  { start: 18, end: 20, fill: '-' },
+];
+
+function getDateTimeSegmentIndexByPos(pos){
+  const safePos = Number.isFinite(pos) ? pos : 0;
+  for(let i = 0; i < DATETIME_INPUT_SEGMENTS.length; i += 1){
+    const seg = DATETIME_INPUT_SEGMENTS[i];
+    if(safePos >= seg.start && safePos <= seg.end){
+      return i;
+    }
+  }
+  if(safePos < DATETIME_INPUT_SEGMENTS[0].start){
+    return 0;
+  }
+  return DATETIME_INPUT_SEGMENTS.length - 1;
+}
+
+function selectDateTimeSegment(input, index){
+  const safeIndex = Math.max(0, Math.min(DATETIME_INPUT_SEGMENTS.length - 1, index));
+  const seg = DATETIME_INPUT_SEGMENTS[safeIndex];
+  input.setSelectionRange(seg.start, seg.end);
+}
+
+function setDateTimeSegment(inputValue, index, segmentValue){
+  const seg = DATETIME_INPUT_SEGMENTS[index];
+  return inputValue.slice(0, seg.start) + segmentValue + inputValue.slice(seg.end);
+}
+
+function shiftDateTimeSegment(currentSegment, digit, fillChar){
+  const len = currentSegment.length;
+  const normalized = currentSegment.replace(/[^0-9]/g, '').padStart(len, fillChar === '-' ? '0' : fillChar).slice(-len);
+  const shifted = normalized.slice(1) + digit;
+  if(fillChar === '-'){
+    const allZero = /^0+$/.test(shifted);
+    if(allZero){
+      return '-'.repeat(len);
+    }
+  }
+  return shifted;
+}
+
+function setupDateTimeSegmentInput(input){
+  if(!input || input.dataset.segmentedReady === '1'){
+    return;
+  }
+  input.dataset.segmentedReady = '1';
+  const ensureSkeleton = () => {
+    if(!input.value){
+      input.value = DATETIME_INPUT_SKELETON;
+    }
+  };
+  input.addEventListener('focus', () => {
+    ensureSkeleton();
+    selectDateTimeSegment(input, getDateTimeSegmentIndexByPos(input.selectionStart || 0));
+  });
+  input.addEventListener('click', () => {
+    ensureSkeleton();
+    selectDateTimeSegment(input, getDateTimeSegmentIndexByPos(input.selectionStart || 0));
+  });
+  input.addEventListener('keydown', (event) => {
+    if(!/^\d$/.test(event.key) && event.key !== 'Backspace' && event.key !== 'Delete' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Tab' && event.key !== '/' && event.key !== ':' && event.key !== ' '){
+      return;
+    }
+    ensureSkeleton();
+    let segmentIndex = getDateTimeSegmentIndexByPos(input.selectionStart || 0);
+    if(/^\d$/.test(event.key)){
+      event.preventDefault();
+      const seg = DATETIME_INPUT_SEGMENTS[segmentIndex];
+      const current = input.value.slice(seg.start, seg.end);
+      const next = shiftDateTimeSegment(current, event.key, seg.fill);
+      input.value = setDateTimeSegment(input.value, segmentIndex, next);
+      selectDateTimeSegment(input, segmentIndex);
+      return;
+    }
+    if(event.key === 'Backspace' || event.key === 'Delete'){
+      event.preventDefault();
+      const seg = DATETIME_INPUT_SEGMENTS[segmentIndex];
+      input.value = setDateTimeSegment(input.value, segmentIndex, seg.fill.repeat(seg.end - seg.start));
+      selectDateTimeSegment(input, segmentIndex);
+      return;
+    }
+    if(event.key === 'ArrowLeft'){
+      event.preventDefault();
+      selectDateTimeSegment(input, Math.max(0, segmentIndex - 1));
+      return;
+    }
+    if(event.key === 'ArrowRight' || event.key === '/' || event.key === ':' || event.key === ' '){
+      event.preventDefault();
+      selectDateTimeSegment(input, Math.min(DATETIME_INPUT_SEGMENTS.length - 1, segmentIndex + 1));
+      return;
+    }
+    if(event.key === 'Tab'){
+      if(event.shiftKey){
+        selectDateTimeSegment(input, Math.max(0, segmentIndex - 1));
+      } else {
+        selectDateTimeSegment(input, Math.min(DATETIME_INPUT_SEGMENTS.length - 1, segmentIndex + 1));
+      }
+    }
+  });
+  input.addEventListener('blur', () => {
+    const display = normalizeDatetimeInputDisplay(input.value);
+    if(display){
+      input.value = display;
+      return;
+    }
+    if(input.value === DATETIME_INPUT_SKELETON){
+      input.value = '';
+    }
+  });
+  input.addEventListener('input', (event) => {
+    if(event && typeof event.inputType === 'string' && event.inputType !== 'insertFromPaste'){
+      return;
+    }
+    const iso = parseDateTimeInputToIso(input.value || '');
+    if(!iso){
+      return;
+    }
+    input.value = formatDateTimeInputFromIso(iso);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  input.addEventListener('paste', (event) => {
+    const text = event.clipboardData ? event.clipboardData.getData('text') : '';
+    const iso = parseDateTimeInputToIso(text || '');
+    if(iso){
+      event.preventDefault();
+      input.value = formatDateTimeInputFromIso(iso);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    setTimeout(() => {
+      const fallbackIso = parseDateTimeInputToIso(input.value || '');
+      if(!fallbackIso){
+        return;
+      }
+      input.value = formatDateTimeInputFromIso(fallbackIso);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  });
+}
+
+const DATE_INPUT_SKELETON = '0000 / 00 / 00';
+const DATE_INPUT_SEGMENTS = [
+  { start: 0, end: 4, fill: '0' },
+  { start: 7, end: 9, fill: '0' },
+  { start: 12, end: 14, fill: '0' },
+];
+
+function getDateSegmentIndexByPos(pos){
+  const safePos = Number.isFinite(pos) ? pos : 0;
+  for(let i = 0; i < DATE_INPUT_SEGMENTS.length; i += 1){
+    const seg = DATE_INPUT_SEGMENTS[i];
+    if(safePos >= seg.start && safePos <= seg.end){
+      return i;
+    }
+  }
+  if(safePos < DATE_INPUT_SEGMENTS[0].start){
+    return 0;
+  }
+  return DATE_INPUT_SEGMENTS.length - 1;
+}
+
+function selectDateSegment(input, index){
+  const safeIndex = Math.max(0, Math.min(DATE_INPUT_SEGMENTS.length - 1, index));
+  const seg = DATE_INPUT_SEGMENTS[safeIndex];
+  input.setSelectionRange(seg.start, seg.end);
+}
+
+function setDateSegment(inputValue, index, segmentValue){
+  const seg = DATE_INPUT_SEGMENTS[index];
+  return inputValue.slice(0, seg.start) + segmentValue + inputValue.slice(seg.end);
+}
+
+function setupDateSegmentInput(input){
+  if(!input || input.dataset.segmentedDateReady === '1'){
+    return;
+  }
+  input.dataset.segmentedDateReady = '1';
+  const ensureSkeleton = () => {
+    if(!input.value){
+      input.value = DATE_INPUT_SKELETON;
+    }
+  };
+  input.addEventListener('focus', () => {
+    ensureSkeleton();
+    selectDateSegment(input, getDateSegmentIndexByPos(input.selectionStart || 0));
+  });
+  input.addEventListener('click', () => {
+    ensureSkeleton();
+    selectDateSegment(input, getDateSegmentIndexByPos(input.selectionStart || 0));
+  });
+  input.addEventListener('keydown', (event) => {
+    if(!/^\d$/.test(event.key) && event.key !== 'Backspace' && event.key !== 'Delete' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Tab' && event.key !== '/' && event.key !== ' '){
+      return;
+    }
+    ensureSkeleton();
+    const segmentIndex = getDateSegmentIndexByPos(input.selectionStart || 0);
+    if(/^\d$/.test(event.key)){
+      event.preventDefault();
+      const seg = DATE_INPUT_SEGMENTS[segmentIndex];
+      const current = input.value.slice(seg.start, seg.end);
+      const next = shiftDateTimeSegment(current, event.key, seg.fill);
+      input.value = setDateSegment(input.value, segmentIndex, next);
+      selectDateSegment(input, segmentIndex);
+      return;
+    }
+    if(event.key === 'Backspace' || event.key === 'Delete'){
+      event.preventDefault();
+      const seg = DATE_INPUT_SEGMENTS[segmentIndex];
+      input.value = setDateSegment(input.value, segmentIndex, seg.fill.repeat(seg.end - seg.start));
+      selectDateSegment(input, segmentIndex);
+      return;
+    }
+    if(event.key === 'ArrowLeft'){
+      event.preventDefault();
+      selectDateSegment(input, Math.max(0, segmentIndex - 1));
+      return;
+    }
+    if(event.key === 'ArrowRight' || event.key === '/' || event.key === ' '){
+      event.preventDefault();
+      selectDateSegment(input, Math.min(DATE_INPUT_SEGMENTS.length - 1, segmentIndex + 1));
+      return;
+    }
+    if(event.key === 'Tab'){
+      if(event.shiftKey){
+        selectDateSegment(input, Math.max(0, segmentIndex - 1));
+      } else {
+        selectDateSegment(input, Math.min(DATE_INPUT_SEGMENTS.length - 1, segmentIndex + 1));
+      }
+    }
+  });
+  input.addEventListener('blur', () => {
+    const display = normalizeDateInputDisplay(input.value);
+    if(display){
+      input.value = display;
+      return;
+    }
+    if(input.value === DATE_INPUT_SKELETON){
+      input.value = '';
+    }
+  });
+  input.addEventListener('input', (event) => {
+    if(event && typeof event.inputType === 'string' && event.inputType !== 'insertFromPaste'){
+      return;
+    }
+    const iso = parseDateInputToIso(input.value || '');
+    if(!iso){
+      return;
+    }
+    input.value = formatDateInputFromIso(iso);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  input.addEventListener('paste', (event) => {
+    const text = event.clipboardData ? event.clipboardData.getData('text') : '';
+    const iso = parseDateInputToIso(text || '');
+    if(iso){
+      event.preventDefault();
+      input.value = formatDateInputFromIso(iso);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    setTimeout(() => {
+      const fallbackIso = parseDateInputToIso(input.value || '');
+      if(!fallbackIso){
+        return;
+      }
+      input.value = formatDateInputFromIso(fallbackIso);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 0);
+  });
+}
+
+function destroyDateTimePickers(){
+  dateTimePickers.forEach((picker) => {
+    try {
+      picker.destroy();
+    } catch (e) {
+      // Ignore cleanup errors.
+    }
+  });
+  dateTimePickers = [];
+}
+
+function destroyDatePickers(){
+  datePickers.forEach((picker) => {
+    try {
+      picker.destroy();
+    } catch (e) {
+      // Ignore cleanup errors.
+    }
+  });
+  datePickers = [];
+}
+
+function bindCalendarTriggerButtons(){
+  document.querySelectorAll('.datetime-trigger').forEach((button) => {
+    const target = button.getAttribute('data-target') || '';
+    button.onclick = () => {
+      const allPickers = datePickers.concat(dateTimePickers);
+      const picker = allPickers.find((item) => item && item.input && item.input.id === target);
+      if(picker){
+        picker.open();
+      }
+    };
+  });
+}
+
+function initDatePickers(){
+  destroyDatePickers();
+  if(typeof flatpickr !== 'function'){
+    return;
+  }
+  const attachPicker = (inputId, onApply) => {
+    const input = document.getElementById(inputId);
+    if(!input) return;
+    setupDateSegmentInput(input);
+    const normalized = normalizeDateInputDisplay(input.value);
+    if(input.value !== normalized){
+      input.value = normalized;
+    }
+    let beforeOpenValue = input.value;
+    const picker = flatpickr(input, {
+      enableTime: false,
+      dateFormat: 'Y / m / d',
+      allowInput: true,
+      clickOpens: false,
+      onOpen: () => {
+        beforeOpenValue = normalizeDateInputDisplay(input.value);
+      },
+      onClose: () => {
+        const currentValue = normalizeDateInputDisplay(input.value);
+        if(input.value !== currentValue){
+          input.value = currentValue;
+        }
+        if(currentValue !== beforeOpenValue){
+          onApply();
+        }
+      },
+    });
+    datePickers.push(picker);
+  };
+  attachPicker('date_from', applyFilter);
+  attachPicker('date_to', applyFilter);
+  bindCalendarTriggerButtons();
+}
+
+function initDateTimePickers(){
+  destroyDateTimePickers();
+  if(typeof flatpickr !== 'function'){
+    return;
+  }
+  const confirmPluginFactory = window.confirmDatePlugin;
+  const createPlugins = () => {
+    if(typeof confirmPluginFactory !== 'function'){
+      return [];
+    }
+    return [confirmPluginFactory({ confirmText: 'OK', showAlways: true, theme: 'light' })];
+  };
+  const attachPicker = (inputId, onApply) => {
+    const input = document.getElementById(inputId);
+    if(!input) return;
+    setupDateTimeSegmentInput(input);
+    const normalized = normalizeDatetimeInputDisplay(input.value);
+    if(input.value !== normalized){
+      input.value = normalized;
+    }
+    let beforeOpenValue = input.value;
+    const picker = flatpickr(input, {
+      enableTime: true,
+      time_24hr: true,
+      enableSeconds: false,
+      minuteIncrement: 1,
+      dateFormat: 'Y / m / d H:i',
+      allowInput: true,
+      clickOpens: false,
+      plugins: createPlugins(),
+      onOpen: () => {
+        beforeOpenValue = normalizeDatetimeInputDisplay(input.value);
+      },
+      onReady: (_selectedDates, _dateStr, instance) => {
+        const calendar = instance.calendarContainer;
+        if(!calendar) return;
+        const actions = document.createElement('div');
+        actions.className = 'flatpickr-extra-actions';
+        const clearButton = document.createElement('button');
+        clearButton.type = 'button';
+        clearButton.textContent = '削除';
+        clearButton.addEventListener('click', () => {
+          instance.clear();
+          instance.close();
+        });
+        const todayButton = document.createElement('button');
+        todayButton.type = 'button';
+        todayButton.textContent = '今日';
+        todayButton.addEventListener('click', () => {
+          instance.setDate(new Date(), false);
+          instance.close();
+        });
+        actions.appendChild(clearButton);
+        actions.appendChild(todayButton);
+        const confirmRow = calendar.querySelector('.flatpickr-confirm');
+        if(confirmRow && confirmRow.parentNode){
+          confirmRow.parentNode.insertBefore(actions, confirmRow);
+        } else {
+          calendar.appendChild(actions);
+        }
+      },
+      onClose: () => {
+        const currentValue = normalizeDatetimeInputDisplay(input.value);
+        if(input.value !== currentValue){
+          input.value = currentValue;
+        }
+        if(currentValue !== beforeOpenValue){
+          onApply();
+        }
+      },
+    });
+    dateTimePickers.push(picker);
+  };
+  attachPicker('event_date_from', applyFilter);
+  attachPicker('event_date_to', applyFilter);
+  attachPicker('detail_event_date_from', () => {
+    saveFilters();
+    renderActiveSession();
+  });
+  attachPicker('detail_event_date_to', () => {
+    saveFilters();
+    renderActiveSession();
+  });
+  bindCalendarTriggerButtons();
+}
+
+function parseOptionalDatetimeStart(raw){
+  if(!raw) return null;
+  const iso = parseDateTimeInputToIso(raw);
+  if(!iso) return null;
+  const ts = toTimestamp(iso);
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function parseOptionalDatetimeEnd(raw){
+  if(!raw) return null;
+  const iso = parseDateTimeInputToIso(raw);
+  if(!iso) return null;
+  const ts = toTimestamp(iso);
+  if(Number.isNaN(ts)) return null;
+  return ts + 59999;
 }
 
 function getActiveSessionId(){
@@ -5039,13 +6064,26 @@ function updateDetailKeywordControls(searchMeta){
   const hasSearchMatches = searchTotal > 0;
   const hasKeywordState = hasInputValue || detailKeywordFilterTerm !== '' || detailKeywordSearchTerm !== '';
   input.disabled = !hasActiveSession;
-  filterButton.disabled = !hasActiveSession || !hasInputValue;
+  const hasActiveFilter = detailKeywordFilterTerm !== '';
+  filterButton.disabled = !hasActiveSession || (!hasInputValue && !hasActiveFilter);
   searchButton.disabled = !hasActiveSession || !hasInputValue;
   prevButton.disabled = !hasSearchMatches;
   nextButton.disabled = !hasSearchMatches;
   clearButton.disabled = !hasKeywordState;
-  filterButton.classList.toggle('active', hasActiveSession && detailKeywordFilterTerm !== '');
+  filterButton.classList.toggle('active', hasActiveSession && hasActiveFilter);
+  filterButton.textContent = hasActiveFilter ? t('detail.searchFilterClear') : t('detail.searchFilter');
   searchButton.classList.toggle('active', hasActiveSession && detailKeywordSearchTerm !== '');
+  const matchCountEl = document.getElementById('detail_keyword_match_count');
+  if(matchCountEl){
+    if(hasSearchMatches){
+      const current = detailKeywordCurrentMatchIndex >= 0 ? detailKeywordCurrentMatchIndex + 1 : 0;
+      matchCountEl.textContent = t('detail.matchCounter', { current: current, total: searchTotal });
+      matchCountEl.classList.remove('hidden');
+    } else {
+      matchCountEl.textContent = '';
+      matchCountEl.classList.add('hidden');
+    }
+  }
   updateClearDetailButtonState();
 }
 
@@ -5354,7 +6392,9 @@ function hasDetailFilter(){
     state.isEventSelectionMode ||
     ((state.selectedEventIds && state.selectedEventIds.size) || 0) > 0 ||
     state.isMessageRangeSelectionMode ||
-    state.selectedMessageRangeEventId
+    state.selectedMessageRangeEventId ||
+    document.getElementById('detail_event_date_from').value ||
+    document.getElementById('detail_event_date_to').value
   );
 }
 
@@ -5371,6 +6411,8 @@ function hasListFilter(){
     document.getElementById('cwd_q').value.trim() ||
     document.getElementById('date_from').value ||
     document.getElementById('date_to').value ||
+    document.getElementById('event_date_from').value ||
+    document.getElementById('event_date_to').value ||
     document.getElementById('q').value.trim() ||
     normalizeSourceFilter(document.getElementById('source_filter').value || 'all') !== 'all' ||
     normalizeSubagentsFilter(document.getElementById('subagents_filter').value || 'include') !== 'include' ||
@@ -5410,6 +6452,19 @@ function normalizeRequestError(error, fallback){
   return fallback;
 }
 
+function getActiveSortOrder(){
+  const active = document.querySelector('.sort-tab.active');
+  return active ? active.dataset.sort : 'desc';
+}
+
+function setActiveSortOrder(value){
+  document.querySelectorAll('.sort-tab').forEach(tab => {
+    const isActive = tab.dataset.sort === value;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+}
+
 async function loadSessions(options){
   saveFilters();
   const requestId = ++loadSessionsRequestSeq;
@@ -5432,6 +6487,10 @@ async function loadSessions(options){
   }
   if(eventLabelId){
     params.set('event_label_id', eventLabelId);
+  }
+  const sortOrder = getActiveSortOrder();
+  if(sortOrder && sortOrder !== 'desc'){
+    params.set('sort', sortOrder);
   }
   try {
     const r = await fetch('/api/sessions?' + params.toString(), { cache: 'no-store' });
@@ -5494,17 +6553,34 @@ async function loadSessions(options){
 }
 
 function saveFilters(){
+  const dateFromIso = parseDateInputToIso(document.getElementById('date_from').value);
+  const dateToIso = parseDateInputToIso(document.getElementById('date_to').value);
+  const eventDateFromIso = parseDateTimeInputToIso(document.getElementById('event_date_from').value);
+  const eventDateToIso = parseDateTimeInputToIso(document.getElementById('event_date_to').value);
+  const detailEventDateFromIso = parseDateTimeInputToIso(document.getElementById('detail_event_date_from').value);
+  const detailEventDateToIso = parseDateTimeInputToIso(document.getElementById('detail_event_date_to').value);
+  document.getElementById('date_from').value = dateFromIso ? formatDateInputFromIso(dateFromIso) : '';
+  document.getElementById('date_to').value = dateToIso ? formatDateInputFromIso(dateToIso) : '';
+  document.getElementById('event_date_from').value = eventDateFromIso ? formatDateTimeInputFromIso(eventDateFromIso) : '';
+  document.getElementById('event_date_to').value = eventDateToIso ? formatDateTimeInputFromIso(eventDateToIso) : '';
+  document.getElementById('detail_event_date_from').value = detailEventDateFromIso ? formatDateTimeInputFromIso(detailEventDateFromIso) : '';
+  document.getElementById('detail_event_date_to').value = detailEventDateToIso ? formatDateTimeInputFromIso(detailEventDateToIso) : '';
   const payload = {
     cwd_q: document.getElementById('cwd_q').value,
-    date_from: document.getElementById('date_from').value,
-    date_to: document.getElementById('date_to').value,
+    date_from: dateFromIso,
+    date_to: dateToIso,
+    event_date_from: eventDateFromIso,
+    event_date_to: eventDateToIso,
     q: document.getElementById('q').value,
     mode: document.getElementById('mode').value,
     source_filter: document.getElementById('source_filter').value,
     subagents_filter: document.getElementById('subagents_filter').value,
+    sort_order: getActiveSortOrder(),
     session_label_filter: getSelectedSessionLabelFilter(),
     event_label_filter: getSelectedListEventLabelFilter(),
     detail_event_label_filter: getSelectedDetailEventLabelFilter(),
+    detail_event_date_from: detailEventDateFromIso,
+    detail_event_date_to: detailEventDateToIso,
     filters_visible: filtersVisible,
     detail_actions_visible: detailActionsVisible,
     left_pane_visible: leftPaneVisible,
@@ -5527,16 +6603,21 @@ function restoreFilters(){
   try {
     const data = JSON.parse(raw);
     if(typeof data.cwd_q === 'string') document.getElementById('cwd_q').value = data.cwd_q;
-    if(typeof data.date_from === 'string') document.getElementById('date_from').value = data.date_from;
-    if(typeof data.date_to === 'string') document.getElementById('date_to').value = data.date_to;
+    if(typeof data.date_from === 'string') document.getElementById('date_from').value = formatDateInputFromIso(data.date_from);
+    if(typeof data.date_to === 'string') document.getElementById('date_to').value = formatDateInputFromIso(data.date_to);
+    if(typeof data.event_date_from === 'string') document.getElementById('event_date_from').value = formatDateTimeInputFromIso(data.event_date_from);
+    if(typeof data.event_date_to === 'string') document.getElementById('event_date_to').value = formatDateTimeInputFromIso(data.event_date_to);
     if(typeof data.q === 'string') document.getElementById('q').value = data.q;
     if(data.mode === 'and' || data.mode === 'or') document.getElementById('mode').value = data.mode;
     const source = normalizeSourceFilter(data.source_filter || 'all');
     document.getElementById('source_filter').value = source;
     document.getElementById('subagents_filter').value = normalizeSubagentsFilter(data.subagents_filter || 'include');
+    if(data.sort_order === 'asc' || data.sort_order === 'desc' || data.sort_order === 'updated') setActiveSortOrder(data.sort_order);
     if(typeof data.session_label_filter === 'string') document.getElementById('session_label_filter').dataset.pendingValue = data.session_label_filter;
     if(typeof data.event_label_filter === 'string') document.getElementById('event_label_filter').dataset.pendingValue = data.event_label_filter;
     if(typeof data.detail_event_label_filter === 'string') document.getElementById('detail_event_label_filter').dataset.pendingValue = data.detail_event_label_filter;
+    if(typeof data.detail_event_date_from === 'string') document.getElementById('detail_event_date_from').value = formatDateTimeInputFromIso(data.detail_event_date_from);
+    if(typeof data.detail_event_date_to === 'string') document.getElementById('detail_event_date_to').value = formatDateTimeInputFromIso(data.detail_event_date_to);
     if(typeof data.filters_visible === 'boolean') filtersVisible = data.filters_visible;
     if(typeof data.detail_actions_visible === 'boolean') detailActionsVisible = data.detail_actions_visible;
     if(typeof data.left_pane_visible === 'boolean') leftPaneVisible = data.left_pane_visible;
@@ -5550,13 +6631,18 @@ function clearFilters(){
   document.getElementById('cwd_q').value = '';
   document.getElementById('date_from').value = '';
   document.getElementById('date_to').value = '';
+  document.getElementById('event_date_from').value = '';
+  document.getElementById('event_date_to').value = '';
   document.getElementById('q').value = '';
   document.getElementById('mode').value = 'and';
   document.getElementById('source_filter').value = 'all';
   document.getElementById('subagents_filter').value = 'include';
+  setActiveSortOrder('desc');
   document.getElementById('session_label_filter').value = '';
   document.getElementById('event_label_filter').value = '';
   document.getElementById('detail_event_label_filter').value = '';
+  document.getElementById('detail_event_date_from').value = '';
+  document.getElementById('detail_event_date_to').value = '';
   try {
     localStorage.removeItem(FILTER_STORAGE_KEY);
   } catch (e) {
@@ -5577,6 +6663,10 @@ function applyFilter(){
   const toRaw = document.getElementById('date_to').value;
   const fromTs = parseOptionalDateStart(fromRaw);
   const toTs = parseOptionalDateEnd(toRaw);
+  const evFromRaw = document.getElementById('event_date_from').value;
+  const evToRaw = document.getElementById('event_date_to').value;
+  const evFromTs = parseOptionalDatetimeStart(evFromRaw);
+  const evToTs = parseOptionalDatetimeEnd(evToRaw);
   state.filtered = state.sessions.filter(s => {
     const cwdMatched = !cwdQ || (s.cwd || '').toLowerCase().includes(cwdQ);
     const sourceMatched = sourceFilter === 'all' || normalizeSourceFilter(s.source_type || s.source) === sourceFilter;
@@ -5598,7 +6688,23 @@ function applyFilter(){
       }
     }
 
-    return cwdMatched && sourceMatched && subagentsMatched && dateMatched;
+    let eventDateMatched = true;
+    if(evFromTs !== null || evToTs !== null){
+      const minTs = s.min_event_ts ? toTimestamp(s.min_event_ts) : NaN;
+      const maxTs = s.max_event_ts ? toTimestamp(s.max_event_ts) : NaN;
+      if(Number.isNaN(minTs) || Number.isNaN(maxTs)){
+        eventDateMatched = false;
+      } else {
+        if(evFromTs !== null && maxTs < evFromTs){
+          eventDateMatched = false;
+        }
+        if(evToTs !== null && minTs > evToTs){
+          eventDateMatched = false;
+        }
+      }
+    }
+
+    return cwdMatched && sourceMatched && subagentsMatched && dateMatched && eventDateMatched;
   });
   saveFilters();
   renderSessionList();
@@ -5647,7 +6753,7 @@ function renderSessionList(){
       </div>
     `).join('');
   }
-  if(state.isSessionsLoading && state.hasLoadedSessions && state.sessionsLoadMode === 'reload'){
+  if(state.isSessionsLoading && state.hasLoadedSessions && (state.sessionsLoadMode === 'reload' || state.sessionsLoadMode === 'auto' || state.sessionsLoadMode === 'clear')){
     setStatusLayer(
       'sessions_status',
       t('status.sessions.refreshTitle'),
@@ -5660,6 +6766,14 @@ function renderSessionList(){
   box.querySelectorAll('.session-item').forEach(el => {
     el.onclick = () => openSession(el.dataset.path);
   });
+  const countEl = document.getElementById('session_count');
+  if(countEl){
+    if(state.hasLoadedSessions && state.sessions.length > 0){
+      countEl.textContent = t('summary.sessions', { filtered: state.filtered.length, total: state.sessions.length });
+    } else {
+      countEl.textContent = '';
+    }
+  }
 }
 
 function getDisplayEvents(){
@@ -5716,6 +6830,19 @@ function getDisplayEvents(){
   }
   if(detailKeywordFilterTerm !== ''){
     events = events.filter(ev => containsLiteralKeyword(getEventBodyText(ev), detailKeywordFilterTerm));
+  }
+  const detailEvFromRaw = document.getElementById('detail_event_date_from').value;
+  const detailEvToRaw = document.getElementById('detail_event_date_to').value;
+  const detailEvFromTs = parseOptionalDatetimeStart(detailEvFromRaw);
+  const detailEvToTs = parseOptionalDatetimeEnd(detailEvToRaw);
+  if(detailEvFromTs !== null || detailEvToTs !== null){
+    events = events.filter(ev => {
+      const evTs = ev.timestamp ? toTimestamp(ev.timestamp) : NaN;
+      if(Number.isNaN(evTs)) return false;
+      if(detailEvFromTs !== null && evTs < detailEvFromTs) return false;
+      if(detailEvToTs !== null && evTs > detailEvToTs) return false;
+      return true;
+    });
   }
   if(document.getElementById('reverse_order').checked){
     events = [...events].reverse();
@@ -5898,7 +7025,12 @@ function clearDetailMessageRangeSelection(){
 
 function applyDetailKeywordFilter(){
   noteDetailInteraction();
-  detailKeywordFilterTerm = getDetailKeywordInputValue();
+  const inputValue = getDetailKeywordInputValue();
+  if(detailKeywordFilterTerm !== '' && inputValue === detailKeywordFilterTerm){
+    detailKeywordFilterTerm = '';
+  } else {
+    detailKeywordFilterTerm = inputValue;
+  }
   const eventsBox = document.getElementById('events');
   if(eventsBox){
     eventsBox.scrollTop = 0;
@@ -6335,89 +7467,119 @@ function moveDetailKeywordSearchByShortcut(step){
   return true;
 }
 
-document.getElementById('cwd_q').addEventListener('input', applyFilter);
-document.getElementById('date_from').addEventListener('change', applyFilter);
-document.getElementById('date_to').addEventListener('change', applyFilter);
-document.getElementById('q').addEventListener('input', scheduleLoadSessions);
-document.getElementById('mode').addEventListener('change', scheduleLoadSessions);
-document.getElementById('source_filter').addEventListener('change', applyFilter);
-document.getElementById('subagents_filter').addEventListener('change', applyFilter);
-document.getElementById('session_label_filter').addEventListener('change', scheduleLoadSessions);
-document.getElementById('event_label_filter').addEventListener('change', scheduleLoadSessions);
-document.getElementById('detail_event_label_filter').addEventListener('change', () => {
+function safeBindById(id, eventName, handler){
+  const node = document.getElementById(id);
+  if(!node){
+    return;
+  }
+  node.addEventListener(eventName, handler);
+}
+
+safeBindById('cwd_q', 'input', applyFilter);
+safeBindById('date_from', 'change', applyFilter);
+safeBindById('date_to', 'change', applyFilter);
+safeBindById('event_date_from', 'change', applyFilter);
+safeBindById('event_date_to', 'change', applyFilter);
+safeBindById('q', 'input', scheduleLoadSessions);
+safeBindById('mode', 'change', scheduleLoadSessions);
+safeBindById('source_filter', 'change', applyFilter);
+safeBindById('subagents_filter', 'change', applyFilter);
+document.querySelectorAll('.sort-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    setActiveSortOrder(tab.dataset.sort);
+    scheduleLoadSessions();
+  });
+});
+safeBindById('session_label_filter', 'change', scheduleLoadSessions);
+safeBindById('event_label_filter', 'change', scheduleLoadSessions);
+safeBindById('detail_event_label_filter', 'change', () => {
   saveFilters();
   renderActiveSession();
 });
-document.getElementById('toggle_filters').addEventListener('click', () => {
+safeBindById('detail_event_date_from', 'change', () => {
+  saveFilters();
+  renderActiveSession();
+});
+safeBindById('detail_event_date_to', 'change', () => {
+  saveFilters();
+  renderActiveSession();
+});
+safeBindById('clear_detail_event_date', 'click', () => {
+  document.getElementById('detail_event_date_from').value = '';
+  document.getElementById('detail_event_date_to').value = '';
+  saveFilters();
+  renderActiveSession();
+});
+safeBindById('toggle_filters', 'click', () => {
   setFiltersVisible(!filtersVisible);
 });
-document.getElementById('toggle_session_list_mobile').addEventListener('click', () => {
+safeBindById('toggle_session_list_mobile', 'click', () => {
   setLeftPaneVisible(!leftPaneVisible);
 });
-document.getElementById('toggle_detail_actions').addEventListener('click', () => {
+safeBindById('toggle_detail_actions', 'click', () => {
   setDetailActionsVisible(!detailActionsVisible);
 });
-document.getElementById('open_shortcuts').addEventListener('click', openShortcutDialog);
-document.getElementById('close_shortcuts').addEventListener('click', closeShortcutDialog);
-document.getElementById('toggle_meta').addEventListener('click', () => {
+safeBindById('open_shortcuts', 'click', openShortcutDialog);
+safeBindById('close_shortcuts', 'click', closeShortcutDialog);
+safeBindById('toggle_meta', 'click', () => {
   setDetailMetaVisible(!detailMetaVisible);
 });
-document.getElementById('reload').addEventListener('click', () => {
+safeBindById('reload', 'click', () => {
   if(loadSessionsTimer){
     clearTimeout(loadSessionsTimer);
     loadSessionsTimer = null;
   }
   loadSessions({ mode: 'reload' });
 });
-document.getElementById('clear').addEventListener('click', clearFilters);
-document.getElementById('only_user_instruction').addEventListener('change', () => {
+safeBindById('clear', 'click', clearFilters);
+safeBindById('only_user_instruction', 'change', () => {
   renderActiveSession();
 });
-document.getElementById('only_ai_response').addEventListener('change', () => {
+safeBindById('only_ai_response', 'change', () => {
   renderActiveSession();
 });
-document.getElementById('turn_boundary_only').addEventListener('change', () => {
+safeBindById('turn_boundary_only', 'change', () => {
   renderActiveSession();
 });
-document.getElementById('reverse_order').addEventListener('change', () => {
+safeBindById('reverse_order', 'change', () => {
   renderActiveSession();
 });
-document.getElementById('clear_detail').addEventListener('click', clearDetailFilters);
-document.getElementById('refresh_detail').addEventListener('click', refreshActiveSession);
-document.getElementById('copy_resume_command').addEventListener('click', copyResumeCommand);
-document.getElementById('copy_displayed_messages').addEventListener('click', copyDisplayedMessages);
-document.getElementById('event_selection_mode').addEventListener('click', toggleEventSelectionMode);
-document.getElementById('copy_selected_messages').addEventListener('click', copySelectedMessages);
-document.getElementById('message_range_selection_mode').addEventListener('click', toggleMessageRangeSelectionMode);
-document.getElementById('clear_message_range_selection').addEventListener('click', clearDetailMessageRangeSelection);
-document.getElementById('detail_message_range_after').addEventListener('click', () => {
+safeBindById('clear_detail', 'click', clearDetailFilters);
+safeBindById('refresh_detail', 'click', refreshActiveSession);
+safeBindById('copy_resume_command', 'click', copyResumeCommand);
+safeBindById('copy_displayed_messages', 'click', copyDisplayedMessages);
+safeBindById('event_selection_mode', 'click', toggleEventSelectionMode);
+safeBindById('copy_selected_messages', 'click', copySelectedMessages);
+safeBindById('message_range_selection_mode', 'click', toggleMessageRangeSelectionMode);
+safeBindById('clear_message_range_selection', 'click', clearDetailMessageRangeSelection);
+safeBindById('detail_message_range_after', 'click', () => {
   applyDetailMessageRange('after');
 });
-document.getElementById('detail_message_range_before').addEventListener('click', () => {
+safeBindById('detail_message_range_before', 'click', () => {
   applyDetailMessageRange('before');
 });
-document.getElementById('detail_keyword_q').addEventListener('input', () => {
+safeBindById('detail_keyword_q', 'input', () => {
   updateDetailKeywordControls();
 });
-document.getElementById('language_select').addEventListener('change', (event) => {
+safeBindById('language_select', 'change', (event) => {
   setUiLanguage(event.target.value);
 });
-document.getElementById('detail_keyword_q').addEventListener('keydown', (event) => {
+safeBindById('detail_keyword_q', 'keydown', (event) => {
   if(event.key === 'Enter' && !event.isComposing){
     event.preventDefault();
     runDetailKeywordSearch();
     releaseSearchFocus();
   }
 });
-document.getElementById('detail_keyword_filter').addEventListener('click', applyDetailKeywordFilter);
-document.getElementById('detail_keyword_search').addEventListener('click', runDetailKeywordSearch);
-document.getElementById('detail_keyword_prev').addEventListener('click', () => {
+safeBindById('detail_keyword_filter', 'click', applyDetailKeywordFilter);
+safeBindById('detail_keyword_search', 'click', runDetailKeywordSearch);
+safeBindById('detail_keyword_prev', 'click', () => {
   moveDetailKeywordSearch(-1);
 });
-document.getElementById('detail_keyword_next').addEventListener('click', () => {
+safeBindById('detail_keyword_next', 'click', () => {
   moveDetailKeywordSearch(1);
 });
-document.getElementById('detail_keyword_clear').addEventListener('click', clearDetailKeyword);
+safeBindById('detail_keyword_clear', 'click', clearDetailKeyword);
 document.addEventListener('keydown', (event) => {
   if(event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey){
     return;
@@ -7834,9 +8996,12 @@ class Handler(BaseHTTPRequestHandler):
             items = iter_all_session_files()[:MAX_LIST]
             q = urllib.parse.parse_qs(parsed.query)
             raw_query = (q.get("q", [""])[0] or "").strip()
-            mode = q.get("mode", ["and"])[0]
+            mode = q.get("mode", ["and"])[0].strip().lower()
             if mode not in ("and", "or"):
                 mode = "and"
+            sort = q.get("sort", ["desc"])[0].strip().lower()
+            if sort not in ("desc", "asc", "updated"):
+                sort = "desc"
             session_label_id = parse_optional_int(q.get("session_label_id", [""])[0])
             event_label_id = parse_optional_int(q.get("event_label_id", [""])[0])
             sync_search_index(items, prune_missing=True)
@@ -7846,6 +9011,7 @@ class Handler(BaseHTTPRequestHandler):
                 MAX_LIST,
                 session_label_id=session_label_id,
                 event_label_id=event_label_id,
+                sort=sort,
             )
             root_parts = []
             if roots["claude_cli"]:
