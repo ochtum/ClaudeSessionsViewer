@@ -2594,6 +2594,12 @@ button:disabled {
   background: #e7f1ff;
   border-color: #bdd9f7;
 }
+.session-tag-subagents {
+  color: #6b21a8;
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  font-weight: 700;
+}
 .detail-toolbar {
   gap: 0;
   padding: 4px 16px 6px;
@@ -3286,6 +3292,13 @@ pre {
               </select>
             </label>
             <label class="field">
+              <span>subagents</span>
+              <select id="subagents_filter">
+                <option value="include">subagents: 含む</option>
+                <option value="exclude">subagents: 含まない</option>
+              </select>
+            </label>
+            <label class="field">
               <span>セッションラベル</span>
               <select id="session_label_filter">
                 <option value="">session label: all</option>
@@ -3549,11 +3562,14 @@ const I18N = {
     'filter.dateFrom': '開始日',
     'filter.dateTo': '終了日',
     'filter.source': 'source',
+    'filter.subagents': 'subagents',
     'filter.sessionLabel': 'セッションラベル',
     'filter.eventLabel': 'イベントラベル',
     'filter.source.all': 'source: all',
     'filter.source.cli': 'source: Claude Code CLI',
     'filter.source.vscode': 'source: Claude Desktop',
+    'filter.subagents.include': 'subagents: 含む',
+    'filter.subagents.exclude': 'subagents: 含まない',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
     'filter.mode.and': 'keyword AND',
@@ -3691,11 +3707,14 @@ const I18N = {
     'filter.dateFrom': 'Start date',
     'filter.dateTo': 'End date',
     'filter.source': 'Source',
+    'filter.subagents': 'subagents',
     'filter.sessionLabel': 'Session label',
     'filter.eventLabel': 'Event label',
     'filter.source.all': 'source: all',
     'filter.source.cli': 'source: Claude Code CLI',
     'filter.source.vscode': 'source: Claude Desktop',
+    'filter.subagents.include': 'subagents: include',
+    'filter.subagents.exclude': 'subagents: exclude',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
     'filter.mode.and': 'keyword AND',
@@ -3833,11 +3852,14 @@ const I18N = {
     'filter.dateFrom': '开始日期',
     'filter.dateTo': '结束日期',
     'filter.source': '来源',
+    'filter.subagents': 'subagents',
     'filter.sessionLabel': '会话标签',
     'filter.eventLabel': '事件标签',
     'filter.source.all': 'source: all',
     'filter.source.cli': 'source: Claude Code CLI',
     'filter.source.vscode': 'source: Claude Desktop',
+    'filter.subagents.include': 'subagents: 包含',
+    'filter.subagents.exclude': 'subagents: 不包含',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
     'filter.mode.and': 'keyword AND',
@@ -3973,7 +3995,10 @@ I18N['zh-Hant'] = {
   'filter.dateFrom': '開始日期',
   'filter.dateTo': '結束日期',
   'filter.source': '來源',
+  'filter.subagents': 'subagents',
   'filter.eventLabel': '事件標籤',
+  'filter.subagents.include': 'subagents: 包含',
+  'filter.subagents.exclude': 'subagents: 不包含',
   'placeholder.cwd': 'cwd（部分比對）',
   'placeholder.keyword': '關鍵字篩選',
   'placeholder.detailKeyword': '詳細關鍵字',
@@ -4163,6 +4188,7 @@ function applyMainLanguage(){
   setFieldLabel('date_from', t('filter.dateFrom'));
   setFieldLabel('date_to', t('filter.dateTo'));
   setFieldLabel('source_filter', t('filter.source'));
+  setFieldLabel('subagents_filter', t('filter.subagents'));
   setFieldLabel('session_label_filter', t('filter.sessionLabel'));
   setFieldLabel('event_label_filter', t('filter.eventLabel'));
   document.getElementById('cwd_q').placeholder = t('placeholder.cwd');
@@ -4173,6 +4199,8 @@ function applyMainLanguage(){
   setOptionText('source_filter', 0, t('filter.source.all'));
   setOptionText('source_filter', 1, t('filter.source.cli'));
   setOptionText('source_filter', 2, t('filter.source.vscode'));
+  setOptionText('subagents_filter', 0, t('filter.subagents.include'));
+  setOptionText('subagents_filter', 1, t('filter.subagents.exclude'));
   setText('.detail-toolbar-row.primary .detail-group-title', t('detail.display'));
   setToggleLabel('only_user_instruction', t('detail.toggle.user'));
   setToggleLabel('only_ai_response', t('detail.toggle.ai'));
@@ -4730,10 +4758,31 @@ function sourceLabel(source){
   return normalizeSource(source) === 'desktop' ? 'Claude Desktop' : 'Claude Code CLI';
 }
 
+function hasSubagentsSegment(session){
+  const candidates = [
+    session && session.path ? String(session.path) : '',
+    session && session.relative_path ? String(session.relative_path) : '',
+    session && session.project ? String(session.project) : '',
+  ];
+  return candidates.some(value => {
+    const normalized = String(value || '').toLowerCase();
+    return normalized.includes('/subagents/')
+      || normalized.includes('\\\\subagents\\\\')
+      || normalized.includes('/subagents\\\\')
+      || normalized.includes('\\\\subagents/');
+  });
+}
+
 function normalizeSourceFilter(source){
   const raw = (source || '').toLowerCase();
   if(raw === '' || raw === 'all') return 'all';
   return raw === 'claude_desktop' || raw === 'desktop' ? 'claude_desktop' : 'claude_cli';
+}
+
+function normalizeSubagentsFilter(value){
+  const raw = (value || '').toLowerCase();
+  if(raw === 'exclude') return 'exclude';
+  return 'include';
 }
 
 function fmt(ts){
@@ -5282,6 +5331,7 @@ function hasListFilter(){
     document.getElementById('date_to').value ||
     document.getElementById('q').value.trim() ||
     normalizeSourceFilter(document.getElementById('source_filter').value || 'all') !== 'all' ||
+    normalizeSubagentsFilter(document.getElementById('subagents_filter').value || 'include') !== 'include' ||
     getSelectedSessionLabelFilter() ||
     getSelectedListEventLabelFilter()
   );
@@ -5409,6 +5459,7 @@ function saveFilters(){
     q: document.getElementById('q').value,
     mode: document.getElementById('mode').value,
     source_filter: document.getElementById('source_filter').value,
+    subagents_filter: document.getElementById('subagents_filter').value,
     session_label_filter: getSelectedSessionLabelFilter(),
     event_label_filter: getSelectedListEventLabelFilter(),
     detail_event_label_filter: getSelectedDetailEventLabelFilter(),
@@ -5440,6 +5491,7 @@ function restoreFilters(){
     if(data.mode === 'and' || data.mode === 'or') document.getElementById('mode').value = data.mode;
     const source = normalizeSourceFilter(data.source_filter || 'all');
     document.getElementById('source_filter').value = source;
+    document.getElementById('subagents_filter').value = normalizeSubagentsFilter(data.subagents_filter || 'include');
     if(typeof data.session_label_filter === 'string') document.getElementById('session_label_filter').dataset.pendingValue = data.session_label_filter;
     if(typeof data.event_label_filter === 'string') document.getElementById('event_label_filter').dataset.pendingValue = data.event_label_filter;
     if(typeof data.detail_event_label_filter === 'string') document.getElementById('detail_event_label_filter').dataset.pendingValue = data.detail_event_label_filter;
@@ -5459,6 +5511,7 @@ function clearFilters(){
   document.getElementById('q').value = '';
   document.getElementById('mode').value = 'and';
   document.getElementById('source_filter').value = 'all';
+  document.getElementById('subagents_filter').value = 'include';
   document.getElementById('session_label_filter').value = '';
   document.getElementById('event_label_filter').value = '';
   document.getElementById('detail_event_label_filter').value = '';
@@ -5477,6 +5530,7 @@ function clearFilters(){
 function applyFilter(){
   const cwdQ = document.getElementById('cwd_q').value.toLowerCase().trim();
   const sourceFilter = normalizeSourceFilter(document.getElementById('source_filter').value || 'all');
+  const subagentsFilter = normalizeSubagentsFilter(document.getElementById('subagents_filter').value || 'include');
   const fromRaw = document.getElementById('date_from').value;
   const toRaw = document.getElementById('date_to').value;
   const fromTs = parseOptionalDateStart(fromRaw);
@@ -5484,6 +5538,8 @@ function applyFilter(){
   state.filtered = state.sessions.filter(s => {
     const cwdMatched = !cwdQ || (s.cwd || '').toLowerCase().includes(cwdQ);
     const sourceMatched = sourceFilter === 'all' || normalizeSourceFilter(s.source_type || s.source) === sourceFilter;
+    const isSubagents = hasSubagentsSegment(s);
+    const subagentsMatched = subagentsFilter === 'include' ? isSubagents : !isSubagents;
 
     let dateMatched = true;
     if(fromTs !== null || toTs !== null){
@@ -5500,7 +5556,7 @@ function applyFilter(){
       }
     }
 
-    return cwdMatched && sourceMatched && dateMatched;
+    return cwdMatched && sourceMatched && subagentsMatched && dateMatched;
   });
   saveFilters();
   renderSessionList();
@@ -5542,6 +5598,7 @@ function renderSessionList(){
         <div class="session-meta-row session-meta-row-primary">
           <div class="session-badge session-time">${esc(fmt(s.started_at || s.mtime))}</div>
           <div class="session-badge session-source source-${esc(normalizeSource(s.source_type || s.source))}">${esc(sourceLabel(s.source_type || s.source))}</div>
+          ${hasSubagentsSegment(s) ? '<div class="session-badge session-tag-subagents">subagents</div>' : ''}
         </div>
         <div class="session-preview">${esc(s.first_real_user_text || s.first_user_text || t('session.preview.empty'))}</div>
         ${(s.session_labels || []).length ? `<div class="session-label-row">${renderAssignedLabels(s.session_labels || [])}</div>` : ''}
@@ -6233,6 +6290,7 @@ document.getElementById('date_to').addEventListener('change', applyFilter);
 document.getElementById('q').addEventListener('input', scheduleLoadSessions);
 document.getElementById('mode').addEventListener('change', scheduleLoadSessions);
 document.getElementById('source_filter').addEventListener('change', applyFilter);
+document.getElementById('subagents_filter').addEventListener('change', applyFilter);
 document.getElementById('session_label_filter').addEventListener('change', scheduleLoadSessions);
 document.getElementById('event_label_filter').addEventListener('change', scheduleLoadSessions);
 document.getElementById('detail_event_label_filter').addEventListener('change', () => {
