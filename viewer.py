@@ -476,6 +476,20 @@ def _is_skills_instruction_text(text: str) -> bool:
     return text.lstrip().lower().startswith("base directory for this skill:")
 
 
+def _is_continuation_summary_text(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    normalized = re.sub(r"\s+", " ", text).strip().lower()
+    if not normalized:
+        return False
+    if "this session is being continued from a previous conversation that ran out of context." not in normalized:
+        return False
+    return (
+        "the summary below covers the earlier portion of the conversation." in normalized
+        or "summary:" in normalized
+    )
+
+
 def _extract_claude_progress_text(obj):
     data = obj.get("data")
     if not isinstance(data, dict):
@@ -1070,7 +1084,8 @@ def summarize_desktop_blob(path: Path, root: Path):
 def normalize_search_text(text: str) -> str:
     if not text:
         return ""
-    return re.sub(r"\s+", " ", str(text)).strip().lower()
+    normalized = str(text).replace("\\", "/")
+    return re.sub(r"\s+", " ", normalized).strip().lower()
 
 
 def is_safe_css_color(value: str) -> bool:
@@ -1539,6 +1554,8 @@ def load_cli_events(path: Path):
             system_labels = []
             if kind == "message" and role == "user" and _is_skills_instruction_text(text):
                 system_labels.append("SKILLS")
+            if kind == "message" and role == "user" and _is_continuation_summary_text(text):
+                system_labels.append("CONTINUATION_SUMMARY")
             event = {
                 "event_id": f"line-{raw_count}",
                 "timestamp": ts,
@@ -2895,6 +2912,11 @@ button:disabled {
   border-color: #dde6ef;
   font-variant-numeric: tabular-nums;
 }
+.badge-system-label {
+  color: #6b21a8;
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+}
 .badge-role.user {
   color: #0f4fbe;
   background: #dbeafe;
@@ -3294,8 +3316,8 @@ pre {
             <label class="field">
               <span>subagents</span>
               <select id="subagents_filter">
-                <option value="include">subagents: 含む</option>
-                <option value="exclude">subagents: 含まない</option>
+                <option value="include">含む</option>
+                <option value="exclude">含まない</option>
               </select>
             </label>
             <label class="field">
@@ -3568,8 +3590,8 @@ const I18N = {
     'filter.source.all': 'source: all',
     'filter.source.cli': 'source: Claude Code CLI',
     'filter.source.vscode': 'source: Claude Desktop',
-    'filter.subagents.include': 'subagents: 含む',
-    'filter.subagents.exclude': 'subagents: 含まない',
+    'filter.subagents.include': '含む',
+    'filter.subagents.exclude': '含まない',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
     'filter.mode.and': 'keyword AND',
@@ -3713,8 +3735,8 @@ const I18N = {
     'filter.source.all': 'source: all',
     'filter.source.cli': 'source: Claude Code CLI',
     'filter.source.vscode': 'source: Claude Desktop',
-    'filter.subagents.include': 'subagents: include',
-    'filter.subagents.exclude': 'subagents: exclude',
+    'filter.subagents.include': 'Include',
+    'filter.subagents.exclude': 'Exclude',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
     'filter.mode.and': 'keyword AND',
@@ -3858,8 +3880,8 @@ const I18N = {
     'filter.source.all': 'source: all',
     'filter.source.cli': 'source: Claude Code CLI',
     'filter.source.vscode': 'source: Claude Desktop',
-    'filter.subagents.include': 'subagents: 包含',
-    'filter.subagents.exclude': 'subagents: 不包含',
+    'filter.subagents.include': '包含',
+    'filter.subagents.exclude': '不包含',
     'filter.sessionLabel.all': 'session label: all',
     'filter.eventLabel.all': 'event label: all',
     'filter.mode.and': 'keyword AND',
@@ -3997,8 +4019,8 @@ I18N['zh-Hant'] = {
   'filter.source': '來源',
   'filter.subagents': 'subagents',
   'filter.eventLabel': '事件標籤',
-  'filter.subagents.include': 'subagents: 包含',
-  'filter.subagents.exclude': 'subagents: 不包含',
+  'filter.subagents.include': '包含',
+  'filter.subagents.exclude': '不包含',
   'placeholder.cwd': 'cwd（部分比對）',
   'placeholder.keyword': '關鍵字篩選',
   'placeholder.detailKeyword': '詳細關鍵字',
@@ -4494,6 +4516,14 @@ function isTurnBoundaryFilterEnabled(){
   return !!(checkbox && checkbox.checked);
 }
 
+function isSystemLabeledUserEvent(ev){
+  if(!ev || ev.kind !== 'message' || ev.role !== 'user'){
+    return false;
+  }
+  const labels = ev.system_labels || [];
+  return labels.includes('SKILLS') || labels.includes('CONTINUATION_SUMMARY');
+}
+
 function filterEventsToTurnBoundaries(events){
   if(!Array.isArray(events) || events.length === 0){
     return Array.isArray(events) ? events : [];
@@ -4519,6 +4549,9 @@ function filterEventsToTurnBoundaries(events){
       return;
     }
     if(ev.role === 'user'){
+      if(isSystemLabeledUserEvent(ev)){
+        return;
+      }
       flushTurn();
       pendingUser = ev;
       return;
@@ -4616,10 +4649,16 @@ function getDetailEventKey(ev, fallbackIndex){
   return `${ev && ev.kind ? ev.kind : 'event'}:${ev && ev.timestamp ? ev.timestamp : ''}:${fallbackIndex}`;
 }
 
+function shouldShowSystemLabels(){
+  const onlyUserInput = document.getElementById('only_user_instruction');
+  return !(onlyUserInput && onlyUserInput.checked);
+}
+
 function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta){
   const role = ev.role || 'system';
   const roleLabel = role.replace('_', ' ');
   const labels = ev.labels || [];
+  const systemLabels = ev.system_labels || [];
   const matchesSelectedLabel = selectedEventLabelId && labels.some(label => String(label.id) === selectedEventLabelId);
   const eventKey = getDetailEventKey(ev, fallbackIndex);
   const bodyText = getEventBodyText(ev);
@@ -4640,7 +4679,10 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const copyButtonHtml = ev.kind === 'message'
     ? `<button class="event-copy-button" data-event-id="${esc(ev.event_id || '')}">${esc(t('copy.single'))}</button>`
     : '';
-  return `<div class="ev ${role} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${role}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span><span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>${esc(t('picker.addLabel'))}</button>${copyButtonHtml}</span></div>${body}</div>`;
+  const systemLabelsHtml = shouldShowSystemLabels()
+    ? systemLabels.map(label => `<span class="badge-kind badge-system-label">${esc(label)}</span>`).join('')
+    : '';
+  return `<div class="ev ${role} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${role}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>${esc(t('picker.addLabel'))}</button>${copyButtonHtml}</span></div>${body}</div>`;
 }
 
 function attachVisibleEventCardHandlers(eventsBox){
@@ -5539,7 +5581,7 @@ function applyFilter(){
     const cwdMatched = !cwdQ || (s.cwd || '').toLowerCase().includes(cwdQ);
     const sourceMatched = sourceFilter === 'all' || normalizeSourceFilter(s.source_type || s.source) === sourceFilter;
     const isSubagents = hasSubagentsSegment(s);
-    const subagentsMatched = subagentsFilter === 'include' ? isSubagents : !isSubagents;
+    const subagentsMatched = subagentsFilter === 'exclude' ? !isSubagents : true;
 
     let dateMatched = true;
     if(fromTs !== null || toTs !== null){
@@ -5634,7 +5676,16 @@ function getDisplayEvents(){
   if(showOnlyUser || showOnlyAssistant){
     events = events.filter(ev => {
       if(ev.kind !== 'message') return false;
-      return (showOnlyUser && ev.role === 'user') || (showOnlyAssistant && ev.role === 'assistant');
+      if(showOnlyUser && ev.role === 'user'){
+        if(isSystemLabeledUserEvent(ev)){
+          return false;
+        }
+        return true;
+      }
+      if(showOnlyAssistant && ev.role === 'assistant'){
+        return true;
+      }
+      return false;
     });
   }
   if(state.detailMessageRangeMode){
