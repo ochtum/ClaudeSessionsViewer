@@ -3691,6 +3691,12 @@ pre {
   line-height: 1.65;
   font-family: var(--font-mono);
 }
+.ev-body-wrap{position:relative;}
+.ev-body-wrap.collapsed pre{max-height:calc(10 * 1.65em + 20px);overflow:hidden;position:relative;}
+.ev-body-wrap.collapsed pre::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.4em;background:linear-gradient(to bottom,rgba(248,250,252,0),rgba(248,250,252,0.95));border-radius:0 0 12px 12px;pointer-events:none;}
+.ev-body-toggle{display:none;margin-top:4px;padding:2px 8px;border:1px solid rgba(203,213,225,0.56);border-radius:8px;background:rgba(248,250,252,0.78);color:var(--muted);font-size:var(--text-caption);cursor:pointer;}
+.ev-body-wrap.collapsible .ev-body-toggle{display:block;}
+.ev-body-toggle:hover{background:rgba(226,232,240,0.78);}
 @media (max-width: 1180px) {
   :root {
     --sidebar-width: 304px;
@@ -4821,6 +4827,8 @@ const I18N = {
     'detail.rangeAfterActive': '起点以降のみ表示中',
     'detail.rangeBefore': '起点以前のみ表示',
     'detail.rangeBeforeActive': '起点以前のみ表示中',
+    'detail.bodyExpand': '▼ 続きを表示',
+    'detail.bodyCollapse': '▲ 折りたたむ',
     'session.labels.empty': 'セッションラベルはまだありません',
     'session.labels.loading': 'セッションラベルを読み込み中...',
     'shortcut.title': 'ショートカット',
@@ -4980,6 +4988,8 @@ const I18N = {
     'detail.rangeAfterActive': 'Showing from anchor',
     'detail.rangeBefore': 'Show until anchor',
     'detail.rangeBeforeActive': 'Showing until anchor',
+    'detail.bodyExpand': '▼ Show more',
+    'detail.bodyCollapse': '▲ Show less',
     'session.labels.empty': 'No session labels yet',
     'session.labels.loading': 'Loading session labels...',
     'shortcut.title': 'Shortcuts',
@@ -5139,6 +5149,8 @@ const I18N = {
     'detail.rangeAfterActive': '正在显示锚点之后',
     'detail.rangeBefore': '仅显示锚点之前',
     'detail.rangeBeforeActive': '正在显示锚点之前',
+    'detail.bodyExpand': '▼ 展开更多',
+    'detail.bodyCollapse': '▲ 收起',
     'session.labels.empty': '还没有会话标签',
     'session.labels.loading': '正在加载会话标签...',
     'shortcut.title': '快捷键',
@@ -5287,6 +5299,8 @@ I18N['zh-Hant'] = {
   'detail.rangeAfterActive': '正在顯示錨點之後',
   'detail.rangeBefore': '僅顯示錨點之前',
   'detail.rangeBeforeActive': '正在顯示錨點之前',
+  'detail.bodyExpand': '▼ 展開更多',
+  'detail.bodyCollapse': '▲ 收起',
   'session.labels.empty': '尚未有工作階段標籤',
   'session.labels.loading': '正在載入工作階段標籤...',
   'shortcut.title': '快捷鍵',
@@ -5927,7 +5941,8 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const eventKey = getDetailEventKey(ev, fallbackIndex);
   const bodyText = getEventBodyText(ev);
   const eventMatches = searchMeta && searchMeta.matchesByEvent ? (searchMeta.matchesByEvent.get(eventKey) || []) : [];
-  const body = `<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`;
+  const bodyInner = `<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`;
+  const body = `<div class="ev-body-wrap">${bodyInner}<button class="ev-body-toggle">${esc(t('detail.bodyExpand'))}</button></div>`;
   const selectionKey = getEventSelectionKey(ev);
   const isSelectable = state.isEventSelectionMode && isSelectableMessageEvent(ev);
   const isSelected = selectionKey && state.selectedEventIds.has(selectionKey);
@@ -5975,6 +5990,24 @@ function attachVisibleEventCardHandlers(eventsBox){
   eventsBox.querySelectorAll('.label-remove-button[data-remove-type="event"]').forEach(button => {
     button.onclick = async () => {
       await removeEventLabel(button.dataset.eventId, Number(button.dataset.labelId));
+    };
+  });
+  eventsBox.querySelectorAll('.ev-body-wrap').forEach(wrap => {
+    const pre = wrap.querySelector('pre');
+    if(!pre) return;
+    const style = getComputedStyle(pre);
+    const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.65);
+    const threshold = lineHeight * 20 + 20;
+    if(pre.scrollHeight > threshold){
+      wrap.classList.add('collapsible', 'collapsed');
+    }
+  });
+  eventsBox.querySelectorAll('.ev-body-toggle').forEach(button => {
+    button.onclick = () => {
+      const wrap = button.closest('.ev-body-wrap');
+      if(!wrap) return;
+      const isCollapsed = wrap.classList.toggle('collapsed');
+      button.textContent = isCollapsed ? t('detail.bodyExpand') : t('detail.bodyCollapse');
     };
   });
 }
