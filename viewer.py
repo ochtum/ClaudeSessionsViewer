@@ -2124,6 +2124,7 @@ header h1 {
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.35;
+  white-space: pre-line;
 }
 .header-meta {
   display: grid;
@@ -4751,7 +4752,7 @@ const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh-Hans', 'zh-Hant'];
 const I18N = {
   ja: {
     'language.selector': '言語',
-    'header.subtitle': 'Session logs, labels, and event review for Claude workflows',
+    'header.subtitle': 'ClaudeCodeのイベント履歴を一覧・詳細表示表示して、検索することができます。\\n覚えておきたい内容にラベルを貼り付けて、あとから検索することもできます。',
     'header.shortcuts': 'ショートカット',
     'header.meta.show': 'メタ表示',
     'header.meta.hide': 'メタ非表示',
@@ -4762,7 +4763,7 @@ const I18N = {
     'header.labels': 'ラベル管理',
     'toolbar.kicker': 'Session Browser',
     'toolbar.heading': '検索と絞り込み',
-    'toolbar.copy': '候補を探してから一覧を見る、という流れに整理しました。',
+    'toolbar.copy': 'フィルターは次回起動時にも保持されます。',
     'toolbar.reload': 'Reload',
     'toolbar.clear': 'Clear',
     'toolbar.filters.hide': 'フィルタを隠す',
@@ -4806,7 +4807,7 @@ const I18N = {
     'detail.toggle.turn': '各入力と最終応答のみ',
     'detail.toggle.reverse': '表示順を逆にする',
     'detail.label': 'イベントラベル',
-    'detail.label.all': 'label',
+    'detail.label.all': 'all',
     'detail.refresh': 'Refresh',
     'detail.refreshing': 'Refreshing...',
     'detail.clear': 'Clear',
@@ -4914,7 +4915,7 @@ const I18N = {
   },
   en: {
     'language.selector': 'Language',
-    'header.subtitle': 'Session logs, labels, and event review for Claude workflows',
+    'header.subtitle': 'Browse, inspect, and search ClaudeCode event histories.\\nYou can also attach labels to anything worth remembering and find it later.',
     'header.shortcuts': 'Shortcuts',
     'header.meta.show': 'Show meta',
     'header.meta.hide': 'Hide meta',
@@ -4925,7 +4926,7 @@ const I18N = {
     'header.labels': 'Labels',
     'toolbar.kicker': 'Session Browser',
     'toolbar.heading': 'Search and filter',
-    'toolbar.copy': 'Find candidates first, then review the list.',
+    'toolbar.copy': 'Filters are preserved the next time you launch the viewer.',
     'toolbar.reload': 'Reload',
     'toolbar.clear': 'Clear',
     'toolbar.filters.hide': 'Hide filters',
@@ -4969,7 +4970,7 @@ const I18N = {
     'detail.toggle.turn': 'Only each input and final reply',
     'detail.toggle.reverse': 'Reverse order',
     'detail.label': 'Event label',
-    'detail.label.all': 'label',
+    'detail.label.all': 'all',
     'detail.refresh': 'Refresh',
     'detail.refreshing': 'Refreshing...',
     'detail.clear': 'Clear',
@@ -5077,7 +5078,7 @@ const I18N = {
   },
   'zh-Hans': {
     'language.selector': '语言',
-    'header.subtitle': '用于 Claude 工作流的会话日志、标签和事件查看',
+    'header.subtitle': '可以列表和详细查看 ClaudeCode 的事件历史，并进行搜索。\\n还可以给想保留的内容加上标签，之后再搜索找到。',
     'header.shortcuts': '快捷键',
     'header.meta.show': '显示元信息',
     'header.meta.hide': '隐藏元信息',
@@ -5088,7 +5089,7 @@ const I18N = {
     'header.labels': '标签管理',
     'toolbar.kicker': 'Session Browser',
     'toolbar.heading': '搜索与筛选',
-    'toolbar.copy': '先找到候选项，再查看列表。',
+    'toolbar.copy': '筛选条件会在下次启动时继续保留。',
     'toolbar.reload': 'Reload',
     'toolbar.clear': 'Clear',
     'toolbar.filters.hide': '隐藏筛选',
@@ -5132,7 +5133,7 @@ const I18N = {
     'detail.toggle.turn': '仅显示每次输入与最终回复',
     'detail.toggle.reverse': '反转显示顺序',
     'detail.label': '事件标签',
-    'detail.label.all': 'label',
+    'detail.label.all': 'all',
     'detail.refresh': 'Refresh',
     'detail.refreshing': 'Refreshing...',
     'detail.clear': 'Clear',
@@ -5242,7 +5243,7 @@ const I18N = {
 I18N['zh-Hant'] = {
   ...I18N['zh-Hans'],
   'language.selector': '語言',
-  'header.subtitle': '用於 Claude 工作流程的工作階段日誌、標籤與事件檢視',
+  'header.subtitle': '可以列表與詳細查看 ClaudeCode 的事件歷史，並進行搜尋。\\n還可以替想保留的內容加上標籤，之後再搜尋找到。',
   'header.meta.show': '顯示中繼資訊',
   'header.meta.hide': '隱藏中繼資訊',
   'header.list.hide': '隱藏工作階段列表',
@@ -5251,7 +5252,7 @@ I18N['zh-Hant'] = {
   'header.list.showShort': '顯示列表',
   'header.labels': '標籤管理',
   'toolbar.heading': '搜尋與篩選',
-  'toolbar.copy': '先找到候選項，再查看列表。',
+  'toolbar.copy': '篩選條件會在下次啟動時繼續保留。',
   'toolbar.filters.hide': '隱藏篩選',
   'toolbar.filters.show': '顯示篩選',
   'search.title': '搜尋',
@@ -5285,6 +5286,7 @@ I18N['zh-Hant'] = {
   'detail.toggle.turn': '僅顯示每次輸入與最終回覆',
   'detail.toggle.reverse': '反轉顯示順序',
   'detail.label': '事件標籤',
+  'detail.label.all': 'all',
   'detail.refresh': '刷新',
   'detail.refreshing': '正在刷新...',
   'detail.clear': '清除',
@@ -5641,11 +5643,13 @@ let leftPaneVisible = true;
 let pendingAutomaticDetailSync = false;
 let detailPointerDown = false;
 let detailInteractionLockUntil = 0;
+const detailExpandedEventKeysByPath = new Map();
 let detailKeywordFilterTerm = '';
 let detailKeywordSearchTerm = '';
 let detailKeywordCurrentMatchIndex = -1;
 let pendingDetailKeywordFocusIndex = -1;
 let detailKeywordSearchTotal = 0;
+let pendingEventsScrollRestoreTop = null;
 
 function esc(s){
   return (s ?? '').toString().replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
@@ -5946,9 +5950,39 @@ function getDetailEventKey(ev, fallbackIndex){
   return `${ev && ev.kind ? ev.kind : 'event'}:${ev && ev.timestamp ? ev.timestamp : ''}:${fallbackIndex}`;
 }
 
-function shouldShowSystemLabels(){
-  const onlyUserInput = document.getElementById('only_user_instruction');
-  return !(onlyUserInput && onlyUserInput.checked);
+function getExpandedDetailEventKeySet(path){
+  if(!path){
+    return null;
+  }
+  let keys = detailExpandedEventKeysByPath.get(path);
+  if(!keys){
+    keys = new Set();
+    detailExpandedEventKeysByPath.set(path, keys);
+  }
+  return keys;
+}
+
+function isDetailEventBodyExpanded(path, eventKey){
+  const keys = path ? detailExpandedEventKeysByPath.get(path) : null;
+  if(!keys || !eventKey){
+    return false;
+  }
+  return keys.has(eventKey);
+}
+
+function setDetailEventBodyExpanded(path, eventKey, expanded){
+  if(!path || !eventKey){
+    return;
+  }
+  const keys = getExpandedDetailEventKeySet(path);
+  if(!keys){
+    return;
+  }
+  if(expanded){
+    keys.add(eventKey);
+  } else {
+    keys.delete(eventKey);
+  }
 }
 
 function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta){
@@ -5961,7 +5995,7 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const bodyText = getEventBodyText(ev);
   const eventMatches = searchMeta && searchMeta.matchesByEvent ? (searchMeta.matchesByEvent.get(eventKey) || []) : [];
   const bodyInner = `<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`;
-  const body = `<div class="ev-body-wrap">${bodyInner}<button class="ev-body-toggle">${esc(t('detail.bodyExpand'))}</button></div>`;
+  const body = `<div class="ev-body-wrap" data-event-key="${esc(eventKey)}">${bodyInner}<button class="ev-body-toggle">${esc(t('detail.bodyExpand'))}</button></div>`;
   const selectionKey = getEventSelectionKey(ev);
   const isSelectable = state.isEventSelectionMode && isSelectableMessageEvent(ev);
   const isSelected = selectionKey && state.selectedEventIds.has(selectionKey);
@@ -5974,7 +6008,7 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
     ? `<label class="event-range-toggle"><input type="radio" name="message-range-selection" class="event-range-radio" data-event-id="${esc(selectionKey)}" ${isRangeSelected ? 'checked' : ''} />${esc(t('detail.rangeMode'))}</label>`
     : '';
   const labelsHtml = renderAssignedLabels(labels, 'event', { eventId: ev.event_id });
-  const copyButtonHtml = ev.kind === 'message'
+  const copyButtonHtml = getCopyableEventText(ev) && ev.event_id
     ? `<button class="event-copy-button" data-event-id="${esc(ev.event_id || '')}">${esc(t('copy.single'))}</button>`
     : '';
   const systemLabelsHtml = shouldShowSystemLabels()
@@ -6018,14 +6052,24 @@ function attachVisibleEventCardHandlers(eventsBox){
     const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.65);
     const threshold = lineHeight * 20 + 20;
     if(pre.scrollHeight > threshold){
-      wrap.classList.add('collapsible', 'collapsed');
+      const eventKey = wrap.dataset.eventKey || '';
+      const isExpanded = isDetailEventBodyExpanded(state.activePath, eventKey);
+      wrap.classList.add('collapsible');
+      wrap.classList.toggle('collapsed', !isExpanded);
+      const button = wrap.querySelector('.ev-body-toggle');
+      if(button){
+        button.textContent = isExpanded ? t('detail.bodyCollapse') : t('detail.bodyExpand');
+      }
     }
   });
   eventsBox.querySelectorAll('.ev-body-toggle').forEach(button => {
     button.onclick = () => {
+      noteDetailInteraction();
       const wrap = button.closest('.ev-body-wrap');
       if(!wrap) return;
       const isCollapsed = wrap.classList.toggle('collapsed');
+      const eventKey = wrap.dataset.eventKey || '';
+      setDetailEventBodyExpanded(state.activePath, eventKey, !isCollapsed);
       button.textContent = isCollapsed ? t('detail.bodyExpand') : t('detail.bodyCollapse');
     };
   });
@@ -6036,9 +6080,22 @@ function renderEventList(eventsBox, displayEvents, selectedEventLabelId, searchM
     ? searchMeta.matches[pendingDetailKeywordFocusIndex] || null
     : null;
   const previousScrollTop = eventsBox.scrollTop;
+  const targetScrollTop = Number.isFinite(pendingEventsScrollRestoreTop)
+    ? pendingEventsScrollRestoreTop
+    : previousScrollTop;
   eventsBox.innerHTML = displayEvents.map((ev, index) => buildEventCardHtml(ev, selectedEventLabelId, index, searchMeta)).join('');
-  eventsBox.scrollTop = previousScrollTop;
+  eventsBox.scrollTop = targetScrollTop;
   attachVisibleEventCardHandlers(eventsBox);
+  if(Number.isFinite(pendingEventsScrollRestoreTop)){
+    const lockedScrollTop = pendingEventsScrollRestoreTop;
+    pendingEventsScrollRestoreTop = null;
+    // Radio selection can trigger browser-driven focus scrolling after rerender.
+    requestAnimationFrame(() => {
+      if(document.getElementById('events') === eventsBox){
+        eventsBox.scrollTop = lockedScrollTop;
+      }
+    });
+  }
   if(targetMatch){
     requestAnimationFrame(() => {
       focusDetailKeywordMatch(eventsBox, pendingDetailKeywordFocusIndex);
@@ -6184,14 +6241,14 @@ function parseDateInputToIso(raw){
     .replace(/[年月]/g, '/')
     .replace(/日/g, ' ')
     .replace(/[．。]/g, '.')
-    .replace(/\s*\/\s*/g, '/')
-    .replace(/\s+/g, ' ');
-  let m = canonical.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    .replace(/\\s*\\/\\s*/g, '/')
+    .replace(/\\s+/g, ' ');
+  let m = canonical.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/);
   if(!m){
-    m = canonical.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    m = canonical.match(/^(\\d{4})\\/(\\d{1,2})\\/(\\d{1,2})$/);
   }
   if(!m){
-    m = canonical.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+    m = canonical.match(/(\\d{4})[\\/\\-\\.](\\d{1,2})[\\/\\-\\.](\\d{1,2})/);
   }
   if(!m){
     return '';
@@ -6212,7 +6269,7 @@ function parseDateInputToIso(raw){
 function formatDateInputFromIso(isoValue){
   const iso = parseDateInputToIso(isoValue);
   if(!iso) return '';
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const m = iso.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
   if(!m) return '';
   return `${m[1]} / ${m[2]} / ${m[3]}`;
 }
@@ -6232,14 +6289,14 @@ function parseDateTimeInputToIso(raw){
     .replace(/日/g, ' ')
     .replace(/[：]/g, ':')
     .replace(/[．。]/g, '.')
-    .replace(/\s*\/\s*/g, '/')
-    .replace(/\s+/g, ' ');
-  let m = canonical.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2})?$/);
+    .replace(/\\s*\\/\\s*/g, '/')
+    .replace(/\\s+/g, ' ');
+  let m = canonical.match(/^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2})(?::\\d{2})?$/);
   if(!m){
-    m = canonical.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2})(?::\d{1,2})?$/);
+    m = canonical.match(/^(\\d{4})\\/(\\d{1,2})\\/(\\d{1,2}) (\\d{1,2}):(\\d{2})(?::\\d{1,2})?$/);
   }
   if(!m){
-    m = canonical.match(/(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::\d{1,2})?/);
+    m = canonical.match(/(\\d{4})[\\/\\-\\.](\\d{1,2})[\\/\\-\\.](\\d{1,2})[ T](\\d{1,2}):(\\d{1,2})(?::\\d{1,2})?/);
   }
   if(!m){
     return '';
@@ -6270,7 +6327,7 @@ function parseDateTimeInputToIso(raw){
 function formatDateTimeInputFromIso(isoValue){
   const iso = parseDateTimeInputToIso(isoValue);
   if(!iso) return '';
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  const m = iso.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/);
   if(!m) return '';
   return `${m[1]} / ${m[2]} / ${m[3]} ${m[4]}:${m[5]}`;
 }
@@ -6286,8 +6343,8 @@ function parseTimeInputToValue(raw){
   if(!trimmed) return '';
   const canonical = trimmed
     .replace(/[：]/g, ':')
-    .replace(/\s+/g, '');
-  const m = canonical.match(/^(\d{1,2}):(\d{2})(?::\d{1,2})?$/);
+    .replace(/\\s+/g, '');
+  const m = canonical.match(/^(\\d{1,2}):(\\d{2})(?::\\d{1,2})?$/);
   if(!m){
     return '';
   }
@@ -6311,7 +6368,7 @@ function buildDateTimeIsoFromParts(dateRaw, timeRaw, boundary){
 function extractTimeInputFromIso(isoValue){
   const iso = parseDateTimeInputToIso(isoValue);
   if(!iso) return '';
-  const m = iso.match(/T(\d{2}):(\d{2})$/);
+  const m = iso.match(/T(\\d{2}):(\\d{2})$/);
   if(!m) return '';
   return `${m[1]}:${m[2]}`;
 }
@@ -6501,12 +6558,12 @@ function setupDateTimeSegmentInput(input){
     selectDateTimeSegment(input, getDateTimeSegmentIndexByPos(input.selectionStart || 0));
   });
   input.addEventListener('keydown', (event) => {
-    if(!/^\d$/.test(event.key) && event.key !== 'Backspace' && event.key !== 'Delete' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Tab' && event.key !== '/' && event.key !== ':' && event.key !== ' '){
+    if(!/^\\d$/.test(event.key) && event.key !== 'Backspace' && event.key !== 'Delete' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Tab' && event.key !== '/' && event.key !== ':' && event.key !== ' '){
       return;
     }
     ensureSkeleton();
     let segmentIndex = getDateTimeSegmentIndexByPos(input.selectionStart || 0);
-    if(/^\d$/.test(event.key)){
+    if(/^\\d$/.test(event.key)){
       event.preventDefault();
       const seg = DATETIME_INPUT_SEGMENTS[segmentIndex];
       const current = input.value.slice(seg.start, seg.end);
@@ -6632,12 +6689,12 @@ function setupDateSegmentInput(input){
     selectDateSegment(input, getDateSegmentIndexByPos(input.selectionStart || 0));
   });
   input.addEventListener('keydown', (event) => {
-    if(!/^\d$/.test(event.key) && event.key !== 'Backspace' && event.key !== 'Delete' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Tab' && event.key !== '/' && event.key !== ' '){
+    if(!/^\\d$/.test(event.key) && event.key !== 'Backspace' && event.key !== 'Delete' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Tab' && event.key !== '/' && event.key !== ' '){
       return;
     }
     ensureSkeleton();
     const segmentIndex = getDateSegmentIndexByPos(input.selectionStart || 0);
-    if(/^\d$/.test(event.key)){
+    if(/^\\d$/.test(event.key)){
       event.preventDefault();
       const seg = DATE_INPUT_SEGMENTS[segmentIndex];
       const current = input.value.slice(seg.start, seg.end);
@@ -6994,6 +7051,11 @@ function getEventBodyText(ev){
   }
 }
 
+function getCopyableEventText(ev){
+  const text = getEventBodyText(ev);
+  return text && text.trim() ? text : '';
+}
+
 function buildDetailKeywordSearchMeta(displayEvents, keyword){
   const matches = [];
   const matchesByEvent = new Map();
@@ -7142,11 +7204,11 @@ function focusDetailKeywordMatch(eventsBox, matchIndex){
 }
 
 function isAutomaticSessionsLoadMode(mode){
-  return mode === 'auto' || mode === 'focus' || mode === 'labels';
+  return mode === 'auto' || mode === 'focus';
 }
 
 function shouldSyncActiveSessionAfterListLoad(mode){
-  return mode !== 'auto';
+  return mode === 'labels' || mode === 'reload' || mode === 'clear' || mode === 'initial';
 }
 
 function clearDeferredDetailSyncTimer(){
@@ -7246,16 +7308,20 @@ async function copyTextToClipboard(text){
   return copied;
 }
 
-function getDisplayMessageEvents(){
-  return getDisplayEvents().filter(ev => ev.kind === 'message' && (ev.text || '').trim());
-}
-
 function getEventSelectionKey(ev){
   return ev && ev.event_id ? String(ev.event_id) : '';
 }
 
+function getDisplayCopyableEvents(){
+  return getDisplayEvents().filter(ev => !!getCopyableEventText(ev));
+}
+
+function isCopyableMessageEvent(ev){
+  return ev && ev.kind === 'message' && !!getCopyableEventText(ev);
+}
+
 function isSelectableMessageEvent(ev){
-  return ev && ev.kind === 'message' && (ev.text || '').trim() && getEventSelectionKey(ev);
+  return isCopyableMessageEvent(ev) && getEventSelectionKey(ev);
 }
 
 function getSelectableDisplayMessageEvents(){
@@ -7307,7 +7373,7 @@ function updateDisplayedMessagesCopyButtonState(){
     button.disabled = true;
     return;
   }
-  const hasMessages = !!getDisplayMessageEvents().length;
+  const hasMessages = !!getDisplayCopyableEvents().length;
   button.disabled = state.isDetailLoading || !hasMessages;
 }
 
@@ -7857,9 +7923,6 @@ function getDisplayEvents(){
       const rawIndexByEvent = new Map(activeEvents.map((ev, index) => [ev, index]));
       if(selectedIndex >= 0){
         events = events.filter(ev => {
-          if(ev.kind !== 'message'){
-            return false;
-          }
           const rawIndex = rawIndexByEvent.get(ev);
           if(typeof rawIndex !== 'number'){
             return false;
@@ -7907,9 +7970,11 @@ function getDisplayEvents(){
 
 function formatCopiedMessages(events){
   return events.map(ev => {
-    const role = ev.role || 'system';
+    const label = ev.kind === 'message'
+      ? (ev.role || 'system')
+      : (ev.kind || 'event');
     const timestamp = fmt(ev.timestamp) || ev.timestamp || '-';
-    return `[${role}] ${timestamp}\n${ev.text || ''}`;
+    return `[${label}] ${timestamp}\n${getCopyableEventText(ev)}`;
   }).join('\\n\\n-----\\n\\n');
 }
 
@@ -7972,7 +8037,7 @@ async function removeEventLabel(eventId, labelId){
 }
 
 async function copyDisplayedMessages(){
-  const messages = getDisplayMessageEvents();
+  const messages = getDisplayCopyableEvents();
   if(!messages.length){
     return;
   }
@@ -8001,11 +8066,12 @@ async function copySelectedMessages(){
 }
 
 async function copyEventMessage(button, eventId){
-  const event = (state.activeEvents || []).find(ev => ev.event_id === eventId && ev.kind === 'message');
-  if(!event || !event.text){
+  const event = (state.activeEvents || []).find(ev => ev.event_id === eventId);
+  const text = getCopyableEventText(event);
+  if(!text){
     return;
   }
-  const copied = await copyTextToClipboard(event.text);
+  const copied = await copyTextToClipboard(text);
   if(copied){
     flashButtonLabel(button, t('copy.copied'), t('copy.single'));
   }
@@ -8054,6 +8120,8 @@ function updateMessageRangeSelection(eventId){
   if(!key){
     return;
   }
+  const eventsBox = document.getElementById('events');
+  pendingEventsScrollRestoreTop = eventsBox ? eventsBox.scrollTop : null;
   noteDetailInteraction();
   state.selectedMessageRangeEventId = key;
   renderActiveSession();
@@ -8862,9 +8930,12 @@ document.getElementById('add_session_label').addEventListener('click', async (ev
   await addSessionLabelFromButton(event.currentTarget);
 });
 document.getElementById('events').addEventListener('pointerdown', (event) => {
+  if(!event.target.closest('.ev')){
+    return;
+  }
+  noteDetailInteraction();
   if(event.target.closest('pre')){
     detailPointerDown = true;
-    noteDetailInteraction();
   }
 });
 window.addEventListener('pointerup', () => {
@@ -8902,10 +8973,6 @@ window.addEventListener('message', async (event) => {
   if(!event.data || event.data.type !== 'labels-updated') return;
   await loadLabels(false);
   await loadSessions({ mode: 'labels' });
-});
-window.addEventListener('focus', async () => {
-  await loadLabels(false);
-  await loadSessions({ mode: 'focus' });
 });
 window.addEventListener('storage', (event) => {
   if(event.key !== LANGUAGE_STORAGE_KEY){
