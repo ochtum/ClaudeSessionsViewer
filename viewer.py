@@ -2392,7 +2392,7 @@ header h1 {
 }
 .datetime-split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px;
+  grid-template-columns: minmax(118px, 1fr) 112px;
   gap: var(--space-3);
   align-items: center;
 }
@@ -2417,7 +2417,7 @@ header h1 {
   box-sizing: border-box;
   position: relative;
   gap: 0;
-  overflow: visible;
+  overflow: hidden;
   font-family: var(--font-sans);
 }
 .seg-wrap:focus-within {
