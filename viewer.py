@@ -491,6 +491,13 @@ def _is_continuation_summary_text(text: str) -> bool:
     )
 
 
+def _is_task_notification_text(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    normalized = text.lstrip().lower()
+    return normalized.startswith("<task-notification>")
+
+
 def _extract_claude_progress_text(obj):
     data = obj.get("data")
     if not isinstance(data, dict):
@@ -1572,6 +1579,8 @@ def load_cli_events(path: Path):
                 system_labels.append("SKILLS")
             if kind == "message" and role == "user" and _is_continuation_summary_text(text):
                 system_labels.append("CONTINUATION_SUMMARY")
+            if kind == "message" and role == "user" and _is_task_notification_text(text):
+                system_labels.append("BACKGROUND_TASK")
             event = {
                 "event_id": f"line-{raw_count}",
                 "timestamp": ts,
@@ -5809,7 +5818,7 @@ function isSystemLabeledUserEvent(ev){
     return false;
   }
   const labels = ev.system_labels || [];
-  return labels.includes('SKILLS') || labels.includes('CONTINUATION_SUMMARY');
+  return labels.includes('SKILLS') || labels.includes('CONTINUATION_SUMMARY') || labels.includes('BACKGROUND_TASK');
 }
 
 function filterEventsToTurnBoundaries(events){
