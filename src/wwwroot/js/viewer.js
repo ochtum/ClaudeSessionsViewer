@@ -571,7 +571,7 @@ const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh-Hans', 'zh-Hant'];
 const I18N = {
   ja: {
     'language.selector': '言語',
-    'header.subtitle': 'ClaudeCodeのイベント履歴を一覧・詳細表示表示して、検索することができます。\n覚えておきたい内容にラベルを貼り付けて、あとから検索することもできます。',
+    'header.subtitle': 'ClaudeCodeのイベント履歴を一覧表示・詳細表示して、検索できます。\n覚えておきたい内容にラベルを付けて、あとから見つけることもできます。',
     'header.shortcuts': 'ショートカット',
     'header.meta.show': 'メタ表示',
     'header.meta.hide': 'メタ非表示',
@@ -734,7 +734,7 @@ const I18N = {
   },
   en: {
     'language.selector': 'Language',
-    'header.subtitle': 'Browse, inspect, and search ClaudeCode event histories.\nYou can also attach labels to anything worth remembering and find it later.',
+    'header.subtitle': 'Browse ClaudeCode event histories in list and detail views, and search them.\nYou can also attach labels to anything worth remembering and find it later.',
     'header.shortcuts': 'Shortcuts',
     'header.meta.show': 'Show meta',
     'header.meta.hide': 'Hide meta',
@@ -897,7 +897,7 @@ const I18N = {
   },
   'zh-Hans': {
     'language.selector': '语言',
-    'header.subtitle': '可以列表和详细查看 ClaudeCode 的事件历史，并进行搜索。\n还可以给想保留的内容加上标签，之后再搜索找到。',
+    'header.subtitle': '可以通过列表和详细视图查看 ClaudeCode 的事件历史，并进行搜索。\n还可以给想保留的内容加上标签，之后再轻松找到。',
     'header.shortcuts': '快捷键',
     'header.meta.show': '显示元信息',
     'header.meta.hide': '隐藏元信息',
@@ -1062,7 +1062,7 @@ const I18N = {
 I18N['zh-Hant'] = {
   ...I18N['zh-Hans'],
   'language.selector': '語言',
-  'header.subtitle': '可以列表與詳細查看 ClaudeCode 的事件歷史，並進行搜尋。\n還可以替想保留的內容加上標籤，之後再搜尋找到。',
+  'header.subtitle': '可以透過列表與詳細檢視查看 ClaudeCode 的事件歷史，並進行搜尋。\n還可以替想保留的內容加上標籤，之後再輕鬆找到。',
   'header.meta.show': '顯示中繼資訊',
   'header.meta.hide': '隱藏中繼資訊',
   'header.list.hide': '隱藏工作階段列表',
