@@ -1,5 +1,20 @@
 namespace ClaudeSessionsViewer.Models;
 
+public sealed class UsageMetricsDto
+{
+    public long InputTokens { get; init; }
+
+    public long OutputTokens { get; init; }
+
+    public long CacheCreationTokens { get; init; }
+
+    public long CacheReadTokens { get; init; }
+
+    public long TotalTokens { get; init; }
+
+    public decimal? CostUsd { get; init; }
+}
+
 public sealed class LabelDto
 {
     public int Id { get; init; }
@@ -31,6 +46,8 @@ public sealed record SessionSummaryDto
 
     public string Model { get; init; } = string.Empty;
 
+    public IReadOnlyList<string> Models { get; init; } = [];
+
     public string Source { get; init; } = string.Empty;
 
     public string SourceType { get; init; } = string.Empty;
@@ -44,6 +61,8 @@ public sealed record SessionSummaryDto
     public string MinEventTs { get; init; } = string.Empty;
 
     public string MaxEventTs { get; init; } = string.Empty;
+
+    public UsageMetricsDto? Usage { get; init; }
 
     public IReadOnlyList<int> SessionLabelIds { get; init; } = [];
 
@@ -62,6 +81,8 @@ public sealed class SessionEventDto
 
     public string Text { get; init; } = string.Empty;
 
+    public string Model { get; init; } = string.Empty;
+
     public string Name { get; init; } = string.Empty;
 
     public string Arguments { get; init; } = string.Empty;
@@ -72,7 +93,44 @@ public sealed class SessionEventDto
 
     public IReadOnlyList<string> SystemLabels { get; init; } = [];
 
+    public UsageMetricsDto? Usage { get; init; }
+
     public IReadOnlyList<LabelDto> Labels { get; init; } = [];
+}
+
+public sealed class CostSummaryPeriodDto
+{
+    public string Key { get; init; } = string.Empty;
+
+    public int ItemCount { get; init; }
+
+    public long InputTokens { get; init; }
+
+    public long CacheTokens { get; init; }
+
+    public long OutputTokens { get; init; }
+
+    public long TotalTokens { get; init; }
+
+    public decimal? CostUsd { get; init; }
+}
+
+public sealed class CostSummaryGroupDto
+{
+    public string Key { get; init; } = string.Empty;
+
+    public IReadOnlyList<CostSummaryPeriodDto> Sessions { get; init; } = [];
+
+    public IReadOnlyList<CostSummaryPeriodDto> TokenUsageEvents { get; init; } = [];
+}
+
+public sealed class CostSummaryResponse
+{
+    public string GeneratedAt { get; init; } = string.Empty;
+
+    public string TimeZoneId { get; init; } = string.Empty;
+
+    public IReadOnlyList<CostSummaryGroupDto> Groups { get; init; } = [];
 }
 
 public sealed class RootsDto

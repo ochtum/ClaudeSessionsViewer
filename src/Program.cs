@@ -19,6 +19,8 @@ public class Program
 
     public static void Main(string[] args)
     {
+        TrySetConsoleTitle();
+
         var (contentRootPath, webRootPath) = ResolveAppPaths();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -99,11 +101,33 @@ public class Program
         app.Run();
     }
 
+    private static void TrySetConsoleTitle()
+    {
+        try
+        {
+            Console.Title = "ClaudeSessionsViewer";
+        }
+        catch (IOException)
+        {
+        }
+        catch (PlatformNotSupportedException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     private static void MapApi(WebApplication app)
     {
         app.MapGet("/api/labels", async (ViewerService viewer, CancellationToken cancellationToken) =>
         {
             return Results.Ok(await viewer.GetLabelsAsync(cancellationToken));
+        });
+
+        app.MapGet("/api/cost-summary", async (ViewerService viewer, CancellationToken cancellationToken) =>
+        {
+            return Results.Ok(await viewer.GetCostSummaryAsync(cancellationToken));
         });
 
         app.MapGet("/api/sessions", async (HttpRequest request, ViewerService viewer, CancellationToken cancellationToken) =>

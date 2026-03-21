@@ -580,6 +580,18 @@ const I18N = {
     'header.list.hideShort': '一覧を隠す',
     'header.list.showShort': '一覧を表示',
     'header.labels': 'ラベル管理',
+    'header.costs': 'コスト表示',
+    'todayUsage.title': '今日',
+    'todayUsage.loading': '今日の usage を読み込み中...',
+    'todayUsage.empty': '今日の usage はまだありません',
+    'todayUsage.error': '今日の usage を取得できませんでした',
+    'todaySummary.label': '今日',
+    'todaySummary.loading': '今日の usage を読み込み中...',
+    'todaySummary.empty': '今日の token usage はまだありません。',
+    'todaySummary.error': '今日の usage の取得に失敗しました。',
+    'todaySummary.refreshing': '更新中...',
+    'todaySummary.scope.tokenEvent': 'token usage',
+    'todaySummary.scope.session': 'session',
     'toolbar.kicker': 'Session Browser',
     'toolbar.heading': '検索と絞り込み',
     'toolbar.copy': 'フィルターは次回起動時にも保持されます。',
@@ -624,6 +636,7 @@ const I18N = {
     'detail.toggle.user': 'ユーザー指示のみ表示',
     'detail.toggle.ai': 'AIレスポンスのみ表示',
     'detail.toggle.turn': '各入力と最終応答のみ',
+    'detail.toggle.tokenUsage': 'token usageのみ表示',
     'detail.toggle.reverse': '表示順を逆にする',
     'detail.label': 'イベントラベル',
     'detail.label.all': 'all',
@@ -681,6 +694,7 @@ const I18N = {
     'shortcut.onlyUser': 'ユーザー指示のみ表示を切り替え',
     'shortcut.onlyAi': 'AIレスポンスのみ表示を切り替え',
     'shortcut.turnBoundary': '各入力と最終応答のみを切り替え',
+    'shortcut.tokenUsage': 'token usageのみ表示を切り替え',
     'shortcut.reverse': '表示順を逆にするを切り替え',
     'shortcut.clearDetail': '右ペインの表示条件と操作状態をクリア',
     'shortcut.toggleActions': '詳細操作の表示と非表示を切り替え',
@@ -697,7 +711,34 @@ const I18N = {
     'meta.path': 'path',
     'meta.cwd': 'cwd',
     'meta.time': 'time',
+    'meta.usage': 'usage',
+    'meta.models': 'models',
     'meta.status': 'status',
+    'usage.model': 'model',
+    'usage.input': 'input',
+    'usage.cached': 'cache',
+    'usage.output': 'output',
+    'usage.total': 'total',
+    'usage.cost': 'cost',
+    'usage.perDollar': '1ドルあたり',
+    'usage.score': 'score',
+    'usage.rank': 'rank',
+    'usage.tooltip.input': 'モデルに送られた入力トークン数です。',
+    'usage.tooltip.cached': 'cache作成とcache読込を合計したトークン数です。',
+    'usage.tooltip.output': 'モデルが生成した出力トークン数です。',
+    'usage.tooltip.total': 'input + cache + output の総トークン数です。',
+    'usage.tooltip.cost': 'この usage に記録された概算コスト（USD）です。',
+    'usage.tooltip.perDollar': '概算コスト 1 ドルあたりの総トークン数です。',
+    'usage.tooltip.score': '総トークン数 / コスト(USD) の常用対数です。1.0 上がるとコスパは 10 倍です。',
+    'usage.tooltip.rank': 'score を固定しきい値で SS / S / A / B / C / D / E に分類したランクです。',
+    'usage.costUnknown': 'コスト不明',
+    'usage.tokensUnit': 'トークン',
+    'usage.totalTokens': '合計 {count} tok',
+    'usage.inputTokens': '入力 {count}',
+    'usage.outputTokens': '出力 {count}',
+    'usage.cacheCreateTokens': 'cache作成 {count}',
+    'usage.cacheReadTokens': 'cache読込 {count}',
+    'usage.costUsd': 'cost {cost}',
     'summary.sessions': 'sessions: {current} / {filtered} / {total}',
     'summary.events': 'events: {visible}/{total}',
     'summary.eventsLoading': 'events: loading...',
@@ -743,6 +784,18 @@ const I18N = {
     'header.list.hideShort': 'Hide list',
     'header.list.showShort': 'Show list',
     'header.labels': 'Labels',
+    'header.costs': 'Costs',
+    'todayUsage.title': 'Today',
+    'todayUsage.loading': 'Loading today\'s usage...',
+    'todayUsage.empty': 'No usage yet today',
+    'todayUsage.error': 'Failed to load today\'s usage',
+    'todaySummary.label': 'Today',
+    'todaySummary.loading': "Loading today's usage...",
+    'todaySummary.empty': 'No token usage recorded for today yet.',
+    'todaySummary.error': "Failed to load today's usage.",
+    'todaySummary.refreshing': 'Refreshing...',
+    'todaySummary.scope.tokenEvent': 'token usage',
+    'todaySummary.scope.session': 'session',
     'toolbar.kicker': 'Session Browser',
     'toolbar.heading': 'Search and filter',
     'toolbar.copy': 'Filters are preserved the next time you launch the viewer.',
@@ -787,6 +840,7 @@ const I18N = {
     'detail.toggle.user': 'Only user instructions',
     'detail.toggle.ai': 'Only AI responses',
     'detail.toggle.turn': 'Only each input and final reply',
+    'detail.toggle.tokenUsage': 'Only token usage',
     'detail.toggle.reverse': 'Reverse order',
     'detail.label': 'Event label',
     'detail.label.all': 'all',
@@ -844,6 +898,7 @@ const I18N = {
     'shortcut.onlyUser': 'Toggle only user instructions',
     'shortcut.onlyAi': 'Toggle only AI responses',
     'shortcut.turnBoundary': 'Toggle only each input and final reply',
+    'shortcut.tokenUsage': 'Toggle only token usage',
     'shortcut.reverse': 'Toggle reverse order',
     'shortcut.clearDetail': 'Clear right-pane filters and active modes',
     'shortcut.toggleActions': 'Toggle detail actions',
@@ -860,7 +915,34 @@ const I18N = {
     'meta.path': 'path',
     'meta.cwd': 'cwd',
     'meta.time': 'time',
+    'meta.usage': 'usage',
+    'meta.models': 'models',
     'meta.status': 'status',
+    'usage.model': 'model',
+    'usage.input': 'input',
+    'usage.cached': 'cache',
+    'usage.output': 'output',
+    'usage.total': 'total',
+    'usage.cost': 'cost',
+    'usage.perDollar': 'per $1',
+    'usage.score': 'score',
+    'usage.rank': 'rank',
+    'usage.tooltip.input': 'Number of input tokens sent to the model.',
+    'usage.tooltip.cached': 'Combined cache write and cache read tokens.',
+    'usage.tooltip.output': 'Number of output tokens generated by the model.',
+    'usage.tooltip.total': 'Total number of input, cache, and output tokens combined.',
+    'usage.tooltip.cost': 'Recorded estimated USD cost for this usage.',
+    'usage.tooltip.perDollar': 'Total tokens processed per estimated US dollar.',
+    'usage.tooltip.score': 'Base-10 logarithm of total_tokens / cost_usd. A +1.0 increase means 10x better efficiency.',
+    'usage.tooltip.rank': 'Fixed rank bucket derived from the score using SS / S / A / B / C / D / E thresholds.',
+    'usage.costUnknown': 'cost unavailable',
+    'usage.tokensUnit': 'tokens',
+    'usage.totalTokens': 'total {count} tok',
+    'usage.inputTokens': 'in {count}',
+    'usage.outputTokens': 'out {count}',
+    'usage.cacheCreateTokens': 'cache write {count}',
+    'usage.cacheReadTokens': 'cache read {count}',
+    'usage.costUsd': 'cost {cost}',
     'summary.sessions': 'sessions: {current} / {filtered} / {total}',
     'summary.events': 'events: {visible}/{total}',
     'summary.eventsLoading': 'events: loading...',
@@ -906,6 +988,18 @@ const I18N = {
     'header.list.hideShort': '隐藏列表',
     'header.list.showShort': '显示列表',
     'header.labels': '标签管理',
+    'header.costs': '成本汇总',
+    'todayUsage.title': '今天',
+    'todayUsage.loading': '正在加载今天的 usage...',
+    'todayUsage.empty': '今天还没有 usage',
+    'todayUsage.error': '无法获取今天的 usage',
+    'todaySummary.label': '今天',
+    'todaySummary.loading': '正在加载今天的 usage...',
+    'todaySummary.empty': '今天还没有 token usage。',
+    'todaySummary.error': '获取今天的 usage 失败。',
+    'todaySummary.refreshing': '更新中...',
+    'todaySummary.scope.tokenEvent': 'token usage',
+    'todaySummary.scope.session': 'session',
     'toolbar.kicker': 'Session Browser',
     'toolbar.heading': '搜索与筛选',
     'toolbar.copy': '筛选条件会在下次启动时继续保留。',
@@ -950,6 +1044,7 @@ const I18N = {
     'detail.toggle.user': '仅显示用户指令',
     'detail.toggle.ai': '仅显示 AI 回复',
     'detail.toggle.turn': '仅显示每次输入与最终回复',
+    'detail.toggle.tokenUsage': '仅显示 token usage',
     'detail.toggle.reverse': '反转显示顺序',
     'detail.label': '事件标签',
     'detail.label.all': 'all',
@@ -1007,6 +1102,7 @@ const I18N = {
     'shortcut.onlyUser': '切换仅显示用户指令',
     'shortcut.onlyAi': '切换仅显示 AI 回复',
     'shortcut.turnBoundary': '切换仅显示每次输入与最终回复',
+    'shortcut.tokenUsage': '切换仅显示 token usage',
     'shortcut.reverse': '切换反转显示顺序',
     'shortcut.clearDetail': '清除右侧筛选与当前模式',
     'shortcut.toggleActions': '切换详细操作显示',
@@ -1023,7 +1119,34 @@ const I18N = {
     'meta.path': 'path',
     'meta.cwd': 'cwd',
     'meta.time': 'time',
+    'meta.usage': 'usage',
+    'meta.models': '模型',
     'meta.status': 'status',
+    'usage.model': '模型',
+    'usage.input': '输入',
+    'usage.cached': '缓存',
+    'usage.output': '输出',
+    'usage.total': '总计',
+    'usage.cost': '成本',
+    'usage.perDollar': '每 $1',
+    'usage.score': '评分',
+    'usage.rank': '等级',
+    'usage.tooltip.input': '发送给模型的输入 token 数。',
+    'usage.tooltip.cached': 'cache 写入与 cache 读取合计的 token 数。',
+    'usage.tooltip.output': '模型生成的输出 token 数。',
+    'usage.tooltip.total': 'input + cache + output 的总 token 数。',
+    'usage.tooltip.cost': '这次 usage 记录的预估成本（USD）。',
+    'usage.tooltip.perDollar': '按预估成本换算，每 1 美元对应的总 token 数。',
+    'usage.tooltip.score': '总 token 数 / 成本(USD) 的常用对数。每增加 1.0，成本效益提升 10 倍。',
+    'usage.tooltip.rank': '根据 score 的固定阈值划分为 SS / S / A / B / C / D / E 等级。',
+    'usage.costUnknown': '成本未知',
+    'usage.tokensUnit': 'tokens',
+    'usage.totalTokens': '总计 {count} tok',
+    'usage.inputTokens': '输入 {count}',
+    'usage.outputTokens': '输出 {count}',
+    'usage.cacheCreateTokens': '缓存写入 {count}',
+    'usage.cacheReadTokens': '缓存读取 {count}',
+    'usage.costUsd': '费用 {cost}',
     'summary.sessions': 'sessions: {current} / {filtered} / {total}',
     'summary.events': 'events: {visible}/{total}',
     'summary.eventsLoading': 'events: loading...',
@@ -1070,6 +1193,18 @@ I18N['zh-Hant'] = {
   'header.list.hideShort': '隱藏列表',
   'header.list.showShort': '顯示列表',
   'header.labels': '標籤管理',
+  'header.costs': '成本彙總',
+  'todayUsage.title': '今天',
+  'todayUsage.loading': '正在載入今天的 usage...',
+  'todayUsage.empty': '今天還沒有 usage',
+  'todayUsage.error': '無法取得今天的 usage',
+  'todaySummary.label': '今天',
+  'todaySummary.loading': '正在載入今天的 usage...',
+  'todaySummary.empty': '今天還沒有 token usage。',
+  'todaySummary.error': '取得今天的 usage 失敗。',
+  'todaySummary.refreshing': '更新中...',
+  'todaySummary.scope.tokenEvent': 'token usage',
+  'todaySummary.scope.session': 'session',
   'toolbar.heading': '搜尋與篩選',
   'toolbar.copy': '篩選條件會在下次啟動時繼續保留。',
   'toolbar.filters.hide': '隱藏篩選',
@@ -1103,6 +1238,7 @@ I18N['zh-Hant'] = {
   'detail.toggle.user': '僅顯示使用者指示',
   'detail.toggle.ai': '僅顯示 AI 回覆',
   'detail.toggle.turn': '僅顯示每次輸入與最終回覆',
+  'detail.toggle.tokenUsage': '僅顯示 token usage',
   'detail.toggle.reverse': '反轉顯示順序',
   'detail.label': '事件標籤',
   'detail.label.all': 'all',
@@ -1158,6 +1294,7 @@ I18N['zh-Hant'] = {
   'shortcut.onlyUser': '切換僅顯示使用者指示',
   'shortcut.onlyAi': '切換僅顯示 AI 回覆',
   'shortcut.turnBoundary': '切換僅顯示每次輸入與最終回覆',
+  'shortcut.tokenUsage': '切換僅顯示 token usage',
   'shortcut.reverse': '切換反轉顯示順序',
   'shortcut.clearDetail': '清除右側篩選與目前模式',
   'shortcut.toggleActions': '切換詳細操作顯示',
@@ -1169,6 +1306,33 @@ I18N['zh-Hant'] = {
   'shortcut.clearRange': '清除錨點',
   'shortcut.before': '僅顯示錨點之前',
   'shortcut.after': '僅顯示錨點之後',
+  'meta.models': '模型',
+  'meta.usage': 'usage',
+  'usage.model': '模型',
+  'usage.input': '輸入',
+  'usage.cached': '快取',
+  'usage.output': '輸出',
+  'usage.total': '總計',
+  'usage.cost': '成本',
+  'usage.perDollar': '每 $1',
+  'usage.score': '評分',
+  'usage.rank': '等級',
+  'usage.tooltip.input': '傳送給模型的輸入 token 數。',
+  'usage.tooltip.cached': 'cache 寫入與 cache 讀取合計的 token 數。',
+  'usage.tooltip.output': '模型產生的輸出 token 數。',
+  'usage.tooltip.total': 'input + cache + output 的總 token 數。',
+  'usage.tooltip.cost': '這次 usage 記錄的預估成本（USD）。',
+  'usage.tooltip.perDollar': '按預估成本換算，每 1 美元對應的總 token 數。',
+  'usage.tooltip.score': '總 token 數 / 成本(USD) 的常用對數。每增加 1.0，成本效益提升 10 倍。',
+  'usage.tooltip.rank': '根據 score 的固定門檻劃分為 SS / S / A / B / C / D / E 等級。',
+  'usage.costUnknown': '成本未知',
+  'usage.tokensUnit': 'tokens',
+  'usage.totalTokens': '總計 {count} tok',
+  'usage.inputTokens': '輸入 {count}',
+  'usage.outputTokens': '輸出 {count}',
+  'usage.cacheCreateTokens': '快取寫入 {count}',
+  'usage.cacheReadTokens': '快取讀取 {count}',
+  'usage.costUsd': '費用 {cost}',
   'shortcut.escape': '關閉快捷鍵列表或標籤選擇框，並離開搜尋輸入框。',
   'summary.sessions': 'sessions: {filtered}/{total}',
   'session.preview.empty': '(無預覽)',
@@ -1294,6 +1458,7 @@ function applyMainLanguage(){
   setTextById('open_shortcuts', t('header.shortcuts'));
   document.getElementById('open_shortcuts').setAttribute('title', t('header.shortcuts'));
   setTextById('open_label_manager', t('header.labels'));
+  setTextById('open_cost_summary', t('header.costs'));
   setText('.toolbar .section-kicker', t('toolbar.kicker'));
   setText('.toolbar .toolbar-heading', t('toolbar.heading'));
   setText('.toolbar .toolbar-copy', t('toolbar.copy'));
@@ -1337,7 +1502,10 @@ function applyMainLanguage(){
   setToggleLabel('only_ai_response', t('detail.toggle.ai'));
   setToggleLabel('turn_boundary_only', t('detail.toggle.turn'));
   document.getElementById('turn_boundary_only').closest('label').setAttribute('title', '3');
+  setToggleLabel('only_token_usage', t('detail.toggle.tokenUsage'));
+  document.getElementById('only_token_usage').closest('label').setAttribute('title', '4');
   setToggleLabel('reverse_order', t('detail.toggle.reverse'));
+  document.getElementById('reverse_order').closest('label').setAttribute('title', '5');
   setFieldLabel('detail_event_label_filter', t('detail.label'));
   document.getElementById('detail_event_label_filter').setAttribute('title', t('detail.label'));
   setTextById('clear_detail', t('detail.clear'));
@@ -1373,6 +1541,7 @@ function applyMainLanguage(){
     'shortcut.onlyUser',
     'shortcut.onlyAi',
     'shortcut.turnBoundary',
+    'shortcut.tokenUsage',
     'shortcut.reverse',
     'shortcut.clearDetail',
     'shortcut.toggleActions',
@@ -1414,6 +1583,7 @@ function applyMainLanguage(){
   renderSessionList();
   renderSessionLabelStrip();
   renderActiveSession();
+  renderTodayUsageSummary();
   initAllFlatpickr();
 }
 
@@ -1449,6 +1619,11 @@ const DETAIL_INTERACTION_LOCK_MS = 4000;
 let loadSessionsTimer = null;
 let loadSessionsRequestSeq = 0;
 let loadSessionDetailRequestSeq = 0;
+let todayUsageSummary = null;
+let todayUsageSummaryStatus = 'idle';
+let todayUsageSummaryMessage = '';
+let todayUsageSummaryRequestSeq = 0;
+let todayUsageSummaryTimer = 0;
 let saveFiltersFrame = 0;
 let deferredDetailSyncTimer = 0;
 let labelManagerWindow = null;
@@ -1813,14 +1988,16 @@ function setDetailEventBodyExpanded(path, eventKey, expanded){
 
 function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta){
   const role = ev.role || 'system';
-  const roleLabel = role.replace('_', ' ');
+  const roleLabel = role.replaceAll('_', ' ');
+  const kindLabel = (ev.kind || 'event').replaceAll('_', ' ');
   const labels = ev.labels || [];
   const systemLabels = ev.system_labels || [];
   const matchesSelectedLabel = selectedEventLabelId && labels.some(label => String(label.id) === selectedEventLabelId);
   const eventKey = getDetailEventKey(ev, fallbackIndex);
   const bodyText = getEventBodyText(ev);
   const eventMatches = searchMeta && searchMeta.matchesByEvent ? (searchMeta.matchesByEvent.get(eventKey) || []) : [];
-  const bodyInner = `<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`;
+  const usageHtml = renderUsageBadges(ev.usage, 'event');
+  const bodyInner = `${usageHtml ? `<div class="event-usage-row">${usageHtml}</div>` : ''}<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`;
   const body = `<div class="ev-body-wrap" data-event-key="${esc(eventKey)}">${bodyInner}<button class="ev-body-toggle">${esc(t('detail.bodyExpand'))}</button></div>`;
   const selectionKey = getEventSelectionKey(ev);
   const isSelectable = state.isEventSelectionMode && isSelectableMessageEvent(ev);
@@ -1840,7 +2017,7 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const systemLabelsHtml = shouldShowSystemLabels()
     ? systemLabels.map(label => `<span class="badge-kind badge-system-label">${esc(label)}</span>`).join('')
     : '';
-  return `<div class="ev ${role} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${role}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>${esc(t('picker.addLabel'))}</button>${copyButtonHtml}</span></div>${body}</div>`;
+  return `<div class="ev ${role} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(kindLabel)}</span><span class="badge-role ${role}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>${esc(t('picker.addLabel'))}</button>${copyButtonHtml}</span></div>${body}</div>`;
 }
 
 function attachVisibleEventCardHandlers(eventsBox, startIndex, endIndex){
@@ -1988,6 +2165,11 @@ function openLabelManagerWindow(){
   labelManagerWindow = window.open(`/labels?lang=${encodeURIComponent(uiLanguage)}`, 'claude_label_manager', features);
 }
 
+function openCostSummaryWindow(){
+  const features = 'width=1480,height=920,resizable=yes,scrollbars=yes';
+  window.open(`/costs?lang=${encodeURIComponent(uiLanguage)}`, 'claude_cost_summary', features);
+}
+
 function highlightSessionPath(s){
   const safe = esc(s);
   return safe.replace(/(\d{4}-\d{2}-\d{2}T\d{2}[-:]\d{2}[-:]\d{2}(?:[-:]\d{3,6})?)/g, '<span class="ts">$1</span>');
@@ -2034,6 +2216,323 @@ function fmt(ts){
   if(!ts) return '';
   const d = new Date(ts);
   return isNaN(d) ? ts : d.toLocaleString();
+}
+
+function getUiLocale(){
+  if(uiLanguage === 'zh-Hans') return 'zh-CN';
+  if(uiLanguage === 'zh-Hant') return 'zh-TW';
+  return uiLanguage || 'ja';
+}
+
+function formatUsageCount(value){
+  const num = Number(value || 0);
+  if(!Number.isFinite(num)) return '0';
+  return num.toLocaleString(getUiLocale());
+}
+
+function formatUsageUsd(value){
+  const num = Number(value);
+  if(!Number.isFinite(num)) return '';
+  const abs = Math.abs(num);
+  const fractionDigits = abs >= 10 ? 2 : (abs >= 1 ? 3 : 4);
+  return new Intl.NumberFormat(getUiLocale(), {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(num);
+}
+
+function formatUsageCostDisplay(value){
+  return Number.isFinite(Number(value))
+    ? formatUsageUsd(value)
+    : t('usage.costUnknown');
+}
+
+function formatCompactNumber(value){
+  const num = Number(value);
+  if(!Number.isFinite(num)) return '-';
+  return new Intl.NumberFormat(getUiLocale(), {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(num);
+}
+
+function getUsageTotalTokens(usage){
+  if(!usage) return 0;
+  const explicitTotal = Number(usage.total_tokens);
+  if(Number.isFinite(explicitTotal)) return explicitTotal;
+  return Number(usage.input_tokens || 0)
+    + Number(usage.output_tokens || 0)
+    + Number(usage.cache_creation_tokens || 0)
+    + Number(usage.cache_read_tokens || 0);
+}
+
+function getUsageCachedTokens(usage){
+  if(!usage) return 0;
+  return Number(usage.cache_creation_tokens || 0) + Number(usage.cache_read_tokens || 0);
+}
+
+function formatTokensPerDollar(totalTokens, costUsd){
+  const total = Number(totalTokens);
+  const cost = Number(costUsd);
+  if(!Number.isFinite(total) || total <= 0 || !Number.isFinite(cost) || cost < 0){
+    return '';
+  }
+  if(cost === 0){
+    return '∞';
+  }
+  return `${formatCompactNumber(total / cost)} ${t('usage.tokensUnit')}`;
+}
+
+function getUsageCostPerformance(totalTokens, costUsd){
+  const total = Number(totalTokens);
+  const cost = Number(costUsd);
+  if(!Number.isFinite(total) || total <= 0 || !Number.isFinite(cost) || cost < 0){
+    return { score: null, rank: '' };
+  }
+  if(cost === 0){
+    return { score: Number.POSITIVE_INFINITY, rank: 'SS' };
+  }
+  const tokensPerDollar = total / cost;
+  if(!Number.isFinite(tokensPerDollar) || tokensPerDollar <= 0){
+    return { score: null, rank: '' };
+  }
+  const score = Math.log10(tokensPerDollar);
+  if(!Number.isFinite(score)){
+    return { score: null, rank: '' };
+  }
+  if(score >= 6.5){
+    return { score, rank: 'SS' };
+  }
+  if(score >= 6.0){
+    return { score, rank: 'S' };
+  }
+  if(score >= 5.5){
+    return { score, rank: 'A' };
+  }
+  if(score >= 5.0){
+    return { score, rank: 'B' };
+  }
+  if(score >= 4.5){
+    return { score, rank: 'C' };
+  }
+  if(score >= 4.0){
+    return { score, rank: 'D' };
+  }
+  return { score, rank: 'E' };
+}
+
+function formatUsageScoreDisplay(value){
+  const score = Number(value);
+  if(score === Number.POSITIVE_INFINITY){
+    return '∞';
+  }
+  if(!Number.isFinite(score)){
+    return '-';
+  }
+  return score.toFixed(2);
+}
+
+function hasUsageData(usage){
+  if(!usage) return false;
+  return getUsageTotalTokens(usage) > 0 || Number.isFinite(Number(usage.cost_usd));
+}
+
+function buildUsageBadge(label, extraClass){
+  return `<span class="usage-badge${extraClass ? ` ${extraClass}` : ''}">${esc(label)}</span>`;
+}
+
+function renderUsageBadges(usage, variant){
+  if(!hasUsageData(usage)) return '';
+  const isCompact = variant === 'session';
+  const badges = [
+    buildUsageBadge(
+      t('usage.totalTokens', { count: formatUsageCount(getUsageTotalTokens(usage)) }),
+      'usage-badge-strong'
+    ),
+  ];
+  if(!isCompact){
+    badges.push(buildUsageBadge(t('usage.inputTokens', { count: formatUsageCount(usage.input_tokens) })));
+    badges.push(buildUsageBadge(t('usage.outputTokens', { count: formatUsageCount(usage.output_tokens) })));
+    if(Number(usage.cache_creation_tokens || 0) > 0){
+      badges.push(buildUsageBadge(t('usage.cacheCreateTokens', { count: formatUsageCount(usage.cache_creation_tokens) })));
+    }
+    if(Number(usage.cache_read_tokens || 0) > 0){
+      badges.push(buildUsageBadge(t('usage.cacheReadTokens', { count: formatUsageCount(usage.cache_read_tokens) })));
+    }
+  }
+  if(Number.isFinite(Number(usage.cost_usd))){
+    badges.push(buildUsageBadge(t('usage.costUsd', { cost: formatUsageUsd(usage.cost_usd) }), 'usage-badge-cost'));
+  }
+  return badges.join('');
+}
+
+function renderUsageMetaRows(usage){
+  if(!hasUsageData(usage)) return '';
+  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage.cost_usd);
+  const metrics = [
+    {
+      label: t('usage.input'),
+      value: formatUsageCount(usage.input_tokens || 0),
+      tooltip: t('usage.tooltip.input'),
+    },
+    {
+      label: t('usage.cached'),
+      value: formatUsageCount(getUsageCachedTokens(usage)),
+      tooltip: t('usage.tooltip.cached'),
+    },
+    {
+      label: t('usage.output'),
+      value: formatUsageCount(usage.output_tokens || 0),
+      tooltip: t('usage.tooltip.output'),
+    },
+    {
+      label: t('usage.total'),
+      value: formatUsageCount(getUsageTotalTokens(usage)),
+      tooltip: t('usage.tooltip.total'),
+    },
+    {
+      label: t('usage.cost'),
+      value: formatUsageCostDisplay(usage.cost_usd),
+      tooltip: t('usage.tooltip.cost'),
+    },
+    {
+      label: t('usage.perDollar'),
+      value: formatTokensPerDollar(getUsageTotalTokens(usage), usage.cost_usd) || '-',
+      tooltip: t('usage.tooltip.perDollar'),
+    },
+    {
+      label: t('usage.score'),
+      value: formatUsageScoreDisplay(performance.score),
+      tooltip: t('usage.tooltip.score'),
+    },
+    {
+      label: t('usage.rank'),
+      value: performance.rank || '-',
+      tooltip: t('usage.tooltip.rank'),
+    },
+  ];
+  return `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.usage'))}</span><div class="usage-meta-items">${metrics.map(({ label, value, tooltip }) => `<span class="usage-metric" data-tooltip="${esc(tooltip)}" tabindex="0" aria-label="${esc(`${label}: ${tooltip}`)}"><span class="meta-tag">${esc(`${label}:`)}</span><span class="header-meta-text usage-metric-value">${esc(value)}</span></span>`).join('')}</div></div>`;
+}
+
+function renderModelMetaRow(session){
+  if(!session) return '';
+  const models = Array.isArray(session.models)
+    ? session.models.filter(Boolean)
+    : [];
+  if(models.length){
+    return `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.models'))}</span><span class="header-meta-value">${esc(models.join(', '))}</span></div>`;
+  }
+  if(session.model){
+    return `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.models'))}</span><span class="header-meta-value">${esc(session.model)}</span></div>`;
+  }
+  return '';
+}
+
+function findCostSummaryPeriod(summary, groupKey, periodKey, scopeKey){
+  if(!summary || !Array.isArray(summary.groups)){
+    return null;
+  }
+  const group = summary.groups.find(item => item && item.key === groupKey);
+  if(!group){
+    return null;
+  }
+  const periods = Array.isArray(group[scopeKey]) ? group[scopeKey] : [];
+  return periods.find(item => item && item.key === periodKey) || null;
+}
+
+function pickTodayUsageSummary(summary){
+  const tokenEventPeriod = findCostSummaryPeriod(summary, 'day', 'today', 'token_usage_events');
+  if(tokenEventPeriod && Number(tokenEventPeriod.item_count || 0) > 0){
+    return { ...tokenEventPeriod, scope: 'tokenEvent' };
+  }
+  const sessionPeriod = findCostSummaryPeriod(summary, 'day', 'today', 'sessions');
+  if(sessionPeriod && Number(sessionPeriod.item_count || 0) > 0){
+    return { ...sessionPeriod, scope: 'session' };
+  }
+  return null;
+}
+
+function renderTodayUsageSummary(){
+  const box = document.getElementById('today_usage_summary');
+  if(!box){
+    return;
+  }
+
+  if(todayUsageSummaryStatus === 'loading' && !todayUsageSummary){
+    box.innerHTML = `<div class="today-usage-card"><span class="today-usage-title">${esc(t('todayUsage.title'))}</span><span class="today-usage-placeholder">${esc(t('todayUsage.loading'))}</span></div>`;
+    return;
+  }
+
+  if(!todayUsageSummary){
+    const toneClass = todayUsageSummaryStatus === 'error' ? ' error' : '';
+    const text = todayUsageSummaryStatus === 'error'
+      ? (todayUsageSummaryMessage || t('todayUsage.error'))
+      : (todayUsageSummaryStatus === 'empty' ? t('todayUsage.empty') : t('todayUsage.loading'));
+    box.innerHTML = `<div class="today-usage-card"><span class="today-usage-title">${esc(t('todayUsage.title'))}</span><span class="today-usage-placeholder${toneClass}">${esc(text)}</span></div>`;
+    return;
+  }
+
+  const performance = getUsageCostPerformance(todayUsageSummary.total_tokens || 0, todayUsageSummary.cost_usd);
+  const metrics = [
+    {
+      label: t('usage.total'),
+      value: formatUsageCount(todayUsageSummary.total_tokens || 0),
+      tooltip: t('usage.tooltip.total'),
+    },
+    {
+      label: t('usage.cost'),
+      value: formatUsageCostDisplay(todayUsageSummary.cost_usd),
+      tooltip: t('usage.tooltip.cost'),
+    },
+    {
+      label: t('usage.score'),
+      value: formatUsageScoreDisplay(performance.score),
+      tooltip: t('usage.tooltip.score'),
+    },
+    {
+      label: t('usage.rank'),
+      value: performance.rank || '-',
+      tooltip: t('usage.tooltip.rank'),
+    },
+  ];
+  box.innerHTML = `<div class="today-usage-card"><span class="today-usage-title">${esc(t('todayUsage.title'))}</span><div class="today-usage-items">${metrics.map(({ label, value, tooltip }) => `<span class="usage-metric" data-tooltip="${esc(tooltip)}" tabindex="0" aria-label="${esc(`${label}: ${tooltip}`)}"><span class="meta-tag">${esc(`${label}:`)}</span><span class="header-meta-text usage-metric-value">${esc(value)}</span></span>`).join('')}</div></div>`;
+}
+
+async function refreshTodayUsageSummary(){
+  const requestId = ++todayUsageSummaryRequestSeq;
+  todayUsageSummaryStatus = 'loading';
+  todayUsageSummaryMessage = '';
+  renderTodayUsageSummary();
+  try {
+    const response = await fetch(`/api/cost-summary?ts=${Date.now()}`, { cache: 'no-store' });
+    const data = await response.json();
+    if(requestId !== todayUsageSummaryRequestSeq){
+      return;
+    }
+    todayUsageSummary = pickTodayUsageSummary(data);
+    todayUsageSummaryStatus = todayUsageSummary ? 'ready' : 'empty';
+    todayUsageSummaryMessage = '';
+    renderTodayUsageSummary();
+  } catch (error) {
+    if(requestId !== todayUsageSummaryRequestSeq){
+      return;
+    }
+    todayUsageSummaryStatus = 'error';
+    todayUsageSummaryMessage = normalizeRequestError(error, t('todaySummary.error'));
+    renderTodayUsageSummary();
+  }
+}
+
+function scheduleTodayUsageSummaryRefresh(){
+  if(todayUsageSummaryTimer){
+    clearTimeout(todayUsageSummaryTimer);
+  }
+  todayUsageSummaryTimer = setTimeout(() => {
+    todayUsageSummaryTimer = 0;
+    refreshTodayUsageSummary();
+  }, 90);
 }
 
 function toTimestamp(ts){
@@ -2868,6 +3367,9 @@ function getEventBodyText(ev){
   if(ev.kind === 'message' || ev.kind === 'agent_update'){
     return stringifyEventBodyValue(ev.text);
   }
+  if(ev.kind === 'token_usage'){
+    return formatTokenUsageEventBody(ev);
+  }
   if(ev.kind === 'function_call'){
     return `name: ${stringifyEventBodyValue(ev.name)}
 ${stringifyEventBodyValue(ev.arguments)}`;
@@ -2880,6 +3382,24 @@ ${stringifyEventBodyValue(ev.arguments)}`;
   } catch (error) {
     return '';
   }
+}
+
+function formatTokenUsageEventBody(ev){
+  const usage = ev && ev.usage ? ev.usage : null;
+  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage ? usage.cost_usd : null);
+  const lines = [];
+  if(ev && ev.model){
+    lines.push(`${t('usage.model')}: ${stringifyEventBodyValue(ev.model)}`);
+  }
+  lines.push(`${t('usage.input')}: ${formatUsageCount(usage ? usage.input_tokens || 0 : 0)}`);
+  lines.push(`${t('usage.cached')}: ${formatUsageCount(getUsageCachedTokens(usage))}`);
+  lines.push(`${t('usage.output')}: ${formatUsageCount(usage ? usage.output_tokens || 0 : 0)}`);
+  lines.push(`${t('usage.total')}: ${formatUsageCount(getUsageTotalTokens(usage))}`);
+  lines.push(`${t('usage.cost')}: ${formatUsageCostDisplay(usage ? usage.cost_usd : null)}`);
+  lines.push(`${t('usage.perDollar')}: ${formatTokensPerDollar(getUsageTotalTokens(usage), usage ? usage.cost_usd : null) || '-'}`);
+  lines.push(`${t('usage.score')}: ${formatUsageScoreDisplay(performance.score)}`);
+  lines.push(`${t('usage.rank')}: ${performance.rank || '-'}`);
+  return lines.join('\n');
 }
 
 function getCopyableEventText(ev){
@@ -2993,7 +3513,7 @@ function updateDetailKeywordControls(searchMeta){
 
 function updateDetailDisplayControlsState(){
   const hasActiveSession = !!state.activeSession;
-  ['only_user_instruction', 'only_ai_response', 'turn_boundary_only', 'reverse_order'].forEach((id) => {
+  ['only_user_instruction', 'only_ai_response', 'turn_boundary_only', 'only_token_usage', 'reverse_order'].forEach((id) => {
     const input = document.getElementById(id);
     const label = input ? input.closest('.toggle-chip') : null;
     if(input){
@@ -3297,6 +3817,7 @@ function hasDetailFilter(){
     document.getElementById('only_user_instruction').checked ||
     document.getElementById('only_ai_response').checked ||
     document.getElementById('turn_boundary_only').checked ||
+    document.getElementById('only_token_usage').checked ||
     document.getElementById('reverse_order').checked ||
     getSelectedDetailEventLabelFilter() ||
     state.detailMessageRangeMode ||
@@ -3475,6 +3996,9 @@ async function loadSessions(options){
       state.hasLoadedSessions = true;
       state.sessionsLoadMode = '';
       renderSessionList();
+      if(loadMode !== 'auto'){
+        scheduleTodayUsageSummaryRefresh();
+      }
     }
   }
 }
@@ -3683,7 +4207,8 @@ function renderSessionList(){
           'empty'
         );
   } else {
-    box.innerHTML = state.filtered.map(s => `
+    box.innerHTML = state.filtered.map(s => {
+      return `
       <div class="session-item ${state.activePath === s.path ? 'active' : ''}" data-path="${esc(s.path)}">
         <div class="session-meta-row session-meta-row-secondary">
           <div class="session-badge session-cwd">${esc(s.cwd || '-')}</div>
@@ -3696,7 +4221,8 @@ function renderSessionList(){
         <div class="session-preview">${esc(s.first_real_user_text || s.first_user_text || t('session.preview.empty'))}</div>
         ${(s.session_label_ids || s.session_labels || []).length ? `<div class="session-label-row">${renderAssignedLabels(s.session_labels && s.session_labels.length ? s.session_labels : resolveLabelsById(s.session_label_ids))}</div>` : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
   if(state.isSessionsLoading && state.hasLoadedSessions && (state.sessionsLoadMode === 'reload' || state.sessionsLoadMode === 'auto' || state.sessionsLoadMode === 'clear')){
     setStatusLayer(
@@ -3722,28 +4248,44 @@ function renderSessionList(){
 
 function getDisplayEvents(){
   let events = state.activeEvents || [];
-  if(isTurnBoundaryFilterEnabled()){
-    events = filterEventsToTurnBoundaries(events);
-  }
   const selectedEventLabelId = getSelectedDetailEventLabelFilter();
   if(selectedEventLabelId){
     events = events.filter(ev => (ev.labels || []).some(label => String(label.id) === selectedEventLabelId));
   }
+  const showOnlyTokenUsage = !!document.getElementById('only_token_usage').checked;
   const showOnlyUser = document.getElementById('only_user_instruction').checked;
   const showOnlyAssistant = document.getElementById('only_ai_response').checked;
-  if(showOnlyUser || showOnlyAssistant){
-    events = events.filter(ev => {
-      if(ev.kind !== 'message') return false;
-      if(showOnlyUser && ev.role === 'user'){
-        if(isSystemLabeledUserEvent(ev)){
-          return false;
+  const showTurnBoundaryOnly = isTurnBoundaryFilterEnabled();
+  const hasMessageDisplayFilter = showTurnBoundaryOnly || showOnlyUser || showOnlyAssistant;
+  if(showOnlyTokenUsage || hasMessageDisplayFilter){
+    const messageSource = showTurnBoundaryOnly ? filterEventsToTurnBoundaries(events) : events;
+    const visibleMessageEvents = new Set();
+    if(hasMessageDisplayFilter){
+      messageSource.forEach(ev => {
+        if(ev.kind !== 'message'){
+          return;
         }
+        if(!showOnlyUser && !showOnlyAssistant){
+          visibleMessageEvents.add(ev);
+          return;
+        }
+        if(showOnlyUser && ev.role === 'user'){
+          if(isSystemLabeledUserEvent(ev)){
+            return;
+          }
+          visibleMessageEvents.add(ev);
+          return;
+        }
+        if(showOnlyAssistant && ev.role === 'assistant'){
+          visibleMessageEvents.add(ev);
+        }
+      });
+    }
+    events = events.filter(ev => {
+      if(showOnlyTokenUsage && ev.kind === 'token_usage'){
         return true;
       }
-      if(showOnlyAssistant && ev.role === 'assistant'){
-        return true;
-      }
-      return false;
+      return visibleMessageEvents.has(ev);
     });
   }
   if(state.detailMessageRangeMode){
@@ -4037,6 +4579,7 @@ function clearDetailFilters(){
   document.getElementById('only_user_instruction').checked = false;
   document.getElementById('only_ai_response').checked = false;
   document.getElementById('turn_boundary_only').checked = false;
+  document.getElementById('only_token_usage').checked = false;
   document.getElementById('reverse_order').checked = false;
   const detailEventLabelFilter = document.getElementById('detail_event_label_filter');
   detailEventLabelFilter.value = '';
@@ -4120,6 +4663,8 @@ function renderActiveSession(){
   const rawSummary = t('summary.raw', {
     count: state.isDetailLoading && state.activeEvents.length === 0 ? '...' : state.activeRawLineCount,
   });
+  const usageMetaRows = renderUsageMetaRows(state.activeSession.usage);
+  const modelMetaRow = renderModelMetaRow(state.activeSession);
   const errorNote = state.detailError
     ? `<span class="header-meta-text error">${esc(t('meta.status'))}: ${esc(state.detailError)}</span>`
     : '';
@@ -4140,7 +4685,9 @@ function renderActiveSession(){
       <span class="header-meta-text">${esc(eventsSummary)}</span>
       <span class="header-meta-text">${esc(rawSummary)}</span>
       ${errorNote}
-    </div>`;
+    </div>
+    ${usageMetaRows}
+    ${modelMetaRow}`;
   updateDetailMetaVisibility();
 
   if(state.isDetailLoading && state.activeEvents.length === 0){
@@ -4258,6 +4805,9 @@ async function openSession(path, options){
       state.isDetailLoading = false;
       state.detailLoadMode = '';
       renderActiveSession();
+      if(loadMode === 'refresh'){
+        scheduleTodayUsageSummaryRefresh();
+      }
     }
   }
 }
@@ -4577,6 +5127,9 @@ safeBindById('only_ai_response', 'change', () => {
 safeBindById('turn_boundary_only', 'change', () => {
   renderActiveSession();
 });
+safeBindById('only_token_usage', 'change', () => {
+  renderActiveSession();
+});
 safeBindById('reverse_order', 'change', () => {
   renderActiveSession();
 });
@@ -4721,6 +5274,12 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if(event.code === 'Digit4'){
+    if(triggerCheckboxShortcut('only_token_usage')){
+      event.preventDefault();
+    }
+    return;
+  }
+  if(event.code === 'Digit5'){
     if(triggerCheckboxShortcut('reverse_order')){
       event.preventDefault();
     }
@@ -4842,6 +5401,7 @@ document.addEventListener('selectionchange', () => {
   scheduleDeferredAutomaticDetailSync();
 });
 document.getElementById('open_label_manager').addEventListener('click', openLabelManagerWindow);
+safeBindById('open_cost_summary', 'click', openCostSummaryWindow);
 document.addEventListener('click', (event) => {
   const picker = document.getElementById('label_picker');
   if(picker.classList.contains('hidden')) return;
@@ -4894,6 +5454,8 @@ updateLeftPaneVisibility();
 updateDetailActionsVisibility();
 state.isSessionsLoading = true;
 renderSessionList();
+renderTodayUsageSummary();
+scheduleTodayUsageSummaryRefresh();
 loadLabels(false)
   .catch(() => {})
   .finally(() => loadSessions({ mode: 'initial' }));

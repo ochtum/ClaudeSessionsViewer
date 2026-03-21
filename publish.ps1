@@ -68,6 +68,7 @@ if (-not (Test-Path $launcherPath)) {
 @(
     '@echo off'
     'setlocal'
+    'title ClaudeSessionsViewer'
     'pushd "%~dp0" >nul'
     ('.\payload\{0} %*' -f $launcherName)
     'set "EXIT_CODE=%ERRORLEVEL%"'

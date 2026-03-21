@@ -184,6 +184,8 @@ Releasesにある`app-framework-dependent`フォルダをダウンロード後�
 ## 補足
 
 - ラベルデータは `.cache/label-store-claude.json` に保存されます。
+- Claude Code / Claude Desktop の実データが 1 件も見つからない場合は、同梱の `sample-data/claude/projects` をダミーデータとして自動表示します。
+- 明示的に参照先を変えたい場合は `CLAUDE_SESSIONS_DIR` または `SESSIONS_DIR` で Claude Code CLI のルートを指定できます。
 - Windows 環境では `wsl.exe -l -q` を使って WSL ディストリを列挙し、各ディストリの `~/.claude/projects` も自動探索します。
 - 自動検出対象のディストリを絞る場合は `CLAUDE_WSL_DISTROS` を指定できます（例: `Ubuntu;Debian`）。
 - 大量ログ対策で一覧最大 `400` 件、イベント最大 `4000` 件に制限しています。

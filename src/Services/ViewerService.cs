@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -63,20 +64,89 @@ public sealed class ViewerService
     };
 
     private readonly LabelStore _labelStore;
+    private readonly string _contentRootPath;
     private readonly ConcurrentDictionary<string, SessionCacheEntry> _cache = new(PathComparer);
     private IReadOnlyList<string>? _cliRoots;
     private IReadOnlyList<string>? _desktopRoots;
     private IReadOnlyList<string>? _wslCliRootsOnWindows;
 
-    public ViewerService(LabelStore labelStore)
+    public ViewerService(LabelStore labelStore, IHostEnvironment hostEnvironment)
     {
         _labelStore = labelStore;
+        _contentRootPath = CanonicalizePath(hostEnvironment.ContentRootPath);
     }
 
     public async Task<LabelsResponse> GetLabelsAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await _labelStore.GetSnapshotAsync(cancellationToken);
         return new LabelsResponse { Labels = snapshot.Labels };
+    }
+
+    public Task<CostSummaryResponse> GetCostSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        var nowLocal = DateTime.Now;
+        var groups = BuildCostSummaryGroupDefinitions(nowLocal)
+            .Select(definition => new CostSummaryGroupAccumulator(definition))
+            .ToArray();
+
+        foreach (var item in EnumerateAllSessionItems())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            IndexRecord indexRecord;
+            try
+            {
+                indexRecord = GetOrBuildIndexRecord(item);
+            }
+            catch (FileNotFoundException)
+            {
+                continue;
+            }
+
+            var sessionTimestamp = FirstNonEmpty(indexRecord.Summary.StartedAt, indexRecord.Summary.Mtime);
+            if (indexRecord.Summary.Usage is not null
+                && TryParseLocalTimestamp(sessionTimestamp, out var sessionLocalTimestamp))
+            {
+                foreach (var group in groups)
+                {
+                    group.AddSessionUsage(sessionLocalTimestamp, indexRecord.Summary.Usage);
+                }
+            }
+
+            IEnumerable<SessionEventDto> usageEvents;
+            try
+            {
+                usageEvents = string.Equals(item.SourceType, "claude_cli", StringComparison.Ordinal)
+                    ? EnumerateCliTokenUsageEvents(item.Path)
+                    : Array.Empty<SessionEventDto>();
+            }
+            catch (FileNotFoundException)
+            {
+                continue;
+            }
+
+            foreach (var @event in usageEvents)
+            {
+                if (!string.Equals(@event.Kind, "token_usage", StringComparison.Ordinal)
+                    || @event.Usage is null
+                    || !TryParseLocalTimestamp(@event.Timestamp, out var eventLocalTimestamp))
+                {
+                    continue;
+                }
+
+                foreach (var group in groups)
+                {
+                    group.AddTokenUsageEvent(eventLocalTimestamp, @event.Usage);
+                }
+            }
+        }
+
+        return Task.FromResult(new CostSummaryResponse
+        {
+            GeneratedAt = ToIsoLocal(DateTime.Now),
+            TimeZoneId = TimeZoneInfo.Local.Id,
+            Groups = groups.Select(group => group.ToDto()).ToArray(),
+        });
     }
 
     public async Task<SessionListResponse> GetSessionsAsync(
@@ -272,7 +342,12 @@ public sealed class ViewerService
         var envRoots = ResolveRootsFromEnv();
         if (envRoots is not null)
         {
-            _cliRoots = envRoots;
+            _cliRoots = envRoots.Count > 0 ? envRoots : GetBundledSampleCliRoots();
+            if (!HasAnyCliSessionFiles(_cliRoots))
+            {
+                _cliRoots = GetBundledSampleCliRoots();
+            }
+
             return _cliRoots;
         }
 
@@ -307,6 +382,11 @@ public sealed class ViewerService
         }
 
         _cliRoots = ExistingOrUnique(candidates);
+        if (!HasAnyCliSessionFiles(_cliRoots))
+        {
+            _cliRoots = GetBundledSampleCliRoots();
+        }
+
         return _cliRoots;
     }
 
@@ -373,6 +453,44 @@ public sealed class ViewerService
             .ToArray();
 
         return ExistingOrUnique(parts);
+    }
+
+    private IReadOnlyList<string> GetBundledSampleCliRoots()
+    {
+        return ExistingOrUnique([
+            CanonicalizePath(Path.Combine(_contentRootPath, "sample-data", "claude", "projects")),
+        ]);
+    }
+
+    private static bool HasAnyCliSessionFiles(IReadOnlyList<string> roots)
+    {
+        if (roots.Count == 0)
+        {
+            return false;
+        }
+
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            ReturnSpecialDirectories = false,
+        };
+
+        foreach (var root in roots)
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            using var enumerator = SafeEnumerateFiles(root, "*.jsonl", options).GetEnumerator();
+            if (enumerator.MoveNext())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private IReadOnlyList<string> GetWslCliRootsOnWindows()
@@ -703,6 +821,7 @@ public sealed class ViewerService
             MinEventTs = string.Empty,
             MaxEventTs = string.Empty,
         };
+        var models = new List<string>();
 
         if (summary.RelativePath.Contains('/'))
         {
@@ -715,6 +834,7 @@ public sealed class ViewerService
 
         var searchChunks = new List<string>();
         var searchLength = 0;
+        var usageAccumulator = new UsageAccumulator();
 
         try
         {
@@ -731,6 +851,7 @@ public sealed class ViewerService
                 {
                     var obj = document.RootElement;
                     var @event = BuildCliEvent(obj, rawLineCount);
+                    var modelName = ExtractModelName(obj);
                     if (string.IsNullOrWhiteSpace(summary.StartedAt) && !string.IsNullOrWhiteSpace(@event.Timestamp))
                     {
                         summary = summary with { StartedAt = @event.Timestamp };
@@ -740,12 +861,12 @@ public sealed class ViewerService
                     {
                         summary = summary with
                         {
-                            Model = FirstNonEmpty(
-                                GetString(obj, "model"),
-                                GetString(obj, "model_name"),
-                                GetString(obj, "modelName")),
+                            Model = modelName,
                         };
                     }
+
+                    AddDistinctModel(models, summary.Model);
+                    AddDistinctModel(models, modelName);
 
                     if (string.IsNullOrWhiteSpace(summary.Cwd))
                     {
@@ -753,6 +874,7 @@ public sealed class ViewerService
                     }
 
                     summary = UpdateMinMaxEventTimestamps(summary, @event.Timestamp);
+                    usageAccumulator.Add(@event.Usage);
 
                     if (@event.Kind == "message" && @event.Role == "user" && !string.IsNullOrWhiteSpace(@event.Text))
                     {
@@ -784,6 +906,8 @@ public sealed class ViewerService
         {
             Project = ProjectDisplayLabel(summary.Project, summary.Cwd, item.Root),
             FirstRealUserText = string.IsNullOrWhiteSpace(summary.FirstRealUserText) ? summary.FirstUserText : summary.FirstRealUserText,
+            Models = models,
+            Usage = usageAccumulator.ToUsage(),
         };
 
         var prefix = new[]
@@ -953,7 +1077,13 @@ public sealed class ViewerService
 
             using (document!)
             {
-                events.Add(BuildCliEvent(document.RootElement, rawLineCount));
+                var @event = BuildCliEvent(document.RootElement, rawLineCount);
+                events.Add(@event);
+                var tokenUsageEvent = BuildCliTokenUsageEvent(@event, rawLineCount);
+                if (tokenUsageEvent is not null)
+                {
+                    events.Add(tokenUsageEvent);
+                }
             }
 
             if (events.Count >= MaxEvents)
@@ -965,6 +1095,29 @@ public sealed class ViewerService
         return new EventsData(events, rawLineCount);
     }
 
+    private static IEnumerable<SessionEventDto> EnumerateCliTokenUsageEvents(string path)
+    {
+        var rawLineCount = 0;
+        foreach (var line in File.ReadLines(path))
+        {
+            rawLineCount++;
+            if (!TryParseJson(line, out var document))
+            {
+                continue;
+            }
+
+            using (document!)
+            {
+                var @event = BuildCliEvent(document.RootElement, rawLineCount);
+                var tokenUsageEvent = BuildCliTokenUsageEvent(@event, rawLineCount);
+                if (tokenUsageEvent is not null)
+                {
+                    yield return tokenUsageEvent;
+                }
+            }
+        }
+    }
+
     private static SessionEventDto BuildCliEvent(JsonElement obj, int rawLineCount)
     {
         var timestamp = ExtractTimestamp(obj);
@@ -972,6 +1125,7 @@ public sealed class ViewerService
         var role = GuessRole(obj);
         var kind = "event";
         var text = string.Empty;
+        var usage = ExtractUsage(obj);
 
         if (type == "user")
         {
@@ -1057,7 +1211,27 @@ public sealed class ViewerService
             Kind = kind,
             Role = role,
             Text = text,
+            Model = ExtractModelName(obj),
             SystemLabels = systemLabels,
+            Usage = usage,
+        };
+    }
+
+    private static SessionEventDto? BuildCliTokenUsageEvent(SessionEventDto sourceEvent, int rawLineCount)
+    {
+        if (sourceEvent.Usage is null)
+        {
+            return null;
+        }
+
+        return new SessionEventDto
+        {
+            EventId = $"line-{rawLineCount}-usage",
+            Timestamp = sourceEvent.Timestamp,
+            Kind = "token_usage",
+            Role = "system",
+            Model = sourceEvent.Model,
+            Usage = sourceEvent.Usage,
         };
     }
 
@@ -1943,6 +2117,55 @@ public sealed class ViewerService
         };
     }
 
+    private static string ExtractModelName(JsonElement obj)
+    {
+        var messageModel = TryGetProperty(obj, "message", out var message)
+            ? FirstNonEmpty(
+                GetString(message, "model"),
+                GetString(message, "model_name"),
+                GetString(message, "modelName"))
+            : string.Empty;
+
+        return FirstNonEmpty(
+            GetString(obj, "model"),
+            GetString(obj, "model_name"),
+            GetString(obj, "modelName"),
+            messageModel);
+    }
+
+    private static UsageMetricsDto? ExtractUsage(JsonElement obj)
+    {
+        if (!TryGetProperty(obj, "message", out var message)
+            || message.ValueKind != JsonValueKind.Object
+            || !TryGetProperty(message, "usage", out var usage)
+            || usage.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var inputTokens = GetInt64(usage, "input_tokens");
+        var outputTokens = GetInt64(usage, "output_tokens");
+        var cacheCreationTokens = GetInt64(usage, "cache_creation_input_tokens");
+        var cacheReadTokens = GetInt64(usage, "cache_read_input_tokens");
+        var costUsd = GetDecimal(obj, "costUSD");
+
+        if (inputTokens == 0
+            && outputTokens == 0
+            && cacheCreationTokens == 0
+            && cacheReadTokens == 0
+            && costUsd is null)
+        {
+            return null;
+        }
+
+        return CreateUsageMetrics(
+            inputTokens,
+            outputTokens,
+            cacheCreationTokens,
+            cacheReadTokens,
+            costUsd);
+    }
+
     private static string ExtractTimestamp(JsonElement obj)
     {
         if (obj.ValueKind != JsonValueKind.Object)
@@ -2220,11 +2443,13 @@ public sealed class ViewerService
             Kind = @event.Kind,
             Role = @event.Role,
             Text = @event.Text,
+            Model = @event.Model,
             Name = @event.Name,
             Arguments = @event.Arguments,
             CallId = @event.CallId,
             Output = @event.Output,
             SystemLabels = @event.SystemLabels,
+            Usage = @event.Usage,
             Labels = labels,
         };
     }
@@ -2426,9 +2651,102 @@ public sealed class ViewerService
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
     }
 
+    private static IReadOnlyList<CostSummaryGroupDefinition> BuildCostSummaryGroupDefinitions(DateTime nowLocal)
+    {
+        var today = nowLocal.Date;
+        var thisMonthStart = new DateTime(today.Year, today.Month, 1, 0, 0, 0, DateTimeKind.Unspecified);
+        var thisWeekStart = StartOfWeek(today, DayOfWeek.Monday);
+
+        return
+        [
+            new CostSummaryGroupDefinition(
+                "month",
+                [
+                    new CostSummaryPeriodDefinition("two_months_ago", thisMonthStart.AddMonths(-2), thisMonthStart.AddMonths(-1)),
+                    new CostSummaryPeriodDefinition("last_month", thisMonthStart.AddMonths(-1), thisMonthStart),
+                    new CostSummaryPeriodDefinition("this_month", thisMonthStart, thisMonthStart.AddMonths(1)),
+                ]),
+            new CostSummaryGroupDefinition(
+                "week",
+                [
+                    new CostSummaryPeriodDefinition("two_weeks_ago", thisWeekStart.AddDays(-14), thisWeekStart.AddDays(-7)),
+                    new CostSummaryPeriodDefinition("last_week", thisWeekStart.AddDays(-7), thisWeekStart),
+                    new CostSummaryPeriodDefinition("this_week", thisWeekStart, thisWeekStart.AddDays(7)),
+                ]),
+            new CostSummaryGroupDefinition(
+                "day",
+                [
+                    new CostSummaryPeriodDefinition("two_days_ago", today.AddDays(-2), today.AddDays(-1)),
+                    new CostSummaryPeriodDefinition("yesterday", today.AddDays(-1), today),
+                    new CostSummaryPeriodDefinition("today", today, today.AddDays(1)),
+                ]),
+        ];
+    }
+
+    private static DateTime StartOfWeek(DateTime value, DayOfWeek firstDayOfWeek)
+    {
+        var diff = (7 + (value.DayOfWeek - firstDayOfWeek)) % 7;
+        return value.Date.AddDays(-diff);
+    }
+
+    private static bool TryParseLocalTimestamp(string timestamp, out DateTime localTimestamp)
+    {
+        if (string.IsNullOrWhiteSpace(timestamp))
+        {
+            localTimestamp = default;
+            return false;
+        }
+
+        if (DateTimeOffset.TryParse(
+            timestamp,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
+            out var dto))
+        {
+            localTimestamp = dto.ToLocalTime().DateTime;
+            return true;
+        }
+
+        localTimestamp = default;
+        return false;
+    }
+
     private static string JoinWithNewline(params string[] values)
     {
         return string.Join("\n", values.Where(value => !string.IsNullOrWhiteSpace(value))).Trim();
+    }
+
+    private static void AddDistinctModel(List<string> models, string modelName)
+    {
+        if (string.IsNullOrWhiteSpace(modelName))
+        {
+            return;
+        }
+
+        if (models.Any(existing => string.Equals(existing, modelName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        models.Add(modelName);
+    }
+
+    private static UsageMetricsDto CreateUsageMetrics(
+        long inputTokens,
+        long outputTokens,
+        long cacheCreationTokens,
+        long cacheReadTokens,
+        decimal? costUsd)
+    {
+        return new UsageMetricsDto
+        {
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            CacheCreationTokens = cacheCreationTokens,
+            CacheReadTokens = cacheReadTokens,
+            TotalTokens = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens,
+            CostUsd = costUsd,
+        };
     }
 
     private static string GetString(JsonElement element, string propertyName)
@@ -2436,6 +2754,60 @@ public sealed class ViewerService
         return TryGetProperty(element, propertyName, out var value)
             ? GetElementText(value)
             : string.Empty;
+    }
+
+    private static long GetInt64(JsonElement element, string propertyName)
+    {
+        if (!TryGetProperty(element, propertyName, out var value))
+        {
+            return 0;
+        }
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Number:
+                return value.TryGetInt64(out var whole)
+                    ? whole
+                    : (long)Math.Round(value.GetDouble(), MidpointRounding.AwayFromZero);
+
+            case JsonValueKind.String:
+            {
+                var text = value.GetString()?.Trim() ?? string.Empty;
+                return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : 0;
+            }
+
+            default:
+                return 0;
+        }
+    }
+
+    private static decimal? GetDecimal(JsonElement element, string propertyName)
+    {
+        if (!TryGetProperty(element, propertyName, out var value))
+        {
+            return null;
+        }
+
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Number:
+                return value.TryGetDecimal(out var number)
+                    ? number
+                    : (decimal)value.GetDouble();
+
+            case JsonValueKind.String:
+            {
+                var text = value.GetString()?.Trim() ?? string.Empty;
+                return decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : null;
+            }
+
+            default:
+                return null;
+        }
     }
 
     private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
@@ -2687,6 +3059,164 @@ public sealed class ViewerService
         public SessionSummaryDto Summary { get; }
 
         public string SearchText { get; }
+    }
+
+    private sealed class UsageAccumulator
+    {
+        private long _inputTokens;
+        private long _outputTokens;
+        private long _cacheCreationTokens;
+        private long _cacheReadTokens;
+        private decimal _costUsd;
+        private bool _hasUsage;
+        private bool _hasCompleteCost = true;
+
+        public void Add(UsageMetricsDto? usage)
+        {
+            if (usage is null)
+            {
+                return;
+            }
+
+            _hasUsage = true;
+            _inputTokens += usage.InputTokens;
+            _outputTokens += usage.OutputTokens;
+            _cacheCreationTokens += usage.CacheCreationTokens;
+            _cacheReadTokens += usage.CacheReadTokens;
+
+            if (usage.CostUsd.HasValue)
+            {
+                _costUsd += usage.CostUsd.Value;
+            }
+            else
+            {
+                _hasCompleteCost = false;
+            }
+        }
+
+        public UsageMetricsDto? ToUsage()
+        {
+            return !_hasUsage
+                ? null
+                : CreateUsageMetrics(
+                    _inputTokens,
+                    _outputTokens,
+                    _cacheCreationTokens,
+                    _cacheReadTokens,
+                    _hasCompleteCost ? _costUsd : null);
+        }
+    }
+
+    private sealed record CostSummaryPeriodDefinition(
+        string Key,
+        DateTime StartLocal,
+        DateTime EndLocal);
+
+    private sealed record CostSummaryGroupDefinition(
+        string Key,
+        IReadOnlyList<CostSummaryPeriodDefinition> Periods);
+
+    private sealed class CostSummaryGroupAccumulator
+    {
+        private readonly CostSummaryGroupDefinition _definition;
+        private readonly CostSummaryBucketAccumulator[] _sessions;
+        private readonly CostSummaryBucketAccumulator[] _tokenUsageEvents;
+
+        public CostSummaryGroupAccumulator(CostSummaryGroupDefinition definition)
+        {
+            _definition = definition;
+            _sessions = definition.Periods.Select(_ => new CostSummaryBucketAccumulator()).ToArray();
+            _tokenUsageEvents = definition.Periods.Select(_ => new CostSummaryBucketAccumulator()).ToArray();
+        }
+
+        public void AddSessionUsage(DateTime localTimestamp, UsageMetricsDto usage)
+        {
+            if (TryGetPeriodIndex(localTimestamp, out var index))
+            {
+                _sessions[index].Add(usage);
+            }
+        }
+
+        public void AddTokenUsageEvent(DateTime localTimestamp, UsageMetricsDto usage)
+        {
+            if (TryGetPeriodIndex(localTimestamp, out var index))
+            {
+                _tokenUsageEvents[index].Add(usage);
+            }
+        }
+
+        public CostSummaryGroupDto ToDto()
+        {
+            return new CostSummaryGroupDto
+            {
+                Key = _definition.Key,
+                Sessions = _definition.Periods
+                    .Select((period, index) => _sessions[index].ToDto(period.Key))
+                    .ToArray(),
+                TokenUsageEvents = _definition.Periods
+                    .Select((period, index) => _tokenUsageEvents[index].ToDto(period.Key))
+                    .ToArray(),
+            };
+        }
+
+        private bool TryGetPeriodIndex(DateTime localTimestamp, out int index)
+        {
+            for (var i = 0; i < _definition.Periods.Count; i++)
+            {
+                var period = _definition.Periods[i];
+                if (localTimestamp >= period.StartLocal && localTimestamp < period.EndLocal)
+                {
+                    index = i;
+                    return true;
+                }
+            }
+
+            index = -1;
+            return false;
+        }
+    }
+
+    private sealed class CostSummaryBucketAccumulator
+    {
+        private int _itemCount;
+        private long _inputTokens;
+        private long _cacheTokens;
+        private long _outputTokens;
+        private long _totalTokens;
+        private decimal _costUsd;
+        private bool _hasUnknownCost;
+
+        public void Add(UsageMetricsDto usage)
+        {
+            _itemCount++;
+            _inputTokens += usage.InputTokens;
+            _cacheTokens += usage.CacheCreationTokens + usage.CacheReadTokens;
+            _outputTokens += usage.OutputTokens;
+            _totalTokens += usage.TotalTokens;
+
+            if (usage.CostUsd.HasValue)
+            {
+                _costUsd += usage.CostUsd.Value;
+            }
+            else
+            {
+                _hasUnknownCost = true;
+            }
+        }
+
+        public CostSummaryPeriodDto ToDto(string key)
+        {
+            return new CostSummaryPeriodDto
+            {
+                Key = key,
+                ItemCount = _itemCount,
+                InputTokens = _inputTokens,
+                CacheTokens = _cacheTokens,
+                OutputTokens = _outputTokens,
+                TotalTokens = _totalTokens,
+                CostUsd = _hasUnknownCost ? null : _costUsd,
+            };
+        }
     }
 
     private readonly record struct LevelDbEntry(byte[] Key, byte[] Value);
