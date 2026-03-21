@@ -28,59 +28,26 @@ Claude Codeの履歴 を一覧・詳細表示して、検索することがで�
 
 👀 更新を追いたい方はWatchもぜひ！
 
-## ディレクトリ構成
-
-```text
-.
-├─ viewer.py
-└─ scripts
-   └─ windows
-      ├─ launch_viewer.bat
-      └─ stop_viewer.bat
-```
-
-## 前提条件
-
-- Python 3（`py -3` または `python` / `python3` コマンドが利用可能）
-- Web ブラウザ（Edge / Chrome など）
-
-Python 3 が未インストールの場合（Windows / winget）:
-
-```powershell
-winget install -e --id Python.Python.3.12
-```
-
-インストール確認:
-
-```powershell
-py -3 --version
-```
-
 ## 起動方法
 
-### Windows からワンクリック起動（バッチ）
+Releasesにある`app-framework-dependent`フォルダをダウンロード後、解凍してから中にある`CodexSessionsViewer.exe`を実行してください。
 
-- `scripts\windows\launch_viewer.bat`
-- `scripts\windows\stop_viewer.bat`
+※本ツールの実行には.NET 10 SDK または.NET 10 Runtimeが必要となります。入っているか分からない、またはインストールしないことを望む場合、`app-self-contained`フォルダをダウンロードしてください。
 
-`launch_viewer.bat` は Windows 上で `viewer.py` を起動し、ブラウザを開きます。
+---
 
-起動後、ブラウザで以下を開きます。
+※srcからビルドを行う場合、以下のようにPower Shell スクリプトを実行してください。
 
-```text
-http://127.0.0.1:8767
+- 非自己完結版(.NET 10 SDK または.NET 10 Runtimeをインストール済の場合)
+
+```
+.\publish.ps1 -CleanOutput
 ```
 
-### 直接起動（Python）
+- 自己完結版(.NET 10 SDK または.NET 10 Runtimeのインストール状況不明、インストールしない場合)
 
-```powershell
-python viewer.py
 ```
-
-または:
-
-```bash
-python3 viewer.py
+.\publish.ps1 -SelfContained -CleanOutput
 ```
 
 ## デフォルト参照先
@@ -96,23 +63,6 @@ python3 viewer.py
   - `%USERPROFILE%\AppData\Roaming\Claude\IndexedDB`
   - `WIN_HOME\AppData\Roaming\Claude\IndexedDB`（`WIN_HOME` 指定時）
   - `/mnt/c/Users/*/AppData/Roaming/Claude/IndexedDB`
-
-## オプション
-
-デフォルト以外の Claude Code CLI ディレクトリを使う場合は `CLAUDE_SESSIONS_DIR` を設定します。  
-`SESSIONS_DIR` でも上書きできます。複数指定は `os.pathsep` 区切り（Windows は `;`, Unix/WSL は `:`）です。
-
-```powershell
-$env:CLAUDE_SESSIONS_DIR = 'C:\path\to\.claude\projects'
-python viewer.py
-```
-
-待ち受けアドレスを変更する場合は `HOST` を設定します。
-
-```powershell
-$env:HOST = '0.0.0.0'
-python viewer.py
-```
 
 ## 画面機能
 
@@ -233,10 +183,67 @@ python viewer.py
 
 ## 補足
 
-- 検索インデックスは `.cache/search_index.sqlite3` に保存され、変更のあったセッションだけ差分更新します。
-- Windows 版 `viewer.py` は `wsl.exe -l -q` を使って WSL ディストリを列挙し、各ディストリの `~/.claude/projects` も自動探索します。
+- ラベルデータは `.cache/label-store-claude.json` に保存されます。
+- Windows 環境では `wsl.exe -l -q` を使って WSL ディストリを列挙し、各ディストリの `~/.claude/projects` も自動探索します。
 - 自動検出対象のディストリを絞る場合は `CLAUDE_WSL_DISTROS` を指定できます（例: `Ubuntu;Debian`）。
 - 大量ログ対策で一覧最大 `400` 件、イベント最大 `4000` 件に制限しています。
 - Viewer はデフォルトでローカル専用 (`127.0.0.1`) で待ち受けます。
+
+## ファイル構成
+
+```text
+.
+├── .gitignore                           # ルートの除外設定
+├── LICENSE                              # ライセンス
+├── README.md                            # 日本語README
+├── README_en.md                         # 英語README
+├── publish.ps1                          # 配布用 publish スクリプト
+├── image/
+│   ├── 00001.jpg                        # README掲載用のメイン画面サンプル
+│   ├── 00002.jpg                        # README掲載用のラベル管理画面サンプル
+│   └── 00003.jpg                        # README掲載用のショートカット画面サンプル
+└── src/
+    ├── .cache/
+    │   └── label-store-claude.json      # ラベル定義と紐付けの保存先
+    ├── ClaudeSessionsViewer.sln         # ソリューション
+    ├── ClaudeSessionsViewer.csproj      # ASP.NET Core / Blazor プロジェクト定義
+    ├── Program.cs                       # アプリ起動、URL設定、APIエンドポイント定義
+    ├── appsettings.json                 # 本番向け設定
+    ├── appsettings.Development.json     # 開発向け設定
+    ├── Components/
+    │   ├── App.razor                    # HTMLルートと共通スクリプト読込
+    │   ├── Routes.razor                 # ルーティング定義
+    │   ├── _Imports.razor               # Razor 共通 using
+    │   ├── Layout/
+    │   │   ├── MainLayout.razor         # 共通レイアウト
+    │   │   ├── MainLayout.razor.css     # 共通レイアウト用スタイル
+    │   │   ├── ReconnectModal.razor     # 再接続モーダル UI
+    │   │   ├── ReconnectModal.razor.css # 再接続モーダル用スタイル
+    │   │   └── ReconnectModal.razor.js  # 再接続モーダル用スクリプト
+    │   └── Pages/
+    │       ├── Error.razor              # エラー画面
+    │       ├── Home.razor               # メイン画面
+    │       ├── Labels.razor             # ラベル管理画面
+    │       └── NotFound.razor           # 404画面
+    ├── Models/
+    │   └── ViewerDtos.cs                # APIレスポンス/リクエスト用 DTO
+    ├── Properties/
+    │   ├── AssemblyInfo.cs              # バージョン情報
+    │   └── launchSettings.json          # ローカル開発用起動設定
+    ├── Services/
+    │   ├── LabelStore.cs                # ラベル保存・検証ロジック
+    │   └── ViewerService.cs             # セッション探索・読込・検索ロジック
+    └── wwwroot/
+        ├── app.css                      # 全体共通スタイル
+        ├── css/
+        │   ├── labels.css               # ラベル管理画面用スタイル
+        │   └── viewer.css               # メイン画面用スタイル
+        ├── icons/
+        │   ├── claude-sessions-viewer.svg # アプリアイコン（Claude版）
+        │   └── codex-sessions-viewer.svg  # アプリアイコン（Codex版）
+        └── js/
+            ├── labels.js                # ラベル管理画面用スクリプト
+            └── viewer.js                # メイン画面用スクリプト
+```
 
 ## ❗このプロジェクトは MIT ライセンスの下で提供されています。詳細は LICENSE ファイルをご覧ください。

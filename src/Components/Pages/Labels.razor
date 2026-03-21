@@ -1,0 +1,74 @@
+@page "/labels"
+
+<PageTitle>Label Manager</PageTitle>
+
+<HeadContent>
+    <link rel="icon" href="/icons/claude-sessions-viewer.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/css/labels.css" />
+</HeadContent>
+
+<div class="page">
+  <div class="page-header">
+    <div class="page-header-top">
+      <div class="eyebrow" id="page_badge">Claude Sessions Viewer</div>
+      <div class="page-actions">
+        <select id="language_select" class="language-select" aria-label="Language">
+          <option value="ja">日本語</option>
+          <option value="en">English</option>
+          <option value="zh-Hans">简体中文</option>
+          <option value="zh-Hant">繁體中文</option>
+        </select>
+      </div>
+    </div>
+    <h1 class="hero-title" id="hero_title">ラベル管理</h1>
+    <div class="hero-copy" id="hero_copy">セッションとイベントに共通で使うラベルをここで整えます。色コードを直接入力するか、プリセットをクリックして素早く設定できます。</div>
+  </div>
+  <div class="panel editor-panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-kicker" id="editor_kicker">Label Editor</div>
+        <div class="panel-title" id="editor_title">新規作成 / 編集</div>
+        <div class="panel-copy" id="editor_copy">保存すると一覧フィルタと詳細画面の両方にすぐ反映されます。</div>
+      </div>
+      <div class="panel-chip" id="editor_chip">即時反映</div>
+    </div>
+    <div class="form-grid">
+      <label>
+        <span id="label_name_text">ラベル名</span>
+        <input id="label_name" placeholder="例: README / 画像 / 再確認" />
+      </label>
+      <label>
+        <span id="label_color_text">色コード</span>
+        <input id="label_color" placeholder="#3b82f6 / rgb(...) / oklch(...)" />
+      </label>
+      <div class="preset-field">
+        <div class="preset-field-title" id="preset_field_title">色プリセット</div>
+        <div class="preset-list inline" id="preset_preview"></div>
+      </div>
+      <button id="save_label">保存</button>
+    </div>
+    <input id="label_id" type="hidden" />
+    <input id="label_family" type="hidden" />
+  </div>
+
+  <div class="panel list-panel">
+    <div class="list-head">
+      <div>
+        <div class="panel-kicker" id="list_kicker">Registered Labels</div>
+        <div class="panel-title" id="list_title">既存ラベル</div>
+      </div>
+      <div class="panel-chip" id="label_count_badge">0 labels</div>
+    </div>
+    <div class="label-list" id="label_list"></div>
+  </div>
+</div>
+<div id="error_dialog" class="dialog-backdrop hidden">
+  <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="error_dialog_title">
+    <div class="dialog-kicker" id="error_dialog_kicker">入力チェック</div>
+    <h2 class="dialog-title" id="error_dialog_title">入力エラー</h2>
+    <div class="dialog-message" id="error_dialog_message"></div>
+    <div class="dialog-actions">
+      <button id="error_dialog_close" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
