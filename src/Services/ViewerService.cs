@@ -13,6 +13,7 @@ public sealed class ViewerService
     private const int MaxEvents = 4000;
     private const int MaxDesktopScanBytes = 2 * 1024 * 1024;
     private const int SearchTextLimit = 50_000;
+    private const int MaxCacheEntries = 500;
 
     private static readonly string[] TextKeys =
     [
@@ -127,7 +128,7 @@ public sealed class ViewerService
                 continue;
             }
 
-            sessions.Add(WithSessionLabels(record.Summary, ResolveLabels(sessionLabelIds, snapshot.LabelById)));
+            sessions.Add(WithSessionLabelIds(record.Summary, sessionLabelIds));
         }
 
         IOrderedEnumerable<SessionSummaryDto> ordered = normalizedSort switch
@@ -154,13 +155,28 @@ public sealed class ViewerService
     public async Task<SessionDetailResponse> GetSessionAsync(
         string? rawPath,
         string? rawSourceType,
+        bool includeEvents,
         CancellationToken cancellationToken = default)
     {
         var item = ResolveSessionItem(rawPath, rawSourceType);
         var snapshot = await _labelStore.GetSnapshotAsync(cancellationToken);
         var indexRecord = GetOrBuildIndexRecord(item);
+        var sessionPath = indexRecord.Summary.Path;
+        var sessionLabelIds = snapshot.SessionLabels.TryGetValue(sessionPath, out var sIds) ? sIds : Array.Empty<int>();
+
+        if (!includeEvents)
+        {
+            return new SessionDetailResponse
+            {
+                Session = WithSessionLabels(
+                    indexRecord.Summary,
+                    sessionLabelIds,
+                    ResolveLabels(sessionLabelIds, snapshot.LabelById)),
+            };
+        }
+
         var eventsData = GetOrBuildEvents(item);
-        var labelsByEvent = snapshot.EventLabels.TryGetValue(indexRecord.Summary.Path, out var eventMap)
+        var labelsByEvent = snapshot.EventLabels.TryGetValue(sessionPath, out var eventMap)
             ? eventMap
             : null;
 
@@ -168,11 +184,8 @@ public sealed class ViewerService
         {
             Session = WithSessionLabels(
                 indexRecord.Summary,
-                ResolveLabels(
-                    snapshot.SessionLabels.TryGetValue(indexRecord.Summary.Path, out var labelIds)
-                        ? labelIds
-                        : Array.Empty<int>(),
-                    snapshot.LabelById)),
+                sessionLabelIds,
+                ResolveLabels(sessionLabelIds, snapshot.LabelById)),
             Events = eventsData.Events
                 .Select(@event => WithEventLabels(
                     @event,
@@ -598,6 +611,7 @@ public sealed class ViewerService
             && cached.Signature == signature
             && cached.IndexRecord is not null)
         {
+            cached.LastAccessedTicks = Environment.TickCount64;
             return cached.IndexRecord;
         }
 
@@ -608,6 +622,7 @@ public sealed class ViewerService
             IndexRecord = built,
             EventsData = cached is not null && cached.Signature == signature ? cached.EventsData : null,
         };
+        TrimCacheIfNeeded();
         return built;
     }
 
@@ -625,6 +640,7 @@ public sealed class ViewerService
             && cached.Signature == signature
             && cached.EventsData is not null)
         {
+            cached.LastAccessedTicks = Environment.TickCount64;
             return cached.EventsData;
         }
 
@@ -637,7 +653,28 @@ public sealed class ViewerService
             IndexRecord = cached is not null && cached.Signature == signature ? cached.IndexRecord : null,
             EventsData = built,
         };
+        TrimCacheIfNeeded();
         return built;
+    }
+
+    private void TrimCacheIfNeeded()
+    {
+        if (_cache.Count <= MaxCacheEntries)
+        {
+            return;
+        }
+
+        var entries = _cache.ToArray();
+        var scored = entries
+            .Select(pair => (pair.Key, Ticks: pair.Value.LastAccessedTicks))
+            .OrderBy(item => item.Ticks)
+            .Take(entries.Length - MaxCacheEntries)
+            .ToArray();
+
+        foreach (var item in scored)
+        {
+            _cache.TryRemove(item.Key, out _);
+        }
     }
 
     private IndexRecord BuildIndexRecord(SessionItem item, FileInfo fileInfo)
@@ -2164,9 +2201,14 @@ public sealed class ViewerService
         return !string.IsNullOrWhiteSpace(session.StartedAt) ? session.StartedAt : session.Mtime;
     }
 
-    private static SessionSummaryDto WithSessionLabels(SessionSummaryDto session, IReadOnlyList<LabelDto> labels)
+    private static SessionSummaryDto WithSessionLabels(SessionSummaryDto session, IReadOnlyList<int> labelIds, IReadOnlyList<LabelDto> labels)
     {
-        return session with { SessionLabels = labels };
+        return session with { SessionLabelIds = labelIds, SessionLabels = labels };
+    }
+
+    private static SessionSummaryDto WithSessionLabelIds(SessionSummaryDto session, IReadOnlyList<int> labelIds)
+    {
+        return session with { SessionLabelIds = labelIds };
     }
 
     private static SessionEventDto WithEventLabels(SessionEventDto @event, IReadOnlyList<LabelDto> labels)
@@ -2611,6 +2653,14 @@ public sealed class ViewerService
         public IndexRecord? IndexRecord { get; init; }
 
         public EventsData? EventsData { get; init; }
+
+        private long _lastAccessedTicks = Environment.TickCount64;
+
+        public long LastAccessedTicks
+        {
+            get => Volatile.Read(ref _lastAccessedTicks);
+            set => Volatile.Write(ref _lastAccessedTicks, value);
+        }
     }
 
     private sealed class EventsData

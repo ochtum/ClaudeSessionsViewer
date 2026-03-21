@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json;
@@ -7,6 +8,7 @@ using ClaudeSessionsViewer.Components;
 using ClaudeSessionsViewer.Models;
 using ClaudeSessionsViewer.Services;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.ResponseCompression;
 
 namespace ClaudeSessionsViewer;
 
@@ -17,7 +19,13 @@ public class Program
 
     public static void Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var (contentRootPath, webRootPath) = ResolveAppPaths();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ContentRootPath = contentRootPath,
+            WebRootPath = webRootPath,
+        });
         var configuredViewerDefaultUrl = builder.Configuration.GetValue<string>($"{ViewerSectionName}:DefaultUrl") ?? DefaultViewerUrl;
         var viewerDefaultUrl = ResolveAvailableDefaultUrl(builder.Configuration, configuredViewerDefaultUrl);
         var launchBrowserOnStartup = builder.Configuration.GetValue<bool?>($"{ViewerSectionName}:LaunchBrowserOnStartup")
@@ -34,6 +42,30 @@ public class Program
             options.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
             options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         });
+        builder.Services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<BrotliCompressionProvider>();
+            options.Providers.Add<GzipCompressionProvider>();
+            options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+            [
+                "application/json",
+                "text/javascript",
+                "application/javascript",
+            ]);
+        });
+        builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+        {
+            options.Level = CompressionLevel.Fastest;
+        });
+        builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+        {
+            options.Level = CompressionLevel.Fastest;
+        });
+        builder.Services.AddWebOptimizer(pipeline =>
+        {
+            pipeline.MinifyCssFiles("css/**/*.css");
+        });
         builder.Services.AddSingleton<LabelStore>();
         builder.Services.AddSingleton<ViewerService>();
 
@@ -49,8 +81,17 @@ public class Program
 
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseAntiforgery();
+        app.UseResponseCompression();
+        app.UseWebOptimizer();
 
-        app.UseStaticFiles();
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = context =>
+            {
+                var headers = context.Context.Response.Headers;
+                headers.CacheControl = "public, max-age=86400";
+            },
+        });
         MapApi(app);
         app.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode();
@@ -82,7 +123,8 @@ public class Program
         {
             try
             {
-                var response = await viewer.GetSessionAsync(request.Query["path"], request.Query["source"], cancellationToken);
+                var includeEvents = !string.Equals(request.Query["include_events"], "false", StringComparison.OrdinalIgnoreCase);
+                var response = await viewer.GetSessionAsync(request.Query["path"], request.Query["source"], includeEvents, cancellationToken);
                 return Results.Ok(response);
             }
             catch (InvalidOperationException ex)
@@ -340,5 +382,63 @@ public class Program
             "The configured default URL {ConfiguredDefaultUrl} is already in use. Falling back to {ResolvedDefaultUrl}.",
             configuredDefaultUrl,
             resolvedDefaultUrl);
+    }
+
+
+    private static (string ContentRootPath, string? WebRootPath) ResolveAppPaths()
+    {
+        var payloadRoot = Path.Combine(AppContext.BaseDirectory, "payload");
+        if (LooksLikeContentRoot(payloadRoot))
+        {
+            return (payloadRoot, ResolveWebRootPath(payloadRoot));
+        }
+
+        var currentDirectoryRoot = FindNearestContentRoot(Directory.GetCurrentDirectory());
+        if (currentDirectoryRoot is not null)
+        {
+            return (currentDirectoryRoot, ResolveWebRootPath(currentDirectoryRoot));
+        }
+
+        var baseDirectoryRoot = FindNearestContentRoot(AppContext.BaseDirectory);
+        if (baseDirectoryRoot is not null)
+        {
+            return (baseDirectoryRoot, ResolveWebRootPath(baseDirectoryRoot));
+        }
+
+        var currentDirectory = Directory.GetCurrentDirectory();
+        return (currentDirectory, ResolveWebRootPath(currentDirectory));
+    }
+
+    private static bool LooksLikeContentRoot(string path)
+    {
+        return File.Exists(Path.Combine(path, "appsettings.json")) ||
+               Directory.Exists(Path.Combine(path, "wwwroot"));
+    }
+
+    private static string? FindNearestContentRoot(string startPath)
+    {
+        if (string.IsNullOrWhiteSpace(startPath))
+        {
+            return null;
+        }
+
+        var directory = new DirectoryInfo(Path.GetFullPath(startPath));
+        while (directory is not null)
+        {
+            if (LooksLikeContentRoot(directory.FullName))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveWebRootPath(string contentRootPath)
+    {
+        var webRootPath = Path.Combine(contentRootPath, "wwwroot");
+        return Directory.Exists(webRootPath) ? webRootPath : null;
     }
 }

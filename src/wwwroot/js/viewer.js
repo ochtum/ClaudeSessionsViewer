@@ -1714,6 +1714,13 @@ function populateLabelControls(){
   updateSessionLabelButtonState();
 }
 
+function resolveLabelsById(ids){
+  if(!Array.isArray(ids) || ids.length === 0) return [];
+  const map = {};
+  for(const l of state.labels) map[l.id] = l;
+  return ids.map(id => map[id]).filter(Boolean);
+}
+
 function renderAssignedLabels(labels, removeType, extra){
   if(!Array.isArray(labels) || labels.length === 0) return '';
   return labels.map(label => {
@@ -1836,37 +1843,14 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   return `<div class="ev ${role} ${matchesSelectedLabel ? 'label-match' : ''} ${isSelected ? 'copy-selected' : ''} ${isRangeSelected ? 'range-anchor-selected' : ''}"><div class="ev-head">${selectionCheckboxHtml}${rangeSelectionHtml}<span class="badge-kind">${esc(ev.kind || 'event')}</span><span class="badge-role ${role}">${esc(roleLabel)}</span><span class="badge-time">${esc(fmt(ev.timestamp))}</span>${systemLabelsHtml}<span class="event-actions">${labelsHtml}<button class="event-label-add-button" data-event-id="${esc(ev.event_id || '')}" ${state.labels.length ? '' : 'disabled'}>${esc(t('picker.addLabel'))}</button>${copyButtonHtml}</span></div>${body}</div>`;
 }
 
-function attachVisibleEventCardHandlers(eventsBox){
-  eventsBox.querySelectorAll('.event-label-add-button').forEach(button => {
-    button.onclick = async () => {
-      await addEventLabelFromButton(button, button.dataset.eventId);
-    };
-  });
-  eventsBox.querySelectorAll('.event-copy-button').forEach(button => {
-    button.onclick = async () => {
-      await copyEventMessage(button, button.dataset.eventId);
-    };
-  });
-  eventsBox.querySelectorAll('.event-select-checkbox').forEach(input => {
-    input.onchange = () => {
-      updateEventSelection(input.dataset.eventId, input.checked, input.closest('.ev'));
-    };
-  });
-  eventsBox.querySelectorAll('.event-range-radio').forEach(input => {
-    input.onchange = () => {
-      if(input.checked){
-        updateMessageRangeSelection(input.dataset.eventId);
-      }
-    };
-  });
-  eventsBox.querySelectorAll('.label-remove-button[data-remove-type="event"]').forEach(button => {
-    button.onclick = async () => {
-      await removeEventLabel(button.dataset.eventId, Number(button.dataset.labelId));
-    };
-  });
-  eventsBox.querySelectorAll('.ev-body-wrap').forEach(wrap => {
+function attachVisibleEventCardHandlers(eventsBox, startIndex, endIndex){
+  const wraps = eventsBox.querySelectorAll('.ev-body-wrap');
+  const from = typeof startIndex === 'number' ? startIndex : 0;
+  const to = typeof endIndex === 'number' ? endIndex : wraps.length;
+  for(let i = from; i < to && i < wraps.length; i++){
+    const wrap = wraps[i];
     const pre = wrap.querySelector('pre');
-    if(!pre) return;
+    if(!pre) continue;
     const style = getComputedStyle(pre);
     const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) * 1.65);
     const threshold = lineHeight * 20 + 20;
@@ -1880,21 +1864,23 @@ function attachVisibleEventCardHandlers(eventsBox){
         button.textContent = isExpanded ? t('detail.bodyCollapse') : t('detail.bodyExpand');
       }
     }
-  });
-  eventsBox.querySelectorAll('.ev-body-toggle').forEach(button => {
-    button.onclick = () => {
-      noteDetailInteraction();
-      const wrap = button.closest('.ev-body-wrap');
-      if(!wrap) return;
-      const isCollapsed = wrap.classList.toggle('collapsed');
-      const eventKey = wrap.dataset.eventKey || '';
-      setDetailEventBodyExpanded(state.activePath, eventKey, !isCollapsed);
-      button.textContent = isCollapsed ? t('detail.bodyExpand') : t('detail.bodyCollapse');
-    };
-  });
+  }
 }
 
+let pendingChunkRenderHandle = null;
+
+function cancelPendingChunkRender(){
+  if(pendingChunkRenderHandle !== null){
+    cancelIdleCallback(pendingChunkRenderHandle);
+    pendingChunkRenderHandle = null;
+  }
+}
+
+const EVENT_RENDER_FIRST_CHUNK = 50;
+const EVENT_RENDER_CHUNK_SIZE = 100;
+
 function renderEventList(eventsBox, displayEvents, selectedEventLabelId, searchMeta){
+  cancelPendingChunkRender();
   const targetMatch = searchMeta && pendingDetailKeywordFocusIndex >= 0
     ? searchMeta.matches[pendingDetailKeywordFocusIndex] || null
     : null;
@@ -1902,13 +1888,38 @@ function renderEventList(eventsBox, displayEvents, selectedEventLabelId, searchM
   const targetScrollTop = Number.isFinite(pendingEventsScrollRestoreTop)
     ? pendingEventsScrollRestoreTop
     : previousScrollTop;
-  eventsBox.innerHTML = displayEvents.map((ev, index) => buildEventCardHtml(ev, selectedEventLabelId, index, searchMeta)).join('');
+
+  const firstChunk = displayEvents.slice(0, EVENT_RENDER_FIRST_CHUNK);
+  const remaining = displayEvents.slice(EVENT_RENDER_FIRST_CHUNK);
+
+  eventsBox.innerHTML = firstChunk.map((ev, index) => buildEventCardHtml(ev, selectedEventLabelId, index, searchMeta)).join('');
   eventsBox.scrollTop = targetScrollTop;
   attachVisibleEventCardHandlers(eventsBox);
+
+  if(remaining.length > 0){
+    let offset = EVENT_RENDER_FIRST_CHUNK;
+    function renderNextChunk(deadline){
+      pendingChunkRenderHandle = null;
+      if(document.getElementById('events') !== eventsBox) return;
+      const chunk = remaining.splice(0, EVENT_RENDER_CHUNK_SIZE);
+      if(chunk.length === 0) return;
+      const fragment = document.createDocumentFragment();
+      const temp = document.createElement('div');
+      temp.innerHTML = chunk.map((ev, i) => buildEventCardHtml(ev, selectedEventLabelId, offset + i, searchMeta)).join('');
+      while(temp.firstChild) fragment.appendChild(temp.firstChild);
+      eventsBox.appendChild(fragment);
+      attachVisibleEventCardHandlers(eventsBox, offset, offset + chunk.length);
+      offset += chunk.length;
+      if(remaining.length > 0){
+        pendingChunkRenderHandle = requestIdleCallback(renderNextChunk, { timeout: 100 });
+      }
+    }
+    pendingChunkRenderHandle = requestIdleCallback(renderNextChunk, { timeout: 100 });
+  }
+
   if(Number.isFinite(pendingEventsScrollRestoreTop)){
     const lockedScrollTop = pendingEventsScrollRestoreTop;
     pendingEventsScrollRestoreTop = null;
-    // Radio selection can trigger browser-driven focus scrolling after rerender.
     requestAnimationFrame(() => {
       if(document.getElementById('events') === eventsBox){
         eventsBox.scrollTop = lockedScrollTop;
@@ -3683,7 +3694,7 @@ function renderSessionList(){
           ${hasSubagentsSegment(s) ? '<div class="session-badge session-tag-subagents">subagents</div>' : ''}
         </div>
         <div class="session-preview">${esc(s.first_real_user_text || s.first_user_text || t('session.preview.empty'))}</div>
-        ${(s.session_labels || []).length ? `<div class="session-label-row">${renderAssignedLabels(s.session_labels || [])}</div>` : ''}
+        ${(s.session_label_ids || s.session_labels || []).length ? `<div class="session-label-row">${renderAssignedLabels(s.session_labels && s.session_labels.length ? s.session_labels : resolveLabelsById(s.session_label_ids))}</div>` : ''}
       </div>
     `).join('');
   }
@@ -3697,9 +3708,6 @@ function renderSessionList(){
   } else {
     setStatusLayer('sessions_status');
   }
-  box.querySelectorAll('.session-item').forEach(el => {
-    el.onclick = () => openSession(el.dataset.path);
-  });
   const countEl = document.getElementById('session_count');
   if(countEl){
     if(state.hasLoadedSessions && state.sessions.length > 0){
@@ -4212,21 +4220,31 @@ async function openSession(path, options){
   renderSessionList();
   renderActiveSession();
   try {
-    const r = await fetch('/api/session?path=' + encodeURIComponent(path) + '&ts=' + Date.now(), { cache: 'no-store' });
-    const data = await r.json();
-    if(requestId !== loadSessionDetailRequestSeq){
+    const metaUrl = '/api/session?path=' + encodeURIComponent(path) + '&include_events=false&ts=' + Date.now();
+    const mr = await fetch(metaUrl, { cache: 'no-store' });
+    const metaData = await mr.json();
+    if(requestId !== loadSessionDetailRequestSeq) return;
+    if(metaData.error){
+      state.detailError = metaData.error;
+      if(!state.activeEvents.length) state.activeRawLineCount = 0;
       return;
     }
-    if(data.error){
-      state.detailError = data.error;
-      if(!state.activeEvents.length){
-        state.activeRawLineCount = 0;
-      }
+    state.activeSession = metaData.session || nextSession;
+    state.detailError = '';
+    renderActiveSession();
+
+    const eventsUrl = '/api/session?path=' + encodeURIComponent(path) + '&ts=' + Date.now();
+    const er = await fetch(eventsUrl, { cache: 'no-store' });
+    const eventsData = await er.json();
+    if(requestId !== loadSessionDetailRequestSeq) return;
+    if(eventsData.error){
+      state.detailError = eventsData.error;
+      if(!state.activeEvents.length) state.activeRawLineCount = 0;
       return;
     }
-    state.activeSession = data.session || nextSession;
-    state.activeEvents = data.events || [];
-    state.activeRawLineCount = data.raw_line_count || 0;
+    state.activeSession = eventsData.session || state.activeSession;
+    state.activeEvents = eventsData.events || [];
+    state.activeRawLineCount = eventsData.raw_line_count || 0;
     state.detailError = '';
     syncSelectedEventIdsToActiveEvents();
     syncSelectedMessageRangeToActiveEvents();
@@ -4760,6 +4778,52 @@ document.getElementById('events').addEventListener('pointerdown', (event) => {
   noteDetailInteraction();
   if(event.target.closest('pre')){
     detailPointerDown = true;
+  }
+});
+document.getElementById('events').addEventListener('click', (event) => {
+  const target = event.target;
+  const addLabelBtn = target.closest('.event-label-add-button');
+  if(addLabelBtn){
+    addEventLabelFromButton(addLabelBtn, addLabelBtn.dataset.eventId);
+    return;
+  }
+  const copyBtn = target.closest('.event-copy-button');
+  if(copyBtn){
+    copyEventMessage(copyBtn, copyBtn.dataset.eventId);
+    return;
+  }
+  const removeBtn = target.closest('.label-remove-button[data-remove-type="event"]');
+  if(removeBtn){
+    removeEventLabel(removeBtn.dataset.eventId, Number(removeBtn.dataset.labelId));
+    return;
+  }
+  const toggleBtn = target.closest('.ev-body-toggle');
+  if(toggleBtn){
+    noteDetailInteraction();
+    const wrap = toggleBtn.closest('.ev-body-wrap');
+    if(!wrap) return;
+    const isCollapsed = wrap.classList.toggle('collapsed');
+    const eventKey = wrap.dataset.eventKey || '';
+    setDetailEventBodyExpanded(state.activePath, eventKey, !isCollapsed);
+    toggleBtn.textContent = isCollapsed ? t('detail.bodyExpand') : t('detail.bodyCollapse');
+    return;
+  }
+});
+document.getElementById('events').addEventListener('change', (event) => {
+  const target = event.target;
+  if(target.classList.contains('event-select-checkbox')){
+    updateEventSelection(target.dataset.eventId, target.checked, target.closest('.ev'));
+    return;
+  }
+  if(target.classList.contains('event-range-radio') && target.checked){
+    updateMessageRangeSelection(target.dataset.eventId);
+    return;
+  }
+});
+document.getElementById('sessions').addEventListener('click', (event) => {
+  const item = event.target.closest('.session-item');
+  if(item && item.dataset.path){
+    openSession(item.dataset.path);
   }
 });
 window.addEventListener('pointerup', () => {

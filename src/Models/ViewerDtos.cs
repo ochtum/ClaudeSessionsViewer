@@ -45,6 +45,8 @@ public sealed record SessionSummaryDto
 
     public string MaxEventTs { get; init; } = string.Empty;
 
+    public IReadOnlyList<int> SessionLabelIds { get; init; } = [];
+
     public IReadOnlyList<LabelDto> SessionLabels { get; init; } = [];
 }
 

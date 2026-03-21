@@ -34,6 +34,8 @@ public sealed partial class LabelStore
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _storagePath;
+    private LabelStoreSnapshot? _cachedSnapshot;
+    private DateTime _cachedLastWriteTimeUtc;
 
     public LabelStore(IWebHostEnvironment environment)
     {
@@ -47,8 +49,20 @@ public sealed partial class LabelStore
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            var lastWrite = File.Exists(_storagePath)
+                ? new FileInfo(_storagePath).LastWriteTimeUtc
+                : DateTime.MinValue;
+
+            if (_cachedSnapshot is not null && lastWrite == _cachedLastWriteTimeUtc)
+            {
+                return _cachedSnapshot;
+            }
+
             var store = await ReadStoreAsync(cancellationToken);
-            return ToSnapshot(store);
+            var snapshot = ToSnapshot(store);
+            _cachedSnapshot = snapshot;
+            _cachedLastWriteTimeUtc = lastWrite;
+            return snapshot;
         }
         finally
         {
@@ -105,6 +119,7 @@ public sealed partial class LabelStore
 
             SortLabels(store.Labels);
             await WriteStoreAsync(store, cancellationToken);
+            _cachedSnapshot = null;
             return ToDto(target);
         }
         finally
@@ -148,6 +163,7 @@ public sealed partial class LabelStore
             }
 
             await WriteStoreAsync(store, cancellationToken);
+            _cachedSnapshot = null;
         }
         finally
         {
@@ -249,6 +265,7 @@ public sealed partial class LabelStore
             var store = await ReadStoreAsync(cancellationToken);
             action(store);
             await WriteStoreAsync(store, cancellationToken);
+            _cachedSnapshot = null;
         }
         finally
         {
