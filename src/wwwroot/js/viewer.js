@@ -1640,8 +1640,8 @@ function applyMainLanguage(){
     'shortcut.onlyUser',
     'shortcut.onlyAi',
     'shortcut.turnBoundary',
-    'shortcut.tokenUsage',
     'shortcut.reverse',
+    'shortcut.tokenUsage',
     'shortcut.clearDetail',
     'shortcut.toggleActions',
     'shortcut.copyResume',
@@ -5969,13 +5969,13 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if(event.code === 'Digit4'){
-    if(triggerCheckboxShortcut('only_token_usage')){
+    if(triggerCheckboxShortcut('reverse_order')){
       event.preventDefault();
     }
     return;
   }
   if(event.code === 'Digit5'){
-    if(triggerCheckboxShortcut('reverse_order')){
+    if(triggerCheckboxShortcut('only_token_usage')){
       event.preventDefault();
     }
     return;
