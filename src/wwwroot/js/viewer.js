@@ -2240,7 +2240,7 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const selectionKey = getEventSelectionKey(ev);
   const isSelectable = state.isEventSelectionMode && isSelectableMessageEvent(ev);
   const isSelected = selectionKey && state.selectedEventIds.has(selectionKey);
-  const isRangeSelectable = state.isMessageRangeSelectionMode && isSelectableMessageEvent(ev);
+  const isRangeSelectable = state.isMessageRangeSelectionMode && isRangeSelectableMessageEvent(ev);
   const isRangeSelected = selectionKey && state.selectedMessageRangeEventId === selectionKey;
   const selectionCheckboxHtml = isSelectable
     ? `<label class="event-select-toggle"><input type="checkbox" class="event-select-checkbox" data-event-id="${esc(selectionKey)}" ${isSelected ? 'checked' : ''} />${esc(t('detail.selectMode'))}</label>`
@@ -3939,11 +3939,25 @@ function isCopyableMessageEvent(ev){
 }
 
 function isSelectableMessageEvent(ev){
-  return isCopyableMessageEvent(ev) && getEventSelectionKey(ev);
+  return !!getEventSelectionKey(ev);
+}
+
+function isRangeSelectableMessageEvent(ev){
+  if(!getEventSelectionKey(ev)){
+    return false;
+  }
+  if(ev && ev.kind === 'token_usage'){
+    return true;
+  }
+  return isCopyableMessageEvent(ev);
 }
 
 function getSelectableDisplayMessageEvents(){
   return getDisplayEvents().filter(isSelectableMessageEvent);
+}
+
+function getSelectableDisplayRangeEvents(){
+  return getDisplayEvents().filter(isRangeSelectableMessageEvent);
 }
 
 function getSelectedMessageEvents(){
@@ -3956,7 +3970,7 @@ function getSelectedMessageRangeEvent(){
   if(!selectedId){
     return null;
   }
-  return (state.activeEvents || []).find(ev => isSelectableMessageEvent(ev) && getEventSelectionKey(ev) === selectedId) || null;
+  return (state.activeEvents || []).find(ev => isRangeSelectableMessageEvent(ev) && getEventSelectionKey(ev) === selectedId) || null;
 }
 
 function clearSelectedEventIds(){
@@ -4060,7 +4074,7 @@ function updateMessageRangeSelectionModeButtonState(){
   if(!button){
     return;
   }
-  const hasSelectableMessages = !!getSelectableDisplayMessageEvents().length;
+  const hasSelectableMessages = !!getSelectableDisplayRangeEvents().length;
   const hasSelectedMessage = !!getSelectedMessageRangeEvent();
   button.disabled = !state.activeSession || (!hasSelectableMessages && !hasSelectedMessage && !state.isMessageRangeSelectionMode);
   button.textContent = state.isMessageRangeSelectionMode ? t('detail.rangeModeEnd') : t('detail.rangeMode');
