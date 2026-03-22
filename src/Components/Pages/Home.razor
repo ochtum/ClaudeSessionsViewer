@@ -178,19 +178,34 @@
             <div class="detail-group-title">表示</div>
             <div class="detail-group-copy">今見たいログだけに整えます。</div>
           </div>
-          <div class="toggle-list">
-            <label class="toggle-chip" title="1"><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
-            <label class="toggle-chip" title="2"><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
-            <label class="toggle-chip" title="3"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
-            <label class="toggle-chip" title="4"><input type="checkbox" id="only_token_usage" /> token usageのみ表示</label>
-            <label class="toggle-chip" title="5"><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
+          <div class="detail-display-stack">
+            <div class="detail-display-row">
+              <div class="toggle-list">
+                <label class="toggle-chip" title="1"><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
+                <label class="toggle-chip" title="2"><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
+                <label class="toggle-chip" title="3"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
+                <label class="toggle-chip" title="4"><input type="checkbox" id="only_token_usage" /> token usageのみ表示</label>
+              </div>
+              <label class="field inline-field">
+                <span>ラベルフィルター</span>
+                <select id="detail_event_label_filter" title="ラベルで絞り込み">
+                  <option value="">label</option>
+                </select>
+              </label>
+            </div>
+            <div class="detail-display-row">
+              <label class="toggle-chip" title="5"><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
+              <label class="field inline-field">
+                <span>コストソート</span>
+                <select id="detail_cost_sort" title="コストソート">
+                  <option value=""></option>
+                  <option value="total">トークントータル順</option>
+                  <option value="cost">コスト順</option>
+                  <option value="score">score順</option>
+                </select>
+              </label>
+            </div>
           </div>
-          <label class="field inline-field">
-            <span>イベントラベル</span>
-            <select id="detail_event_label_filter" title="ラベルで絞り込み">
-              <option value="">label</option>
-            </select>
-          </label>
           <div class="detail-toolbar-utility">
             <button id="refresh_detail" class="primary-action" title="F5" disabled>Refresh</button>
             <button id="clear_detail" class="secondary-action" title="Shift + D" disabled>Clear</button>

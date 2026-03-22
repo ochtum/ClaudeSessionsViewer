@@ -658,8 +658,12 @@ const I18N = {
     'detail.toggle.turn': '各入力と最終応答のみ',
     'detail.toggle.tokenUsage': 'token usageのみ表示',
     'detail.toggle.reverse': '表示順を逆にする',
-    'detail.label': 'イベントラベル',
+    'detail.label': 'ラベルフィルター',
     'detail.label.all': 'all',
+    'detail.costSort': 'コストソート',
+    'detail.costSort.total': 'トークントータル順',
+    'detail.costSort.cost': 'コスト順',
+    'detail.costSort.score': 'score順',
     'detail.refresh': 'Refresh',
     'detail.refreshing': 'Refreshing...',
     'detail.clear': 'Clear',
@@ -882,8 +886,12 @@ const I18N = {
     'detail.toggle.turn': 'Only each input and final reply',
     'detail.toggle.tokenUsage': 'Only token usage',
     'detail.toggle.reverse': 'Reverse order',
-    'detail.label': 'Event label',
+    'detail.label': 'Label filter',
     'detail.label.all': 'all',
+    'detail.costSort': 'Cost sort',
+    'detail.costSort.total': 'Total tokens',
+    'detail.costSort.cost': 'Cost',
+    'detail.costSort.score': 'Score',
     'detail.refresh': 'Refresh',
     'detail.refreshing': 'Refreshing...',
     'detail.clear': 'Clear',
@@ -1106,8 +1114,12 @@ const I18N = {
     'detail.toggle.turn': '仅显示每次输入与最终回复',
     'detail.toggle.tokenUsage': '仅显示 token usage',
     'detail.toggle.reverse': '反转显示顺序',
-    'detail.label': '事件标签',
+    'detail.label': '标签筛选',
     'detail.label.all': 'all',
+    'detail.costSort': '成本排序',
+    'detail.costSort.total': '总 token 排序',
+    'detail.costSort.cost': '成本排序',
+    'detail.costSort.score': 'score 排序',
     'detail.refresh': 'Refresh',
     'detail.refreshing': 'Refreshing...',
     'detail.clear': 'Clear',
@@ -1306,8 +1318,12 @@ I18N['zh-Hant'] = {
   'detail.toggle.turn': '僅顯示每次輸入與最終回覆',
   'detail.toggle.tokenUsage': '僅顯示 token usage',
   'detail.toggle.reverse': '反轉顯示順序',
-  'detail.label': '事件標籤',
+  'detail.label': '標籤篩選',
   'detail.label.all': 'all',
+  'detail.costSort': '成本排序',
+  'detail.costSort.total': '總 token 排序',
+  'detail.costSort.cost': '成本排序',
+  'detail.costSort.score': 'score 排序',
   'detail.refresh': '刷新',
   'detail.refreshing': '正在刷新...',
   'detail.clear': '清除',
@@ -1574,9 +1590,13 @@ function applyMainLanguage(){
   setToggleLabel('turn_boundary_only', t('detail.toggle.turn'));
   document.getElementById('turn_boundary_only').closest('label').setAttribute('title', '3');
   setToggleLabel('only_token_usage', t('detail.toggle.tokenUsage'));
-  document.getElementById('only_token_usage').closest('label').setAttribute('title', '4');
   setToggleLabel('reverse_order', t('detail.toggle.reverse'));
-  document.getElementById('reverse_order').closest('label').setAttribute('title', '5');
+  setFieldLabel('detail_cost_sort', t('detail.costSort'));
+  document.getElementById('detail_cost_sort').setAttribute('title', t('detail.costSort'));
+  setOptionText('detail_cost_sort', 0, '');
+  setOptionText('detail_cost_sort', 1, t('detail.costSort.total'));
+  setOptionText('detail_cost_sort', 2, t('detail.costSort.cost'));
+  setOptionText('detail_cost_sort', 3, t('detail.costSort.score'));
   setFieldLabel('detail_event_label_filter', t('detail.label'));
   document.getElementById('detail_event_label_filter').setAttribute('title', t('detail.label'));
   setTextById('clear_detail', t('detail.clear'));
@@ -1924,6 +1944,12 @@ function getSelectedListEventLabelFilter(){
 
 function getSelectedDetailEventLabelFilter(){
   return document.getElementById('detail_event_label_filter').value || '';
+}
+
+function getActiveDetailCostSortMode(){
+  const select = document.getElementById('detail_cost_sort');
+  const value = select ? select.value : '';
+  return value === 'total' || value === 'cost' || value === 'score' ? value : '';
 }
 
 function isTurnBoundaryFilterEnabled(){
@@ -3673,6 +3699,10 @@ function updateDetailDisplayControlsState(){
   if(detailEventLabelFilter){
     detailEventLabelFilter.disabled = !hasActiveSession;
   }
+  const detailCostSort = document.getElementById('detail_cost_sort');
+  if(detailCostSort){
+    detailCostSort.disabled = !hasActiveSession;
+  }
   syncDateTimeInputPairState('detail_event_date_from_date', 'detail_event_date_from_time');
   syncDateTimeInputPairState('detail_event_date_to_date', 'detail_event_date_to_time');
   const clearDetailEventDateButton = document.getElementById('clear_detail_event_date');
@@ -3987,6 +4017,7 @@ function hasDetailFilter(){
     document.getElementById('turn_boundary_only').checked ||
     document.getElementById('only_token_usage').checked ||
     document.getElementById('reverse_order').checked ||
+    getActiveDetailCostSortMode() ||
     getSelectedDetailEventLabelFilter() ||
     state.detailMessageRangeMode ||
     getDetailKeywordInputValue() ||
@@ -4238,6 +4269,7 @@ function saveFilters(){
     session_label_filter: getSelectedSessionLabelFilter(),
     event_label_filter: getSelectedListEventLabelFilter(),
     detail_event_label_filter: getSelectedDetailEventLabelFilter(),
+    detail_cost_sort: getActiveDetailCostSortMode(),
     filters_visible: filtersVisible,
     detail_actions_visible: detailActionsVisible,
     left_pane_visible: leftPaneVisible,
@@ -4283,6 +4315,7 @@ function restoreFilters(){
     if(typeof data.session_label_filter === 'string') document.getElementById('session_label_filter').dataset.pendingValue = data.session_label_filter;
     if(typeof data.event_label_filter === 'string') document.getElementById('event_label_filter').dataset.pendingValue = data.event_label_filter;
     if(typeof data.detail_event_label_filter === 'string') document.getElementById('detail_event_label_filter').dataset.pendingValue = data.detail_event_label_filter;
+    if(data.detail_cost_sort === 'total' || data.detail_cost_sort === 'cost' || data.detail_cost_sort === 'score') document.getElementById('detail_cost_sort').value = data.detail_cost_sort;
     refreshDateTimeInputPairStates();
     if(data.panel_defaults_v >= 2){
       if(typeof data.filters_visible === 'boolean') filtersVisible = data.filters_visible;
@@ -4601,74 +4634,84 @@ function renderLabeledList(){
   }
 }
 
-function getDisplayEvents(){
-  let events = state.activeEvents || [];
-  const selectedEventLabelId = getSelectedDetailEventLabelFilter();
-  if(selectedEventLabelId){
-    events = events.filter(ev => (ev.labels || []).some(label => String(label.id) === selectedEventLabelId));
-  }
+function applyDetailMessageDisplayFilters(events){
+  let filteredEvents = Array.isArray(events) ? events : [];
   const showOnlyTokenUsage = !!document.getElementById('only_token_usage').checked;
   const showOnlyUser = document.getElementById('only_user_instruction').checked;
   const showOnlyAssistant = document.getElementById('only_ai_response').checked;
   const showTurnBoundaryOnly = isTurnBoundaryFilterEnabled();
   const hasMessageDisplayFilter = showTurnBoundaryOnly || showOnlyUser || showOnlyAssistant;
-  if(showOnlyTokenUsage || hasMessageDisplayFilter){
-    const messageSource = showTurnBoundaryOnly ? filterEventsToTurnBoundaries(events) : events;
-    const visibleMessageEvents = new Set();
-    if(hasMessageDisplayFilter){
-      messageSource.forEach(ev => {
-        if(ev.kind !== 'message'){
-          return;
-        }
-        if(!showOnlyUser && !showOnlyAssistant){
-          visibleMessageEvents.add(ev);
-          return;
-        }
-        if(showOnlyUser && ev.role === 'user'){
-          if(isSystemLabeledUserEvent(ev)){
-            return;
-          }
-          visibleMessageEvents.add(ev);
-          return;
-        }
-        if(showOnlyAssistant && ev.role === 'assistant'){
-          visibleMessageEvents.add(ev);
-        }
-      });
-    }
-    events = events.filter(ev => {
-      if(showOnlyTokenUsage && ev.kind === 'token_usage'){
-        return true;
+  if(!showOnlyTokenUsage && !hasMessageDisplayFilter){
+    return filteredEvents;
+  }
+  const messageSource = showTurnBoundaryOnly ? filterEventsToTurnBoundaries(filteredEvents) : filteredEvents;
+  const visibleMessageEvents = new Set();
+  if(hasMessageDisplayFilter){
+    messageSource.forEach(ev => {
+      if(ev.kind !== 'message'){
+        return;
       }
-      return visibleMessageEvents.has(ev);
+      if(!showOnlyUser && !showOnlyAssistant){
+        visibleMessageEvents.add(ev);
+        return;
+      }
+      if(showOnlyUser && ev.role === 'user'){
+        if(isSystemLabeledUserEvent(ev)){
+          return;
+        }
+        visibleMessageEvents.add(ev);
+        return;
+      }
+      if(showOnlyAssistant && ev.role === 'assistant'){
+        visibleMessageEvents.add(ev);
+      }
     });
   }
-  if(state.detailMessageRangeMode){
-    const selectedMessage = getSelectedMessageRangeEvent();
-    if(selectedMessage){
-      const activeEvents = state.activeEvents || [];
-      const selectedIndex = activeEvents.findIndex(ev => ev === selectedMessage);
-      const rawIndexByEvent = new Map(activeEvents.map((ev, index) => [ev, index]));
-      if(selectedIndex >= 0){
-        events = events.filter(ev => {
-          const rawIndex = rawIndexByEvent.get(ev);
-          if(typeof rawIndex !== 'number'){
-            return false;
-          }
-          if(state.detailMessageRangeMode === 'after'){
-            return rawIndex >= selectedIndex;
-          }
-          if(state.detailMessageRangeMode === 'before'){
-            return rawIndex <= selectedIndex;
-          }
-          return true;
-        });
-      }
+  filteredEvents = filteredEvents.filter(ev => {
+    if(showOnlyTokenUsage && ev.kind === 'token_usage'){
+      return true;
     }
+    return visibleMessageEvents.has(ev);
+  });
+  return filteredEvents;
+}
+
+function applyDetailMessageRangeFilter(events, rawIndexByEvent){
+  if(!state.detailMessageRangeMode){
+    return events;
   }
-  if(detailKeywordFilterTerm !== ''){
-    events = events.filter(ev => containsLiteralKeyword(getEventBodyText(ev), detailKeywordFilterTerm));
+  const selectedMessage = getSelectedMessageRangeEvent();
+  if(!selectedMessage){
+    return events;
   }
+  const activeEvents = state.activeEvents || [];
+  const selectedIndex = activeEvents.findIndex(ev => ev === selectedMessage);
+  if(selectedIndex < 0){
+    return events;
+  }
+  return events.filter(ev => {
+    const rawIndex = rawIndexByEvent.get(ev);
+    if(typeof rawIndex !== 'number'){
+      return false;
+    }
+    if(state.detailMessageRangeMode === 'after'){
+      return rawIndex >= selectedIndex;
+    }
+    if(state.detailMessageRangeMode === 'before'){
+      return rawIndex <= selectedIndex;
+    }
+    return true;
+  });
+}
+
+function filterEventsByDetailKeywordTerm(events){
+  if(detailKeywordFilterTerm === ''){
+    return events;
+  }
+  return events.filter(ev => containsLiteralKeyword(getEventBodyText(ev), detailKeywordFilterTerm));
+}
+
+function applyDetailEventDateFilter(events){
   const detailEvFromRaw = buildDateTimeIsoFromParts(
     getFpDateValue('detail_event_date_from_date'),
     document.getElementById('detail_event_date_from_time').value,
@@ -4681,19 +4724,149 @@ function getDisplayEvents(){
   );
   const detailEvFromTs = parseOptionalDatetimeStart(detailEvFromRaw);
   const detailEvToTs = parseOptionalDatetimeEnd(detailEvToRaw);
-  if(detailEvFromTs !== null || detailEvToTs !== null){
-    events = events.filter(ev => {
-      const evTs = ev.timestamp ? toTimestamp(ev.timestamp) : NaN;
-      if(Number.isNaN(evTs)) return false;
-      if(detailEvFromTs !== null && evTs < detailEvFromTs) return false;
-      if(detailEvToTs !== null && evTs > detailEvToTs) return false;
-      return true;
+  if(detailEvFromTs === null && detailEvToTs === null){
+    return events;
+  }
+  return events.filter(ev => {
+    const evTs = ev.timestamp ? toTimestamp(ev.timestamp) : NaN;
+    if(Number.isNaN(evTs)) return false;
+    if(detailEvFromTs !== null && evTs < detailEvFromTs) return false;
+    if(detailEvToTs !== null && evTs > detailEvToTs) return false;
+    return true;
+  });
+}
+
+function applyDetailVisibilityFilters(events, rawIndexByEvent){
+  let filteredEvents = Array.isArray(events) ? events : [];
+  const selectedEventLabelId = getSelectedDetailEventLabelFilter();
+  if(selectedEventLabelId){
+    filteredEvents = filteredEvents.filter(ev => (ev.labels || []).some(label => String(label.id) === selectedEventLabelId));
+  }
+  filteredEvents = applyDetailMessageDisplayFilters(filteredEvents);
+  filteredEvents = applyDetailMessageRangeFilter(filteredEvents, rawIndexByEvent);
+  filteredEvents = filterEventsByDetailKeywordTerm(filteredEvents);
+  filteredEvents = applyDetailEventDateFilter(filteredEvents);
+  return filteredEvents;
+}
+
+function buildTokenUsageSortGroups(events){
+  const preludeEvents = [];
+  const groups = [];
+  let currentGroup = null;
+
+  function flushGroup(){
+    if(!currentGroup){
+      return;
+    }
+    groups.push({
+      originalIndex: groups.length,
+      events: currentGroup.events,
+      lastTokenUsage: currentGroup.lastTokenUsage,
     });
+    currentGroup = null;
   }
-  if(document.getElementById('reverse_order').checked){
-    events = [...events].reverse();
+
+  (Array.isArray(events) ? events : []).forEach(ev => {
+    const isTurnStart = ev && ev.kind === 'message' && ev.role === 'user' && !isSystemLabeledUserEvent(ev);
+    if(isTurnStart){
+      flushGroup();
+      currentGroup = {
+        events: [ev],
+        lastTokenUsage: null,
+      };
+      return;
+    }
+    if(currentGroup){
+      currentGroup.events.push(ev);
+      if(ev && ev.kind === 'token_usage'){
+        currentGroup.lastTokenUsage = ev;
+      }
+      return;
+    }
+    preludeEvents.push(ev);
+  });
+
+  flushGroup();
+  return { preludeEvents, groups };
+}
+
+function getTokenUsageSortMetric(group, mode){
+  if(!group || !group.lastTokenUsage || !group.lastTokenUsage.usage){
+    return null;
   }
-  return events;
+  const usage = group.lastTokenUsage.usage;
+  if(mode === 'total'){
+    const totalTokens = getUsageTotalTokens(usage);
+    return totalTokens > 0 ? totalTokens : null;
+  }
+  if(mode === 'cost'){
+    const costUsd = Number(usage.cost_usd);
+    return Number.isFinite(costUsd) ? costUsd : null;
+  }
+  if(mode === 'score'){
+    const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage.cost_usd);
+    return typeof performance.score === 'number' ? performance.score : null;
+  }
+  return null;
+}
+
+function sortTokenUsageGroups(groups, mode){
+  return [...groups].sort((left, right) => {
+    const leftMetric = getTokenUsageSortMetric(left, mode);
+    const rightMetric = getTokenUsageSortMetric(right, mode);
+    const leftHasMetric = leftMetric !== null;
+    const rightHasMetric = rightMetric !== null;
+    if(leftHasMetric && rightHasMetric){
+      if(leftMetric < rightMetric){
+        return 1;
+      }
+      if(leftMetric > rightMetric){
+        return -1;
+      }
+    } else if(leftHasMetric !== rightHasMetric){
+      return leftHasMetric ? -1 : 1;
+    }
+    return left.originalIndex - right.originalIndex;
+  });
+}
+
+function getDisplayEvents(){
+  const rawEvents = state.activeEvents || [];
+  const rawIndexByEvent = new Map(rawEvents.map((ev, index) => [ev, index]));
+  const reverseOrder = document.getElementById('reverse_order').checked;
+  const detailCostSortMode = getActiveDetailCostSortMode();
+  if(!detailCostSortMode){
+    let events = applyDetailVisibilityFilters(rawEvents, rawIndexByEvent);
+    if(reverseOrder){
+      events = [...events].reverse();
+    }
+    return events;
+  }
+  const groupedEvents = buildTokenUsageSortGroups(rawEvents);
+  if(groupedEvents.groups.length === 0){
+    let events = applyDetailVisibilityFilters(rawEvents, rawIndexByEvent);
+    if(reverseOrder){
+      events = [...events].reverse();
+    }
+    return events;
+  }
+  const flattenedEvents = [];
+  let preludeEvents = applyDetailVisibilityFilters(groupedEvents.preludeEvents, rawIndexByEvent);
+  if(reverseOrder){
+    preludeEvents = [...preludeEvents].reverse();
+  }
+  flattenedEvents.push(...preludeEvents);
+  sortTokenUsageGroups(groupedEvents.groups, detailCostSortMode).forEach(group => {
+    let visibleGroupEvents = applyDetailVisibilityFilters(group.events, rawIndexByEvent);
+    if(!visibleGroupEvents.length){
+      return;
+    }
+    if(reverseOrder){
+      visibleGroupEvents = [...visibleGroupEvents].reverse();
+    }
+    flattenedEvents.push(...visibleGroupEvents);
+  });
+  return flattenedEvents;
 }
 
 function formatCopiedMessages(events){
@@ -4943,6 +5116,7 @@ function clearDetailFilters(){
   document.getElementById('turn_boundary_only').checked = false;
   document.getElementById('only_token_usage').checked = false;
   document.getElementById('reverse_order').checked = false;
+  document.getElementById('detail_cost_sort').value = '';
   const detailEventLabelFilter = document.getElementById('detail_event_label_filter');
   detailEventLabelFilter.value = '';
   delete detailEventLabelFilter.dataset.pendingValue;
@@ -5457,6 +5631,10 @@ safeBindById('event_label_filter', 'change', () => {
 });
 safeBindById('detail_event_label_filter', 'change', () => {
   updateLabelSelectColor('detail_event_label_filter');
+  saveFilters();
+  renderActiveSession();
+});
+safeBindById('detail_cost_sort', 'change', () => {
   saveFilters();
   renderActiveSession();
 });

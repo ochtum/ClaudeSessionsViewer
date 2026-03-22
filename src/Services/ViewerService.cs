@@ -10,8 +10,6 @@ namespace ClaudeSessionsViewer.Services;
 
 public sealed class ViewerService
 {
-    private const int MaxList = 400;
-    private const int MaxEvents = 4000;
     private const int MaxDesktopScanBytes = 2 * 1024 * 1024;
     private const int SearchTextLimit = 50_000;
     private const int MaxCacheEntries = 500;
@@ -64,15 +62,17 @@ public sealed class ViewerService
     };
 
     private readonly LabelStore _labelStore;
+    private readonly ViewerSettingsStore _viewerSettings;
     private readonly string _contentRootPath;
     private readonly ConcurrentDictionary<string, SessionCacheEntry> _cache = new(PathComparer);
     private IReadOnlyList<string>? _cliRoots;
     private IReadOnlyList<string>? _desktopRoots;
     private IReadOnlyList<string>? _wslCliRootsOnWindows;
 
-    public ViewerService(LabelStore labelStore, IHostEnvironment hostEnvironment)
+    public ViewerService(LabelStore labelStore, ViewerSettingsStore viewerSettings, IHostEnvironment hostEnvironment)
     {
         _labelStore = labelStore;
+        _viewerSettings = viewerSettings;
         _contentRootPath = CanonicalizePath(hostEnvironment.ContentRootPath);
     }
 
@@ -260,6 +260,7 @@ public sealed class ViewerService
             sessions.Add(WithSessionLabelIds(record.Summary, sessionLabelIds));
         }
 
+        var settings = _viewerSettings.GetSnapshot();
         IOrderedEnumerable<SessionSummaryDto> ordered = normalizedSort switch
         {
             "asc" => sessions
@@ -277,7 +278,7 @@ public sealed class ViewerService
         {
             Root = BuildRootSummaryText(roots),
             Roots = roots,
-            Sessions = ordered.Take(MaxList).ToArray(),
+            Sessions = ordered.Take(settings.SessionListMax).ToArray(),
         };
     }
 
@@ -813,8 +814,11 @@ public sealed class ViewerService
         }
 
         var signature = GetSignature(fileInfo);
+        var settings = _viewerSettings.GetSnapshot();
         if (_cache.TryGetValue(item.Path, out var cached)
             && cached.Signature == signature
+            && cached.ViewerSettingsVersion == settings.Version
+            && cached.MaxEvents == settings.SessionEventsMax
             && cached.EventsData is not null)
         {
             cached.LastAccessedTicks = Environment.TickCount64;
@@ -822,13 +826,15 @@ public sealed class ViewerService
         }
 
         var built = item.SourceType == "claude_cli"
-            ? LoadCliEvents(item.Path)
-            : LoadDesktopEvents(item.Path);
+            ? LoadCliEvents(item.Path, settings.SessionEventsMax)
+            : LoadDesktopEvents(item.Path, settings.SessionEventsMax);
         _cache[item.Path] = new SessionCacheEntry
         {
             Signature = signature,
             IndexRecord = cached is not null && cached.Signature == signature ? cached.IndexRecord : null,
             EventsData = built,
+            ViewerSettingsVersion = settings.Version,
+            MaxEvents = settings.SessionEventsMax,
         };
         TrimCacheIfNeeded();
         return built;
@@ -1122,7 +1128,7 @@ public sealed class ViewerService
         }
     }
 
-    private static EventsData LoadCliEvents(string path)
+    private static EventsData LoadCliEvents(string path, int maxEvents)
     {
         var events = new List<SessionEventDto>();
         var rawLineCount = 0;
@@ -1145,7 +1151,7 @@ public sealed class ViewerService
                 }
             }
 
-            if (events.Count >= MaxEvents)
+            if (events.Count >= maxEvents)
             {
                 break;
             }
@@ -1294,7 +1300,7 @@ public sealed class ViewerService
         };
     }
 
-    private static EventsData LoadDesktopEvents(string path)
+    private static EventsData LoadDesktopEvents(string path, int maxEvents)
     {
         var events = new List<SessionEventDto>();
 
@@ -1327,7 +1333,7 @@ public sealed class ViewerService
                         Text = $"[{conversationLabel}]\n{entry.Text}{attachmentNote}",
                     });
 
-                    if (events.Count >= MaxEvents)
+                    if (events.Count >= maxEvents)
                     {
                         break;
                     }
@@ -1339,7 +1345,7 @@ public sealed class ViewerService
 
         var fileInfo = new FileInfo(path);
         var raw = ReadRawBytes(path, Math.Min(MaxDesktopScanBytes, Math.Max(256 * 1024, checked((int)Math.Min(fileInfo.Length, int.MaxValue)))));
-        var objects = ExtractJsonObjectsFromBytes(raw, MaxEvents);
+        var objects = ExtractJsonObjectsFromBytes(raw, maxEvents);
         if (objects.Count > 0)
         {
             var index = 0;
@@ -1360,7 +1366,7 @@ public sealed class ViewerService
                     Text = text.Length > 4000 ? text[..4000] : text,
                 });
                 index++;
-                if (events.Count >= MaxEvents)
+                if (events.Count >= maxEvents)
                 {
                     break;
                 }
@@ -1379,7 +1385,7 @@ public sealed class ViewerService
                     Text = snippet,
                 });
                 index++;
-                if (events.Count >= MaxEvents)
+                if (events.Count >= maxEvents)
                 {
                     break;
                 }
@@ -1394,7 +1400,7 @@ public sealed class ViewerService
             Text = "Claude Desktop の IndexedDB(LevelDB) はバイナリ形式のため、ここでは文字列/JSONスニペット抽出で表示しています。 完全な履歴復元ではありません。",
         });
 
-        return new EventsData(events.Take(MaxEvents).ToArray(), events.Count);
+        return new EventsData(events.Take(maxEvents).ToArray(), events.Count);
     }
 
     private static List<DesktopEntry> ParseDesktopEntries(string path)
@@ -3182,6 +3188,10 @@ public sealed class ViewerService
         public IndexRecord? IndexRecord { get; init; }
 
         public EventsData? EventsData { get; init; }
+
+        public long ViewerSettingsVersion { get; init; }
+
+        public int MaxEvents { get; init; }
 
         private long _lastAccessedTicks = Environment.TickCount64;
 

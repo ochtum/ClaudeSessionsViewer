@@ -1002,7 +1002,7 @@ button {
 input:not([type="checkbox"]):not([type="radio"]):not(.seg),
 select {
   width: 100%;
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 var(--space-5);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
@@ -1168,7 +1168,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 32px;
+  min-height: 34px;
   padding: 0 10px;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -1546,8 +1546,22 @@ button:disabled {
   gap: 2px;
   padding-top: 3px;
 }
-.detail-toolbar-row.primary .toggle-list {
+.detail-display-stack {
   grid-column: 2;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.detail-display-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.detail-display-row .toggle-list {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .detail-group-title {
   font-size: 11px;
@@ -1555,10 +1569,10 @@ button:disabled {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.detail-toolbar-row.primary .field.inline-field {
-  grid-column: 2;
-  min-width: 120px;
-  max-width: 132px;
+.detail-display-row .field.inline-field {
+  flex: 0 0 180px;
+  min-width: 180px;
+  max-width: 180px;
 }
 .detail-toolbar-row.primary .detail-toolbar-utility {
   grid-column: 3;
@@ -1567,11 +1581,15 @@ button:disabled {
   justify-content: flex-end;
   padding-top: 1px;
 }
-.detail-toolbar-row.primary .field > span {
-  display: none;
+.detail-display-row .field > span {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0.03em;
 }
-.detail-toolbar-row.primary #detail_event_label_filter {
-  min-width: 120px;
+.detail-display-row #detail_event_label_filter,
+.detail-display-row #detail_cost_sort {
+  width: 100%;
+  min-width: 180px;
   padding-right: 28px;
 }
 .detail-toolbar-row.keyword .button-row,
@@ -2187,7 +2205,7 @@ pre {
     grid-template-columns: 1fr;
     gap: 6px;
   }
-  .detail-toolbar-row.primary .field.inline-field,
+  .detail-display-row .field.inline-field,
   .detail-toolbar-row.keyword .button-row,
   .detail-toolbar-row.range .button-row,
   .detail-event-date-row {
