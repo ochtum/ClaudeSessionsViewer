@@ -1,3 +1,4 @@
+(() => {
 const LANGUAGE_STORAGE_KEY = 'claude_sessions_viewer_language_v1';
 const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh-Hans', 'zh-Hant'];
 const LABEL_I18N = {
@@ -211,6 +212,10 @@ function normalizeLanguage(value){
     return 'zh-Hant';
   }
   return SUPPORTED_LANGUAGES.includes(raw) ? raw : 'ja';
+}
+
+function isLabelManagerPage(){
+  return !!document.getElementById('label_list') && !!document.getElementById('save_label');
 }
 
 function getStoredLanguage(){
@@ -431,56 +436,71 @@ async function loadLabels(){
   }
 }
 
-document.getElementById('save_label').addEventListener('click', async () => {
-  const payload = {
-    id: document.getElementById('label_id').value || null,
-    name: document.getElementById('label_name').value,
-    color_value: document.getElementById('label_color').value,
-    color_family: document.getElementById('label_family').value,
-  };
-  try {
-    const data = await postJson('/api/labels/save', payload);
-    if(data.error){
-      showErrorDialog(data.error, 'validation');
-      return;
-    }
-    notifyParent();
-    await loadLabels();
-    resetForm();
-  } catch (error) {
-    showErrorDialog(t('error.saveFailed'), 'error');
-  }
-});
-
-document.getElementById('language_select').addEventListener('change', (event) => {
-  setUiLanguage(event.target.value);
-});
-document.getElementById('error_dialog_close').addEventListener('click', hideErrorDialog);
-document.getElementById('error_dialog').addEventListener('click', (event) => {
-  if(event.target.id === 'error_dialog'){
-    hideErrorDialog();
-  }
-});
-document.addEventListener('keydown', (event) => {
-  if(event.key === 'Escape'){
-    hideErrorDialog();
-  }
-});
-document.getElementById('label_color').addEventListener('input', () => {
-  const color = document.getElementById('label_color').value.trim().toLowerCase();
-  const matched = Object.entries(PRESETS).find(([, value]) => value.color.toLowerCase() === color);
-  document.getElementById('label_family').value = matched ? matched[0] : '';
-  renderPresetPreview();
-});
-window.addEventListener('storage', (event) => {
-  if(event.key !== LANGUAGE_STORAGE_KEY){
+function initLabelManagerPage(){
+  if(!isLabelManagerPage() || window.__claudeLabelManagerInitialized){
     return;
   }
-  const nextLanguage = normalizeLanguage(event.newValue || 'ja');
-  if(nextLanguage !== uiLanguage){
-    setUiLanguage(nextLanguage, false);
-  }
-});
 
-setUiLanguage(getRequestedLanguage(), false);
-loadLabels();
+  window.__claudeLabelManagerInitialized = true;
+
+  document.getElementById('save_label').addEventListener('click', async () => {
+    const payload = {
+      id: document.getElementById('label_id').value || null,
+      name: document.getElementById('label_name').value,
+      color_value: document.getElementById('label_color').value,
+      color_family: document.getElementById('label_family').value,
+    };
+    try {
+      const data = await postJson('/api/labels/save', payload);
+      if(data.error){
+        showErrorDialog(data.error, 'validation');
+        return;
+      }
+      notifyParent();
+      await loadLabels();
+      resetForm();
+    } catch (error) {
+      showErrorDialog(t('error.saveFailed'), 'error');
+    }
+  });
+
+  document.getElementById('language_select').addEventListener('change', (event) => {
+    setUiLanguage(event.target.value);
+  });
+  document.getElementById('error_dialog_close').addEventListener('click', hideErrorDialog);
+  document.getElementById('error_dialog').addEventListener('click', (event) => {
+    if(event.target.id === 'error_dialog'){
+      hideErrorDialog();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if(event.key === 'Escape'){
+      hideErrorDialog();
+    }
+  });
+  document.getElementById('label_color').addEventListener('input', () => {
+    const color = document.getElementById('label_color').value.trim().toLowerCase();
+    const matched = Object.entries(PRESETS).find(([, value]) => value.color.toLowerCase() === color);
+    document.getElementById('label_family').value = matched ? matched[0] : '';
+    renderPresetPreview();
+  });
+  window.addEventListener('storage', (event) => {
+    if(event.key !== LANGUAGE_STORAGE_KEY){
+      return;
+    }
+    const nextLanguage = normalizeLanguage(event.newValue || 'ja');
+    if(nextLanguage !== uiLanguage){
+      setUiLanguage(nextLanguage, false);
+    }
+  });
+
+  setUiLanguage(getRequestedLanguage(), false);
+  loadLabels();
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', initLabelManagerPage, { once: true });
+} else {
+  initLabelManagerPage();
+}
+})();

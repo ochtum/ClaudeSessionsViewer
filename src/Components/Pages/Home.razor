@@ -41,111 +41,133 @@
 </header>
   <div class="container">
   <aside class="left">
-    <div class="toolbar collapsed">
-      <div class="toolbar-topline">
-        <div>
-          <div class="section-kicker">Session Browser</div>
-          <div class="toolbar-heading">検索と絞り込み</div>
-          <div class="toolbar-copy">候補を探してから一覧を見る、という流れに整理しました。</div>
+    <div class="left-pane-tabs" role="tablist" aria-label="Left pane tabs">
+      <button id="left_tab_sessions" class="left-pane-tab active" data-pane-tab="sessions" role="tab" aria-selected="true">セッションリスト</button>
+      <button id="left_tab_labels" class="left-pane-tab" data-pane-tab="labels" role="tab" aria-selected="false">ラベルリスト</button>
+    </div>
+    <div id="left_panel_sessions" class="left-pane-panel">
+      <div class="toolbar collapsed">
+        <div class="toolbar-topline">
+          <div>
+            <div class="section-kicker">Session Browser</div>
+            <div class="toolbar-heading">検索と絞り込み</div>
+            <div class="toolbar-copy">候補を探してから一覧を見る、という流れに整理しました。</div>
+          </div>
+          <div class="toolbar-utility">
+            <button id="reload" class="primary-action" title="F5">Reload</button>
+            <button id="clear" class="secondary-action" title="Shift + L">Clear</button>
+            <button id="toggle_filters" class="utility-action" title="Shift + F">フィルタを表示</button>
+          </div>
         </div>
-        <div class="toolbar-utility">
-          <button id="reload" class="primary-action" title="F5">Reload</button>
-          <button id="clear" class="secondary-action" title="Shift + L">Clear</button>
-          <button id="toggle_filters" class="utility-action" title="Shift + F">フィルタを表示</button>
+        <div class="toolbar-body">
+          <section class="toolbar-section">
+            <div class="toolbar-section-head">
+              <div class="toolbar-section-title">検索</div>
+              <div class="toolbar-section-copy">cwd とキーワードで候補を先に絞り込みます。</div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>作業ディレクトリ</span>
+                <input id="cwd_q" placeholder="cwd (部分一致)" />
+              </label>
+              <label class="field">
+                <span>キーワード</span>
+                <input id="q" placeholder="keyword filter" />
+              </label>
+              <label class="field">
+                <span>条件</span>
+                <select id="mode">
+                  <option value="and">keyword AND</option>
+                  <option value="or">keyword OR</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="toolbar-section">
+            <div class="toolbar-section-head">
+              <div class="toolbar-section-title">フィルター</div>
+              <div class="toolbar-section-copy">期間・source・ラベルで一覧を整理します。</div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>開始日</span>
+                <input id="date_from" type="hidden" />
+              </label>
+              <label class="field">
+                <span>終了日</span>
+                <input id="date_to" type="hidden" />
+              </label>
+              <div class="field">
+                <span id="event_date_from_label">イベント開始日時</span>
+                <div class="datetime-split">
+                  <input id="event_date_from_date" type="hidden" />
+                  <input id="event_date_from_time" type="hidden" />
+                </div>
+              </div>
+              <div class="field">
+                <span id="event_date_to_label">イベント終了日時</span>
+                <div class="datetime-split">
+                  <input id="event_date_to_date" type="hidden" />
+                  <input id="event_date_to_time" type="hidden" />
+                </div>
+              </div>
+              <label class="field">
+                <span>source</span>
+                <select id="source_filter">
+                  <option value="all">source: all</option>
+                  <option value="claude_cli">source: Claude Code CLI</option>
+                  <option value="claude_desktop">source: Claude Desktop</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>subagents</span>
+                <select id="subagents_filter">
+                  <option value="include">含む</option>
+                  <option value="exclude">含まない</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>セッションラベル</span>
+                <select id="session_label_filter">
+                  <option value="">session label: all</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>イベントラベル</span>
+                <select id="event_label_filter">
+                  <option value="">event label: all</option>
+                </select>
+              </label>
+            </div>
+          </section>
         </div>
       </div>
-      <div class="toolbar-body">
-        <section class="toolbar-section">
-          <div class="toolbar-section-head">
-            <div class="toolbar-section-title">検索</div>
-            <div class="toolbar-section-copy">cwd とキーワードで候補を先に絞り込みます。</div>
-          </div>
-          <div class="field-grid">
-            <label class="field">
-              <span>作業ディレクトリ</span>
-              <input id="cwd_q" placeholder="cwd (部分一致)" />
-            </label>
-            <label class="field">
-              <span>キーワード</span>
-              <input id="q" placeholder="keyword filter" />
-            </label>
-            <label class="field">
-              <span>条件</span>
-              <select id="mode">
-                <option value="and">keyword AND</option>
-                <option value="or">keyword OR</option>
-              </select>
-            </label>
-          </div>
-        </section>
-        <section class="toolbar-section">
-          <div class="toolbar-section-head">
-            <div class="toolbar-section-title">フィルター</div>
-            <div class="toolbar-section-copy">期間・source・ラベルで一覧を整理します。</div>
-          </div>
-          <div class="field-grid">
-            <label class="field">
-              <span>開始日</span>
-              <input id="date_from" type="hidden" />
-            </label>
-            <label class="field">
-              <span>終了日</span>
-              <input id="date_to" type="hidden" />
-            </label>
-            <div class="field">
-              <span id="event_date_from_label">イベント開始日時</span>
-              <div class="datetime-split">
-                <input id="event_date_from_date" type="hidden" />
-                <input id="event_date_from_time" type="hidden" />
-              </div>
-            </div>
-            <div class="field">
-              <span id="event_date_to_label">イベント終了日時</span>
-              <div class="datetime-split">
-                <input id="event_date_to_date" type="hidden" />
-                <input id="event_date_to_time" type="hidden" />
-              </div>
-            </div>
-            <label class="field">
-              <span>source</span>
-              <select id="source_filter">
-                <option value="all">source: all</option>
-                <option value="claude_cli">source: Claude Code CLI</option>
-                <option value="claude_desktop">source: Claude Desktop</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>subagents</span>
-              <select id="subagents_filter">
-                <option value="include">含む</option>
-                <option value="exclude">含まない</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>セッションラベル</span>
-              <select id="session_label_filter">
-                <option value="">session label: all</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>イベントラベル</span>
-              <select id="event_label_filter">
-                <option value="">event label: all</option>
-              </select>
-            </label>
-          </div>
-        </section>
+      <div id="session_count" class="session-count" aria-live="polite"></div>
+      <div class="sort-tabs" role="tablist">
+        <button class="sort-tab active" data-sort="desc" role="tab" aria-selected="true">新しい順</button>
+        <button class="sort-tab" data-sort="asc" role="tab" aria-selected="false">古い順</button>
+        <button class="sort-tab" data-sort="updated" role="tab" aria-selected="false">最終更新日時順</button>
+      </div>
+      <div class="content-shell">
+        <div id="sessions"></div>
+        <div id="sessions_status" class="status-layer hidden" aria-live="polite"></div>
       </div>
     </div>
-    <div id="session_count" class="session-count" aria-live="polite"></div>
-    <div class="sort-tabs" role="tablist">
-      <button class="sort-tab active" data-sort="desc" role="tab" aria-selected="true">新しい順</button>
-      <button class="sort-tab" data-sort="asc" role="tab" aria-selected="false">古い順</button>
-      <button class="sort-tab" data-sort="updated" role="tab" aria-selected="false">最終更新日時順</button>
-    </div>
-    <div class="content-shell">
-      <div id="sessions"></div>
-      <div id="sessions_status" class="status-layer hidden" aria-live="polite"></div>
+    <div id="left_panel_labels" class="left-pane-panel hidden">
+      <div class="toolbar label-toolbar">
+        <div class="toolbar-topline">
+          <div>
+            <div id="label_browser_kicker" class="section-kicker">Label Browser</div>
+            <div id="label_browser_heading" class="toolbar-heading">ラベルリスト</div>
+            <div id="label_browser_copy" class="toolbar-copy">ラベルを付けたセッションとイベントをここからまとめて開けます。</div>
+          </div>
+        </div>
+      </div>
+      <div id="labeled_count" class="session-count" aria-live="polite"></div>
+      <div class="content-shell">
+        <div id="labeled_items"></div>
+        <div id="labeled_items_status" class="status-layer hidden" aria-live="polite"></div>
+      </div>
     </div>
   </aside>
   <main class="right">

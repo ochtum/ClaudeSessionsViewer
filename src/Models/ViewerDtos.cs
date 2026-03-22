@@ -145,6 +145,42 @@ public sealed class LabelsResponse
     public IReadOnlyList<LabelDto> Labels { get; init; } = [];
 }
 
+public sealed class LabeledEventListItemDto
+{
+    public string Path { get; init; } = string.Empty;
+
+    public string RelativePath { get; init; } = string.Empty;
+
+    public string SessionId { get; init; } = string.Empty;
+
+    public string SessionStartedAt { get; init; } = string.Empty;
+
+    public string SessionMtime { get; init; } = string.Empty;
+
+    public string Cwd { get; init; } = string.Empty;
+
+    public string Source { get; init; } = string.Empty;
+
+    public string EventId { get; init; } = string.Empty;
+
+    public string Timestamp { get; init; } = string.Empty;
+
+    public string Kind { get; init; } = string.Empty;
+
+    public string Role { get; init; } = string.Empty;
+
+    public string Preview { get; init; } = string.Empty;
+
+    public IReadOnlyList<LabelDto> Labels { get; init; } = [];
+}
+
+public sealed class LabeledItemsResponse
+{
+    public IReadOnlyList<SessionSummaryDto> Sessions { get; init; } = [];
+
+    public IReadOnlyList<LabeledEventListItemDto> Events { get; init; } = [];
+}
+
 public sealed class SaveLabelResponse
 {
     public LabelDto? Label { get; init; }

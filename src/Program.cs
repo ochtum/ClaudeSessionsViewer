@@ -194,6 +194,11 @@ public class Program
             return Results.Ok(await viewer.GetLabelsAsync(cancellationToken));
         });
 
+        app.MapGet("/api/labeled-items", async (ViewerService viewer, CancellationToken cancellationToken) =>
+        {
+            return Results.Ok(await viewer.GetLabeledItemsAsync(cancellationToken));
+        });
+
         app.MapGet("/api/cost-summary", async (ViewerService viewer, CancellationToken cancellationToken) =>
         {
             return Results.Ok(await viewer.GetCostSummaryAsync(cancellationToken));
