@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ClaudeSessionsViewer.Components;
@@ -16,12 +18,18 @@ public class Program
 {
     private const string ViewerSectionName = "Viewer";
     private const string DefaultViewerUrl = "http://127.0.0.1:8767";
+    private static Mutex? SingleInstanceMutex;
 
     public static void Main(string[] args)
     {
         TrySetConsoleTitle();
 
         var (contentRootPath, webRootPath) = ResolveAppPaths();
+        if (!TryAcquireSingleInstanceLock(contentRootPath))
+        {
+            return;
+        }
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
@@ -116,6 +124,67 @@ public class Program
         catch (UnauthorizedAccessException)
         {
         }
+    }
+
+    private static bool TryAcquireSingleInstanceLock(string contentRootPath)
+    {
+        try
+        {
+            var mutex = new Mutex(false, BuildSingleInstanceMutexName("ClaudeSessionsViewer", contentRootPath));
+            var hasHandle = false;
+            try
+            {
+                hasHandle = mutex.WaitOne(0, false);
+            }
+            catch (AbandonedMutexException)
+            {
+                hasHandle = true;
+            }
+
+            if (!hasHandle)
+            {
+                mutex.Dispose();
+                Console.Error.WriteLine("ClaudeSessionsViewer is already running for this app folder.");
+                return false;
+            }
+
+            SingleInstanceMutex = mutex;
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => ReleaseSingleInstanceLock();
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+    }
+
+    private static void ReleaseSingleInstanceLock()
+    {
+        try
+        {
+            SingleInstanceMutex?.ReleaseMutex();
+        }
+        catch (ApplicationException)
+        {
+        }
+        finally
+        {
+            SingleInstanceMutex?.Dispose();
+            SingleInstanceMutex = null;
+        }
+    }
+
+    private static string BuildSingleInstanceMutexName(string appName, string contentRootPath)
+    {
+        var normalizedRoot = Path.GetFullPath(contentRootPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .ToUpperInvariant();
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedRoot)));
+        return $"{appName}_{hash}";
     }
 
     private static void MapApi(WebApplication app)
