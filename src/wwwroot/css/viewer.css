@@ -1107,6 +1107,8 @@ button:disabled {
 .secondary-button,
 #toggle_filters,
 #toggle_detail_actions,
+#toggle_detail_search,
+#toggle_detail_range,
 #toggle_session_list_mobile,
 #open_label_manager,
 #open_cost_summary {
@@ -1118,11 +1120,21 @@ button:disabled {
 .secondary-button:hover:not(:disabled),
 #toggle_filters:hover:not(:disabled),
 #toggle_detail_actions:hover:not(:disabled),
+#toggle_detail_search:hover:not(:disabled),
+#toggle_detail_range:hover:not(:disabled),
 #toggle_meta:hover:not(:disabled),
 #toggle_session_list_mobile:hover:not(:disabled),
 #open_label_manager:hover:not(:disabled),
 #open_cost_summary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.76);
+}
+.utility-action.active,
+#toggle_detail_actions.active,
+#toggle_detail_search.active,
+#toggle_detail_range.active {
+  border-color: rgba(15, 118, 110, 0.24);
+  background: rgba(240, 253, 250, 0.96);
+  color: var(--accent-strong);
 }
 #add_session_label,
 .event-label-add-button,
@@ -1631,6 +1643,191 @@ button:disabled {
   height: 100%;
   overflow: auto;
   padding: 14px 16px;
+}
+.compact-ui .toolbar {
+  gap: 8px;
+  padding: 8px 12px;
+}
+.compact-ui header {
+  padding: 10px 14px;
+}
+.compact-ui .header-bar {
+  gap: 10px;
+  align-items: flex-start;
+}
+.compact-ui .header-main {
+  gap: 4px;
+  padding: 10px 14px 8px;
+  border-radius: 18px;
+}
+.compact-ui .header-main.meta-hidden {
+  padding-bottom: 12px;
+}
+.compact-ui header h1 {
+  gap: 8px;
+  font-size: var(--text-display-compact);
+}
+.compact-ui .brand-mark {
+  width: 26px;
+  height: 26px;
+}
+.compact-ui .header-subtitle {
+  margin-top: 0;
+  margin-bottom: 2px;
+  font-size: 13px;
+  line-height: 1.28;
+}
+.compact-ui .header-actions {
+  gap: 4px;
+  padding-top: 0;
+}
+.compact-ui .header-actions-top {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.compact-ui .header-actions-top .utility-action,
+.compact-ui .header-actions-top .language-select {
+  min-height: 28px;
+  padding: 0 8px;
+}
+.compact-ui .app-version {
+  font-size: 10px;
+}
+.compact-ui .today-usage-summary {
+  max-width: min(100%, 400px);
+}
+.compact-ui .today-usage-card {
+  gap: 4px 6px;
+  padding: 6px 8px;
+  border-radius: 12px;
+}
+.compact-ui .today-usage-title {
+  min-height: 24px;
+  padding: 0 8px;
+}
+.compact-ui .today-usage-items {
+  gap: 4px 6px;
+}
+.compact-ui .today-usage-card .usage-metric[data-tooltip]::after {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+.compact-ui .today-usage-card .usage-metric[data-tooltip]::before {
+  top: calc(100% + 2px);
+  bottom: auto;
+  border-top-color: transparent;
+  border-bottom-color: rgba(15, 23, 42, 0.96);
+}
+.compact-ui .toolbar-topline {
+  gap: 8px;
+}
+.compact-ui .left .section-kicker {
+  display: none;
+}
+.compact-ui .toolbar-heading {
+  margin-top: 0;
+  font-size: var(--text-title-sm);
+}
+.compact-ui .toolbar-copy,
+.compact-ui .toolbar-section-copy {
+  display: none;
+}
+.compact-ui .toolbar-body {
+  gap: 8px;
+}
+.compact-ui .toolbar-section {
+  gap: 10px;
+  padding: 10px 12px;
+}
+.compact-ui .field-grid {
+  gap: 10px;
+}
+.compact-ui .session-count {
+  padding: 4px 12px;
+}
+.compact-ui .sort-tab {
+  padding: 5px 4px;
+}
+.compact-ui .detail-toolbar {
+  padding: 2px 12px 4px;
+}
+.compact-ui .detail-toolbar-row {
+  gap: 4px 10px;
+  padding: 6px 0;
+}
+.compact-ui .detail-toolbar-row.primary {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+}
+.compact-ui .detail-toolbar-row.primary .detail-group-head {
+  display: none;
+}
+.compact-ui .detail-group-head {
+  padding-top: 1px;
+}
+.compact-ui .detail-display-stack {
+  grid-column: 1;
+  gap: 6px;
+}
+.compact-ui .detail-display-row {
+  gap: 4px 8px;
+  align-items: center;
+}
+.compact-ui .detail-display-row .toggle-list {
+  gap: 4px;
+}
+.compact-ui .detail-display-row .field.inline-field {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: none;
+}
+.compact-ui .detail-display-row .field.inline-field > span {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  white-space: nowrap;
+}
+.compact-ui .detail-display-row #detail_event_label_filter,
+.compact-ui .detail-display-row #detail_cost_sort {
+  width: 160px;
+  min-width: 160px;
+}
+.compact-ui .detail-toolbar-row.primary .detail-toolbar-utility {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  padding-top: 0;
+}
+.compact-ui .button-row,
+.compact-ui .toolbar-utility,
+.compact-ui .detail-toolbar-utility,
+.compact-ui .detail-event-date-row,
+.compact-ui .detail-event-date-actions {
+  gap: 6px;
+}
+.compact-ui .toolbar-utility button,
+.compact-ui .detail-toolbar-utility button,
+.compact-ui .button-row button {
+  min-height: 32px;
+  padding: 0 9px;
+}
+.compact-ui .toggle-chip {
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+.compact-ui .session-label-strip {
+  min-height: 34px;
+  padding: 6px 12px;
+}
+.compact-ui #events {
+  padding: 10px 12px;
+}
+.compact-ui .ev {
+  margin-bottom: 8px;
 }
 .status-wrap {
   min-height: 100%;

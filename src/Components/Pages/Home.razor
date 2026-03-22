@@ -209,7 +209,9 @@
           <div class="detail-toolbar-utility">
             <button id="refresh_detail" class="primary-action" title="F5" disabled>Refresh</button>
             <button id="clear_detail" class="secondary-action" title="Shift + D" disabled>Clear</button>
-            <button id="toggle_detail_actions" class="utility-action" title="Shift + T">詳細操作を表示</button>
+            <button id="toggle_detail_actions" class="utility-action" title="Shift + T" aria-pressed="false">詳細操作</button>
+            <button id="toggle_detail_search" class="utility-action" title="/" aria-pressed="false">検索</button>
+            <button id="toggle_detail_range" class="utility-action" title="Shift + G" aria-pressed="false">範囲選択</button>
           </div>
         </section>
         <section id="detail_action_row" class="detail-toolbar-row secondary hidden">
@@ -221,8 +223,6 @@
             <button id="copy_resume_command" class="secondary-action" title="Shift + R" disabled>セッション再開コマンドコピー</button>
             <button id="add_session_label" disabled>セッションにラベル追加</button>
             <button id="copy_displayed_messages" class="secondary-action" title="Shift + C" disabled>表示中メッセージコピー</button>
-            <button id="event_selection_mode" title="Shift + S" disabled>選択モード</button>
-            <button id="copy_selected_messages" class="secondary-action" title="Shift + X" disabled>選択コピー</button>
           </div>
         </section>
         <section id="detail_keyword_row" class="detail-toolbar-row keyword hidden">
@@ -272,6 +272,11 @@
             <button id="clear_message_range_selection" class="secondary-action" title="Shift + H" disabled>起点解除</button>
             <button id="detail_message_range_after" title="." disabled>起点以降のみ表示</button>
             <button id="detail_message_range_before" title="," disabled>起点以前のみ表示</button>
+          </div>
+          <div class="button-row">
+            <button id="event_selection_mode" title="Shift + S" disabled>選択モード</button>
+            <button id="copy_selected_messages" class="secondary-action" title="Shift + X" disabled>選択コピー</button>
+            <label class="toggle-chip" title="6"><input type="checkbox" id="selected_events_only" /> 選択イベントのみ表示</label>
           </div>
         </section>
       </div>
