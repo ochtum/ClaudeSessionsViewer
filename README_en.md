@@ -66,64 +66,65 @@ To build from source, run one of the following PowerShell scripts:
 
 ## UI Features
 
-- Left pane: session list (newest first)
-  - Each session shows a `source` label (`Claude Code CLI` / `Claude Desktop`) and any session labels
-  - A loading indicator appears during the initial load
-  - `Reload` refreshes the session list
-    - A manual `Reload` shows an updating overlay and button state feedback
-  - `Clear` resets all left-pane search conditions
-  - `Hide` / `Show` collapses or expands the search filter area
-  - In vertical layout, the `Hide List` / `Show List` button in the upper-right header toggles the entire left pane
-- Top-left filters
-  - Filter by `project/path` / `Start date` / `End date` / `Event start datetime` / `Event end datetime` / keyword / `source` / session label / event label
-  - `Start date` / `End date` use the browser's native `date` input; event datetimes use split `date + time` inputs
+- Header
+  - Includes language / currency switches plus `Label Manager`, `Cost Summary`, `Meta`, and `Shortcuts`
+  - In vertical layout, `Hide List` / `Show List` toggles the entire left pane
+  - Shows today's usage summary beneath the header actions
+- Left pane
+  - Two tabs: `Session List` and `Label List`
+  - Session cards show the `source` label (`Claude Code CLI` / `Claude Desktop`) and any session labels
+  - Sort order can be switched between newest, oldest, and last-updated
+  - Shows a loading state on first load and an updating overlay during manual `Reload`
+  - `Reload` refreshes the list, `Clear` resets the filters, and `Hide` / `Show` collapses the filter area
+  - The label list lets you open sessions and events grouped by label
+- Left-pane search / filters
+  - Filter by `Working directory`, `Keyword`, `Condition (AND / OR)`, `Start date`, `End date`, `Event start datetime`, `Event end datetime`, `source`, `subagents`, `Session label`, and `Event label`
+  - `Start date` / `End date` use date inputs; event datetimes use split `date + time` inputs
   - The time field for an event datetime becomes enabled after the corresponding date is entered
-  - Keyword search uses full-text search backed by a SQLite index
-  - `project/path` matches both `project` and `relative_path`, treating `-`, `/`, and `\` as equivalent separators
-  - Search targets include text extracted from `message`, `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other event body content
-  - `project/path`, datetime, `source`, and label conditions are always combined with AND
-  - The `AND` / `OR` toggle applies only to the keyword field
-    - `AND`: all space-separated keywords must be present
-    - `OR`: at least one space-separated keyword must be present
-- Right pane: chronological event timeline for the selected session
-  - A loading indicator appears during the first detail load; a manual `Refresh` shows an updating overlay
-  - The detail header shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
-  - The detail header has four rows
-    - Row 1: display filters, `Clear`, `Refresh`, and a `Hide` / `Show` button that collapses rows 2–4 together
-    - Row 2: copy, label, and selection-copy action buttons
-    - Row 3: keyword input, `Filter`, `Search`, `Previous`, `Next`, `Keyword Clear`
-    - Row 4: single-message anchor selection mode, clear-anchor action, and before/after message display
+  - Keyword search is backed by a SQLite index
+  - Working directory, datetime, `source`, `subagents`, and label filters are always combined with AND
+  - The `AND / OR` switch applies only to the keyword field
+    - `AND`: all space-separated keywords must match
+    - `OR`: at least one space-separated keyword must match
+- Right pane
+  - Shows the event timeline for the selected session
+  - Displays a loading state on first load and an updating overlay during manual `Refresh`
+  - Shows the `source` label in the detail header
+  - The top area contains display filters, `Refresh`, `Clear`, and buttons to expand detail actions
   - Display options
     - "Show only user instructions"
     - "Show only AI responses"
     - "Show only each input and final response"
       - Keeps one `user` message per turn and only the last `assistant` message before the next `user`
     - "Reverse display order"
-    - `event label: all` filter
-  - Keyword search
+    - "Show only token usage"
+    - `Event label` filter
+    - `Cost sort` (total tokens / cost / score)
+  - Detail keyword search
     - `Filter`: shows only events containing the keyword
-    - `Search`: highlights matches and navigates between them with `Previous` / `Next`
-    - `Keyword Clear`: clears the input, filter, and search state all at once
-    - Matching is a plain substring match (not AND / OR)
-    - The search covers the full body text of displayed events
-  - `Event start datetime` / `Event end datetime` narrow the event timeline shown in the right pane
-  - Right-pane event datetime filters also use split `date + time` inputs; the time field is enabled after a date is entered
-  - `Clear` resets the detail-side display filters
-  - `Refresh` reloads only the currently selected session
-  - "Copy Resume Command" copies `claude --resume <session_id>` to the clipboard
-  - "Copy Displayed Messages" copies all currently visible messages (reflecting active filters)
-  - Session label display and "Add Session Label"
-  - Per-event label display / add / remove
-  - Each `message` event has its own "Copy" button
-  - "Selection Mode" lets you check individual `message` events and copy them together with "Copy Selected"
-    - Already-selected messages are preserved even when filters change
-  - "Anchor Selection Mode" lets you pick a single `message` as an anchor, then show only messages before or after that anchor
+    - `Search`: highlights matches and moves through them with `Previous` / `Next`
+    - `Clear Search`: clears the input, filter, and search state together
+    - Matching is a plain substring match, not AND / OR logic
+  - `Event start datetime` / `Event end datetime` can narrow the right-pane timeline
+  - `Clear Date/Time` resets the detail datetime filters
+  - "Copy Resume Command" copies `claude --resume <session_id>`
+  - "Copy Displayed Messages" copies all currently visible messages
+  - Shows session labels and supports "Add Session Label"
+  - Supports per-event label display / add / remove
+  - Each `message` event has its own `Copy` button
+  - "Selection Mode" lets you select individual `message` events and copy them with `Copy Selected`
+    - Selected events are preserved even when filters change
+    - "Show selected events only" narrows the view to the current selection
+  - "Anchor Selection Mode" lets you pick a single `message` and show only messages before or after it
   - Displays `message` (`user` / `assistant`), `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other event types
-  - `user` messages have a light blue background, `assistant` light green, system / notice events gray, and tool events teal
+  - `user` messages are light blue, `assistant` light green, system / notice events gray, and tool events teal
 - Label Manager
-  - Opens in a separate window via the "Label Manager" button in the upper-right corner
-  - Manages session labels and event labels in a single shared UI
-  - Label colors can be entered directly as `#hex`, `rgb(...)`, or `oklch(...)`, or picked from color presets
+  - Opens in a separate window from the `Label Manager` button
+  - Manages session labels and event labels in one shared UI
+  - Label colors can be entered as `#hex`, `rgb(...)`, or `oklch(...)`, or chosen from presets
+- Cost Summary
+  - Opens in a separate page for monthly, weekly, and daily usage summaries
+  - Lets you compare session-based totals with `token usage` event-based totals
 
 ## Keyboard Shortcuts
 
@@ -144,6 +145,7 @@ Shortcuts are disabled while an input field is focused. Press `Esc` to close the
 | `2`         | Toggle "Show only AI responses"                                     |
 | `3`         | Toggle "Show only each input and final response"                    |
 | `4`         | Toggle "Reverse display order"                                      |
+| `5`         | Toggle "Show only token usage"                                      |
 | `Shift + D` | Clear right-pane filters and active modes                           |
 | `Shift + T` | Toggle detail action rows                                           |
 | `Shift + R` | Copy the resume command (`claude --resume <session_id>`)            |
