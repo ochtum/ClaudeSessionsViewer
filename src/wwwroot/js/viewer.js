@@ -2065,7 +2065,7 @@ function postJson(url, payload){
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
-  }).then(r => r.json());
+  }).then(readJsonResponse);
 }
 
 function getSelectedSessionLabelFilter(){
@@ -2458,8 +2458,7 @@ function showLabelPicker(anchor, onSelect){
 }
 
 async function loadLabels(reloadSessions){
-  const r = await fetch('/api/labels?ts=' + Date.now(), { cache: 'no-store' });
-  const data = await r.json();
+  const data = await fetchJsonWithTimeout('/api/labels?ts=' + Date.now(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
   const prev = JSON.stringify(state.labels);
   state.labels = data.labels || [];
   populateLabelControls();
@@ -2949,8 +2948,7 @@ async function refreshTodayUsageSummary(){
   todayUsageSummaryMessage = '';
   renderTodayUsageSummary();
   try {
-    const response = await fetch(`/api/cost-summary?ts=${Date.now()}`, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchJsonWithTimeout(`/api/cost-summary?ts=${Date.now()}`, { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
     if(requestId !== todayUsageSummaryRequestSeq){
       return;
     }
@@ -4454,7 +4452,7 @@ async function fetchJsonWithTimeout(url, options, timeoutMs){
   }, timeout);
   try {
     const response = await fetch(url, requestOptions);
-    return await response.json();
+    return await readJsonResponse(response);
   } catch (error) {
     if(error && error.name === 'AbortError'){
       throw new Error(`Request timed out after ${Math.ceil(timeout / 1000)}s`);
@@ -4463,6 +4461,25 @@ async function fetchJsonWithTimeout(url, options, timeoutMs){
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function readJsonResponse(response){
+  const contentType = String(response && response.headers && response.headers.get('content-type') || '').toLowerCase();
+  if(contentType.includes('application/json')){
+    const data = await response.json();
+    if(response.ok){
+      return data;
+    }
+    const errorMessage = data && typeof data.error === 'string' && data.error.trim()
+      ? data.error.trim()
+      : `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
+    throw new Error(errorMessage);
+  }
+
+  const rawText = await response.text();
+  const snippet = (rawText || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const statusText = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
+  throw new Error(snippet ? `${statusText}: ${snippet}` : statusText);
 }
 
 function getActiveSortOrder(){
@@ -4506,8 +4523,7 @@ async function loadSessions(options){
     params.set('sort', sortOrder);
   }
   try {
-    const r = await fetch('/api/sessions?' + params.toString(), { cache: 'no-store' });
-    const data = await r.json();
+    const data = await fetchJsonWithTimeout('/api/sessions?' + params.toString(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
     if(requestId !== loadSessionsRequestSeq){
       return;
     }
@@ -4582,8 +4598,7 @@ async function loadLabeledItems(options){
   }
   renderLabeledList();
   try {
-    const response = await fetch('/api/labeled-items?ts=' + Date.now(), { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchJsonWithTimeout('/api/labeled-items?ts=' + Date.now(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
     if(requestId !== loadLabeledItemsRequestSeq){
       return;
     }
@@ -5721,6 +5736,7 @@ async function openSession(path, options){
     clearMessageRangeSelection();
   }
   renderSessionList();
+  renderLabeledList();
   safeRenderActiveSession();
   scheduleDetailLoadingWatchdog(path, requestId);
   try {

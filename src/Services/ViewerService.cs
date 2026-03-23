@@ -183,7 +183,24 @@ public sealed class ViewerService
             {
                 indexRecord = GetOrBuildIndexRecord(item);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (FileNotFoundException)
+            {
+                continue;
+            }
+            catch (IOException)
+            {
+                // Skip files being written/locked by another process.
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+            catch
             {
                 continue;
             }
@@ -205,7 +222,23 @@ public sealed class ViewerService
                     ? EnumerateCliTokenUsageEvents(item.Path)
                     : Array.Empty<SessionEventDto>();
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (FileNotFoundException)
+            {
+                continue;
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+            catch
             {
                 continue;
             }
@@ -261,8 +294,17 @@ public sealed class ViewerService
             {
                 record = GetOrBuildIndexRecord(item);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (FileNotFoundException)
             {
+                continue;
+            }
+            catch
+            {
+                // Skip unreadable or malformed session files and continue scanning.
                 continue;
             }
 
@@ -3256,7 +3298,11 @@ public sealed class ViewerService
 
     private static byte[] ReadRawBytes(string path, int limit)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
         var length = (int)Math.Min(Math.Max(limit, 0), stream.Length);
         var buffer = new byte[length];
         var offset = 0;

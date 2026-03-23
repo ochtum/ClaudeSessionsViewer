@@ -196,41 +196,98 @@ public class Program
 
     private static void MapApi(WebApplication app)
     {
-        app.MapGet("/api/labels", async (ViewerService viewer, CancellationToken cancellationToken) =>
+        app.MapGet("/api/labels", async (ViewerService viewer, ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
-            return Results.Ok(await viewer.GetLabelsAsync(cancellationToken));
+            try
+            {
+                return Results.Ok(await viewer.GetLabelsAsync(cancellationToken));
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogDebug("Labels request was canceled.");
+                return Results.Json(new { error = "Request canceled." }, statusCode: 499);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to load labels.");
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
-        app.MapGet("/api/labeled-items", async (ViewerService viewer, CancellationToken cancellationToken) =>
+        app.MapGet("/api/labeled-items", async (ViewerService viewer, ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
-            return Results.Ok(await viewer.GetLabeledItemsAsync(cancellationToken));
+            try
+            {
+                return Results.Ok(await viewer.GetLabeledItemsAsync(cancellationToken));
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogDebug("Labeled-items request was canceled.");
+                return Results.Json(new { error = "Request canceled." }, statusCode: 499);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to load labeled items.");
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
-        app.MapGet("/api/cost-summary", async (ViewerService viewer, CancellationToken cancellationToken) =>
+        app.MapGet("/api/cost-summary", async (ViewerService viewer, ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
-            return Results.Ok(await viewer.GetCostSummaryAsync(cancellationToken));
+            try
+            {
+                return Results.Ok(await viewer.GetCostSummaryAsync(cancellationToken));
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogDebug("Cost-summary request was canceled.");
+                return Results.Json(new { error = "Request canceled." }, statusCode: 499);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to load cost summary.");
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
-        app.MapGet("/api/sessions", async (HttpRequest request, ViewerService viewer, CancellationToken cancellationToken) =>
+        app.MapGet("/api/sessions", async (HttpRequest request, ViewerService viewer, ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
-            var query = request.Query;
-            var response = await viewer.GetSessionsAsync(
-                query["q"],
-                query["mode"],
-                query["sort"],
-                ParseOptionalInt(query["session_label_id"]),
-                ParseOptionalInt(query["event_label_id"]),
-                cancellationToken);
-            return Results.Ok(response);
+            try
+            {
+                var query = request.Query;
+                var response = await viewer.GetSessionsAsync(
+                    query["q"],
+                    query["mode"],
+                    query["sort"],
+                    ParseOptionalInt(query["session_label_id"]),
+                    ParseOptionalInt(query["event_label_id"]),
+                    cancellationToken);
+                return Results.Ok(response);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogDebug("Sessions request was canceled.");
+                return Results.Json(new { error = "Request canceled." }, statusCode: 499);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to load sessions.");
+                return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
-        app.MapGet("/api/session", async (HttpRequest request, ViewerService viewer, CancellationToken cancellationToken) =>
+        app.MapGet("/api/session", async (HttpRequest request, ViewerService viewer, ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
             try
             {
                 var includeEvents = !string.Equals(request.Query["include_events"], "false", StringComparison.OrdinalIgnoreCase);
                 var response = await viewer.GetSessionAsync(request.Query["path"], request.Query["source"], includeEvents, cancellationToken);
                 return Results.Ok(response);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogDebug("Session detail request was canceled.");
+                return Results.Json(new { error = "Request canceled." }, statusCode: 499);
             }
             catch (InvalidOperationException ex)
             {

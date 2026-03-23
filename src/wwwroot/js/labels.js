@@ -337,7 +337,26 @@ async function postJson(url, payload){
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {}),
   });
-  return r.json();
+  return readJsonResponse(r);
+}
+
+async function readJsonResponse(response){
+  const contentType = String(response && response.headers && response.headers.get('content-type') || '').toLowerCase();
+  if(contentType.includes('application/json')){
+    const data = await response.json();
+    if(response.ok){
+      return data;
+    }
+    const message = data && typeof data.error === 'string' && data.error.trim()
+      ? data.error.trim()
+      : `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
+    throw new Error(message);
+  }
+
+  const text = await response.text();
+  const snippet = (text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const status = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
+  throw new Error(snippet ? `${status}: ${snippet}` : status);
 }
 
 function renderPresetPreview(){
@@ -428,7 +447,7 @@ async function deleteLabel(id){
 async function loadLabels(){
   try {
     const r = await fetch('/api/labels?ts=' + Date.now(), { cache: 'no-store' });
-    const data = await r.json();
+    const data = await readJsonResponse(r);
     labelItems = data.labels || [];
     renderLabelList();
   } catch (error) {

@@ -555,7 +555,7 @@ async function loadCostSummary(){
   setStatus(t('status.loading'));
   try {
     const response = await fetch(`/api/cost-summary?ts=${Date.now()}`, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await readJsonResponse(response);
     costSummaryData = data;
     renderMeta();
     renderGroups();
@@ -570,6 +570,25 @@ async function loadCostSummary(){
       refresh.disabled = false;
     }
   }
+}
+
+async function readJsonResponse(response){
+  const contentType = String(response && response.headers && response.headers.get('content-type') || '').toLowerCase();
+  if(contentType.includes('application/json')){
+    const data = await response.json();
+    if(response.ok){
+      return data;
+    }
+    const message = data && typeof data.error === 'string' && data.error.trim()
+      ? data.error.trim()
+      : `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
+    throw new Error(message);
+  }
+
+  const text = await response.text();
+  const snippet = (text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const status = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
+  throw new Error(snippet ? `${status}: ${snippet}` : status);
 }
 
 function loadInitialLanguage(){
