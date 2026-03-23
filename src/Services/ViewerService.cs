@@ -13,6 +13,7 @@ public sealed class ViewerService
     private const int MaxDesktopScanBytes = 2 * 1024 * 1024;
     private const int SearchTextLimit = 50_000;
     private const int MaxCacheEntries = 500;
+    private const long TieredPricingThresholdTokens = 200_000;
 
     private static readonly string[] TextKeys =
     [
@@ -61,18 +62,42 @@ public sealed class ViewerService
         WriteIndented = true,
     };
 
+    private static readonly IReadOnlyDictionary<string, ClaudeModelPricing> ClaudePricingByModel = new Dictionary<string, ClaudeModelPricing>(StringComparer.Ordinal)
+    {
+        ["claude-sonnet-4-6"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.0000225m, 0.0000075m, 0.0000006m),
+        ["claude-sonnet-4-5"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.0000225m, 0.0000075m, 0.0000006m),
+        ["claude-sonnet-4"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.0000225m, 0.0000075m, 0.0000006m),
+        ["claude-sonnet-3-7"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m),
+        ["claude-sonnet-3-5"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.00003m, 0.0000075m, 0.0000006m),
+        ["claude-haiku-4-5"] = new(0.000001m, 0.000005m, 0.00000125m, 0.0000001m),
+        ["claude-haiku-3-5"] = new(0.0000008m, 0.000004m, 0.000001m, 0.00000008m),
+        ["claude-haiku-3"] = new(0.00000025m, 0.00000125m, 0.0000003125m, 0.000000025m),
+        ["claude-opus-4-6"] = new(0.000005m, 0.000025m, 0.00000625m, 0.0000005m, 0.00001m, 0.0000375m, 0.0000125m, 0.000001m),
+        ["claude-opus-4-5"] = new(0.000005m, 0.000025m, 0.00000625m, 0.0000005m),
+        ["claude-opus-4-1"] = new(0.000015m, 0.000075m, 0.00001875m, 0.0000015m),
+        ["claude-opus-4"] = new(0.000015m, 0.000075m, 0.00001875m, 0.0000015m),
+        ["claude-opus-3"] = new(0.000015m, 0.000075m, 0.00001875m, 0.0000015m),
+        ["claude-sonnet-3"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m),
+    };
+
     private readonly LabelStore _labelStore;
     private readonly ViewerSettingsStore _viewerSettings;
+    private readonly ExchangeRateService _exchangeRates;
     private readonly string _contentRootPath;
     private readonly ConcurrentDictionary<string, SessionCacheEntry> _cache = new(PathComparer);
     private IReadOnlyList<string>? _cliRoots;
     private IReadOnlyList<string>? _desktopRoots;
     private IReadOnlyList<string>? _wslCliRootsOnWindows;
 
-    public ViewerService(LabelStore labelStore, ViewerSettingsStore viewerSettings, IHostEnvironment hostEnvironment)
+    public ViewerService(
+        LabelStore labelStore,
+        ViewerSettingsStore viewerSettings,
+        IHostEnvironment hostEnvironment,
+        ExchangeRateService exchangeRates)
     {
         _labelStore = labelStore;
         _viewerSettings = viewerSettings;
+        _exchangeRates = exchangeRates;
         _contentRootPath = CanonicalizePath(hostEnvironment.ContentRootPath);
     }
 
@@ -141,9 +166,10 @@ public sealed class ViewerService
         };
     }
 
-    public Task<CostSummaryResponse> GetCostSummaryAsync(CancellationToken cancellationToken = default)
+    public async Task<CostSummaryResponse> GetCostSummaryAsync(CancellationToken cancellationToken = default)
     {
         var nowLocal = DateTime.Now;
+        var exchangeRate = await _exchangeRates.GetUsdJpyRateAsync(cancellationToken);
         var groups = BuildCostSummaryGroupDefinitions(nowLocal)
             .Select(definition => new CostSummaryGroupAccumulator(definition))
             .ToArray();
@@ -200,12 +226,13 @@ public sealed class ViewerService
             }
         }
 
-        return Task.FromResult(new CostSummaryResponse
+        return new CostSummaryResponse
         {
             GeneratedAt = ToIsoLocal(DateTime.Now),
             TimeZoneId = TimeZoneInfo.Local.Id,
+            ExchangeRate = exchangeRate,
             Groups = groups.Select(group => group.ToDto()).ToArray(),
-        });
+        };
     }
 
     public async Task<SessionListResponse> GetSessionsAsync(
@@ -290,6 +317,7 @@ public sealed class ViewerService
     {
         var item = ResolveSessionItem(rawPath, rawSourceType);
         var snapshot = await _labelStore.GetSnapshotAsync(cancellationToken);
+        var exchangeRate = await _exchangeRates.GetUsdJpyRateAsync(cancellationToken);
         var indexRecord = GetOrBuildIndexRecord(item);
         var sessionPath = indexRecord.Summary.Path;
         var sessionLabelIds = snapshot.SessionLabels.TryGetValue(sessionPath, out var sIds) ? sIds : Array.Empty<int>();
@@ -302,6 +330,7 @@ public sealed class ViewerService
                     indexRecord.Summary,
                     sessionLabelIds,
                     ResolveLabels(sessionLabelIds, snapshot.LabelById)),
+                ExchangeRate = exchangeRate,
             };
         }
 
@@ -326,6 +355,7 @@ public sealed class ViewerService
                         snapshot.LabelById)))
                 .ToArray(),
             RawLineCount = eventsData.RawLineCount,
+            ExchangeRate = exchangeRate,
         };
     }
 
@@ -881,6 +911,7 @@ public sealed class ViewerService
             StartedAt = string.Empty,
             Cwd = string.Empty,
             Model = string.Empty,
+            EffortLevel = string.Empty,
             FirstUserText = string.Empty,
             FirstRealUserText = string.Empty,
             MinEventTs = string.Empty,
@@ -928,6 +959,11 @@ public sealed class ViewerService
                         {
                             Model = modelName,
                         };
+                    }
+
+                    if (string.IsNullOrWhiteSpace(summary.EffortLevel) && !string.IsNullOrWhiteSpace(@event.EffortLevel))
+                    {
+                        summary = summary with { EffortLevel = @event.EffortLevel };
                     }
 
                     AddDistinctModel(models, summary.Model);
@@ -1008,6 +1044,7 @@ public sealed class ViewerService
             StartedAt = string.Empty,
             Cwd = string.Empty,
             Model = string.Empty,
+            EffortLevel = string.Empty,
             FirstUserText = string.Empty,
             FirstRealUserText = string.Empty,
             MinEventTs = string.Empty,
@@ -1190,7 +1227,9 @@ public sealed class ViewerService
         var role = GuessRole(obj);
         var kind = "event";
         var text = string.Empty;
-        var usage = ExtractUsage(obj);
+        var modelName = ExtractModelName(obj);
+        var effortLevel = ExtractEffortLevel(obj);
+        var usage = ExtractUsage(obj, modelName);
 
         if (type == "user")
         {
@@ -1276,7 +1315,8 @@ public sealed class ViewerService
             Kind = kind,
             Role = role,
             Text = text,
-            Model = ExtractModelName(obj),
+            Model = modelName,
+            EffortLevel = effortLevel,
             SystemLabels = systemLabels,
             Usage = usage,
         };
@@ -1296,6 +1336,7 @@ public sealed class ViewerService
             Kind = "token_usage",
             Role = "system",
             Model = sourceEvent.Model,
+            EffortLevel = sourceEvent.EffortLevel,
             Usage = sourceEvent.Usage,
         };
     }
@@ -2198,7 +2239,29 @@ public sealed class ViewerService
             messageModel);
     }
 
-    private static UsageMetricsDto? ExtractUsage(JsonElement obj)
+    private static string ExtractEffortLevel(JsonElement obj)
+    {
+        var messageEffort = TryGetProperty(obj, "message", out var message)
+            ? FirstNonEmpty(
+                GetString(message, "effort_level"),
+                GetString(message, "effort"),
+                GetString(message, "reasoning_effort"),
+                TryGetNestedString(message, "metadata", "effort_level"),
+                TryGetNestedString(message, "metadata", "effort"),
+                TryGetNestedString(message, "metadata", "reasoning_effort"))
+            : string.Empty;
+
+        return FirstNonEmpty(
+            GetString(obj, "effort_level"),
+            GetString(obj, "effort"),
+            GetString(obj, "reasoning_effort"),
+            TryGetNestedString(obj, "collaboration_mode", "settings", "effort_level"),
+            TryGetNestedString(obj, "collaboration_mode", "settings", "effort"),
+            TryGetNestedString(obj, "collaboration_mode", "settings", "reasoning_effort"),
+            messageEffort);
+    }
+
+    private static UsageMetricsDto? ExtractUsage(JsonElement obj, string modelName)
     {
         if (!TryGetProperty(obj, "message", out var message)
             || message.ValueKind != JsonValueKind.Object
@@ -2212,7 +2275,13 @@ public sealed class ViewerService
         var outputTokens = GetInt64(usage, "output_tokens");
         var cacheCreationTokens = GetInt64(usage, "cache_creation_input_tokens");
         var cacheReadTokens = GetInt64(usage, "cache_read_input_tokens");
-        var costUsd = GetDecimal(obj, "costUSD");
+        var costUsd = TryExtractCostUsd(obj, usage)
+            ?? TryCalculateCostUsdFromModel(
+                modelName,
+                inputTokens,
+                outputTokens,
+                cacheCreationTokens,
+                cacheReadTokens);
 
         if (inputTokens == 0
             && outputTokens == 0
@@ -2560,6 +2629,7 @@ public sealed class ViewerService
             Role = @event.Role,
             Text = @event.Text,
             Model = @event.Model,
+            EffortLevel = @event.EffortLevel,
             Name = @event.Name,
             Arguments = @event.Arguments,
             CallId = @event.CallId,
@@ -2912,11 +2982,169 @@ public sealed class ViewerService
         };
     }
 
+    private static decimal? TryExtractCostUsd(JsonElement eventElement, JsonElement usageElement)
+    {
+        if (GetDecimal(eventElement, "costUSD") is decimal topLevelCost)
+        {
+            return topLevelCost;
+        }
+
+        if (TryGetProperty(eventElement, "cost", out var costObject)
+            && costObject.ValueKind == JsonValueKind.Object)
+        {
+            if (GetDecimal(costObject, "total_cost_usd") is decimal totalCostUsd)
+            {
+                return totalCostUsd;
+            }
+
+            if (GetDecimal(costObject, "totalCostUsd") is decimal totalCostUsdCamel)
+            {
+                return totalCostUsdCamel;
+            }
+        }
+
+        if (GetDecimal(usageElement, "cost_usd") is decimal usageCostUsd)
+        {
+            return usageCostUsd;
+        }
+
+        return GetDecimal(usageElement, "costUSD");
+    }
+
+    private static decimal? TryCalculateCostUsdFromModel(
+        string rawModelName,
+        long inputTokens,
+        long outputTokens,
+        long cacheCreationTokens,
+        long cacheReadTokens)
+    {
+        var key = NormalizeClaudePricingModelKey(rawModelName);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        if (!ClaudePricingByModel.TryGetValue(key, out var pricing))
+        {
+            return null;
+        }
+
+        var inputCost = CalculateTieredTokenCost(inputTokens, pricing.InputCostPerToken, pricing.InputCostPerTokenAbove200k);
+        var outputCost = CalculateTieredTokenCost(outputTokens, pricing.OutputCostPerToken, pricing.OutputCostPerTokenAbove200k);
+        var cacheCreationCost = CalculateTieredTokenCost(cacheCreationTokens, pricing.CacheCreationInputCostPerToken, pricing.CacheCreationInputCostPerTokenAbove200k);
+        var cacheReadCost = CalculateTieredTokenCost(cacheReadTokens, pricing.CacheReadInputCostPerToken, pricing.CacheReadInputCostPerTokenAbove200k);
+        return inputCost + outputCost + cacheCreationCost + cacheReadCost;
+    }
+
+    private static decimal CalculateTieredTokenCost(long tokens, decimal unitCost, decimal? unitCostAbove200k)
+    {
+        if (tokens <= 0)
+        {
+            return 0m;
+        }
+
+        if (!unitCostAbove200k.HasValue || tokens <= TieredPricingThresholdTokens)
+        {
+            return tokens * unitCost;
+        }
+
+        var baseTokens = TieredPricingThresholdTokens;
+        var aboveTokens = tokens - TieredPricingThresholdTokens;
+        return (baseTokens * unitCost) + (aboveTokens * unitCostAbove200k.Value);
+    }
+
+    private static string NormalizeClaudePricingModelKey(string rawModelName)
+    {
+        var normalized = (rawModelName ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return string.Empty;
+        }
+
+        if (normalized.Contains("claude-sonnet-4-6", StringComparison.Ordinal))
+        {
+            return "claude-sonnet-4-6";
+        }
+        if (normalized.Contains("claude-sonnet-4-5", StringComparison.Ordinal))
+        {
+            return "claude-sonnet-4-5";
+        }
+        if (normalized.Contains("claude-sonnet-4", StringComparison.Ordinal) || normalized.Contains("claude-4-sonnet", StringComparison.Ordinal))
+        {
+            return "claude-sonnet-4";
+        }
+        if (normalized.Contains("claude-3-7-sonnet", StringComparison.Ordinal) || normalized.Contains("claude-sonnet-3-7", StringComparison.Ordinal))
+        {
+            return "claude-sonnet-3-7";
+        }
+        if (normalized.Contains("claude-3-5-sonnet", StringComparison.Ordinal) || normalized.Contains("claude-sonnet-3-5", StringComparison.Ordinal))
+        {
+            return "claude-sonnet-3-5";
+        }
+        if (normalized.Contains("claude-haiku-4-5", StringComparison.Ordinal))
+        {
+            return "claude-haiku-4-5";
+        }
+        if (normalized.Contains("claude-3-5-haiku", StringComparison.Ordinal) || normalized.Contains("claude-haiku-3-5", StringComparison.Ordinal))
+        {
+            return "claude-haiku-3-5";
+        }
+        if (normalized.Contains("claude-3-haiku", StringComparison.Ordinal))
+        {
+            return "claude-haiku-3";
+        }
+        if (normalized.Contains("claude-opus-4-6", StringComparison.Ordinal))
+        {
+            return "claude-opus-4-6";
+        }
+        if (normalized.Contains("claude-opus-4-5", StringComparison.Ordinal))
+        {
+            return "claude-opus-4-5";
+        }
+        if (normalized.Contains("claude-opus-4-1", StringComparison.Ordinal))
+        {
+            return "claude-opus-4-1";
+        }
+        if (normalized.Contains("claude-opus-4", StringComparison.Ordinal) || normalized.Contains("claude-4-opus", StringComparison.Ordinal))
+        {
+            return "claude-opus-4";
+        }
+        if (normalized.Contains("claude-3-opus", StringComparison.Ordinal))
+        {
+            return "claude-opus-3";
+        }
+        if (normalized.Contains("claude-3-sonnet", StringComparison.Ordinal))
+        {
+            return "claude-sonnet-3";
+        }
+
+        return string.Empty;
+    }
+
     private static string GetString(JsonElement element, string propertyName)
     {
         return TryGetProperty(element, propertyName, out var value)
             ? GetElementText(value)
             : string.Empty;
+    }
+
+    private static string TryGetNestedString(JsonElement element, params string[] path)
+    {
+        var current = element;
+        foreach (var segment in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object)
+            {
+                return string.Empty;
+            }
+
+            if (!TryGetProperty(current, segment, out current))
+            {
+                return string.Empty;
+            }
+        }
+
+        return GetElementText(current).Trim();
     }
 
     private static long GetInt64(JsonElement element, string propertyName)
@@ -3385,6 +3613,16 @@ public sealed class ViewerService
             };
         }
     }
+
+    private readonly record struct ClaudeModelPricing(
+        decimal InputCostPerToken,
+        decimal OutputCostPerToken,
+        decimal CacheCreationInputCostPerToken,
+        decimal CacheReadInputCostPerToken,
+        decimal? InputCostPerTokenAbove200k = null,
+        decimal? OutputCostPerTokenAbove200k = null,
+        decimal? CacheCreationInputCostPerTokenAbove200k = null,
+        decimal? CacheReadInputCostPerTokenAbove200k = null);
 
     private readonly record struct LevelDbEntry(byte[] Key, byte[] Value);
 

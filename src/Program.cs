@@ -76,8 +76,14 @@ public class Program
         {
             pipeline.MinifyCssFiles("css/**/*.css");
         });
+        builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("exchange-rates", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
         builder.Services.AddSingleton<LabelStore>();
         builder.Services.AddSingleton<ViewerSettingsStore>();
+        builder.Services.AddSingleton<ExchangeRateService>();
         builder.Services.AddSingleton<ViewerService>();
 
         var app = builder.Build();

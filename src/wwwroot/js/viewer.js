@@ -5,6 +5,7 @@ const state = {
   labeledEvents: [],
   activePath: null,
   activeSession: null,
+  activeExchangeRate: null,
   activeEvents: [],
   activeRawLineCount: 0,
   sessionRoot: '',
@@ -29,6 +30,7 @@ const state = {
 
 const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v4';
 const LANGUAGE_STORAGE_KEY = 'claude_sessions_viewer_language_v1';
+const COST_CURRENCY_STORAGE_KEY = 'claude_sessions_viewer_cost_currency_v1';
 const fpInstances = {};
 const segInstances = {};
 const FP_LOCALE_MAP = {
@@ -574,9 +576,11 @@ function initAllFlatpickr(){
   });
 }
 const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh-Hans', 'zh-Hant'];
+const SUPPORTED_COST_CURRENCIES = ['USD', 'JPY', 'CNY', 'TWD', 'HKD'];
 const I18N = {
   ja: {
     'language.selector': '言語',
+    'currency.selector': '通貨',
     'header.subtitle': 'ClaudeCodeのイベント履歴を一覧表示・詳細表示して、検索できます。\n覚えておきたい内容にラベルを付けて、あとから見つけることもできます。',
     'header.shortcuts': 'ショートカット',
     'header.meta.show': 'メタ表示',
@@ -738,6 +742,8 @@ const I18N = {
     'meta.time': 'time',
     'meta.usage': 'usage',
     'meta.models': 'models',
+    'meta.effortLevel': 'Effort Level',
+    'meta.fxRate': '為替',
     'meta.status': 'status',
     'usage.model': 'model',
     'usage.input': 'input',
@@ -806,6 +812,7 @@ const I18N = {
   },
   en: {
     'language.selector': 'Language',
+    'currency.selector': 'Currency',
     'header.subtitle': 'Browse ClaudeCode event histories in list and detail views, and search them.\nYou can also attach labels to anything worth remembering and find it later.',
     'header.shortcuts': 'Shortcuts',
     'header.meta.show': 'Show meta',
@@ -967,6 +974,8 @@ const I18N = {
     'meta.time': 'time',
     'meta.usage': 'usage',
     'meta.models': 'models',
+    'meta.effortLevel': 'Effort Level',
+    'meta.fxRate': 'FX',
     'meta.status': 'status',
     'usage.model': 'model',
     'usage.input': 'input',
@@ -1035,6 +1044,7 @@ const I18N = {
   },
   'zh-Hans': {
     'language.selector': '语言',
+    'currency.selector': '货币',
     'header.subtitle': '可以通过列表和详细视图查看 ClaudeCode 的事件历史，并进行搜索。\n还可以给想保留的内容加上标签，之后再轻松找到。',
     'header.shortcuts': '快捷键',
     'header.meta.show': '显示元信息',
@@ -1196,6 +1206,8 @@ const I18N = {
     'meta.time': 'time',
     'meta.usage': 'usage',
     'meta.models': '模型',
+    'meta.effortLevel': 'Effort Level',
+    'meta.fxRate': '汇率',
     'meta.status': 'status',
     'usage.model': '模型',
     'usage.input': '输入',
@@ -1266,6 +1278,7 @@ const I18N = {
 I18N['zh-Hant'] = {
   ...I18N['zh-Hans'],
   'language.selector': '語言',
+  'currency.selector': '幣別',
   'header.subtitle': '可以透過列表與詳細檢視查看 ClaudeCode 的事件歷史，並進行搜尋。\n還可以替想保留的內容加上標籤，之後再輕鬆找到。',
   'header.meta.show': '顯示中繼資訊',
   'header.meta.hide': '隱藏中繼資訊',
@@ -1394,6 +1407,8 @@ I18N['zh-Hant'] = {
   'shortcut.after': '僅顯示錨點之後',
   'meta.models': '模型',
   'meta.usage': 'usage',
+  'meta.effortLevel': 'Effort Level',
+  'meta.fxRate': '匯率',
   'usage.model': '模型',
   'usage.input': '輸入',
   'usage.cached': '快取',
@@ -1452,6 +1467,7 @@ I18N['zh-Hant'] = {
   'copy.single': '複製',
 };
 let uiLanguage = 'ja';
+let selectedCostCurrency = 'USD';
 
 function normalizeLanguage(value){
   const raw = (value || '').trim();
@@ -1462,6 +1478,25 @@ function normalizeLanguage(value){
     return 'zh-Hant';
   }
   return SUPPORTED_LANGUAGES.includes(raw) ? raw : 'ja';
+}
+
+function normalizeCostCurrency(value){
+  const raw = (value || '').trim().toUpperCase();
+  return SUPPORTED_COST_CURRENCIES.includes(raw) ? raw : '';
+}
+
+function getDefaultCostCurrencyForLanguage(language){
+  const normalized = normalizeLanguage(language);
+  if(normalized === 'ja'){
+    return 'JPY';
+  }
+  if(normalized === 'zh-Hans'){
+    return 'CNY';
+  }
+  if(normalized === 'zh-Hant'){
+    return 'TWD';
+  }
+  return 'USD';
 }
 
 function t(key, vars){
@@ -1540,6 +1575,11 @@ function applyMainLanguage(){
   document.title = 'Claude Sessions Viewer';
   document.getElementById('language_select').value = uiLanguage;
   document.getElementById('language_select').setAttribute('aria-label', t('language.selector'));
+  const currencySelect = document.getElementById('currency_select');
+  if(currencySelect){
+    currencySelect.value = getPreferredCostCurrencyCode();
+    currencySelect.setAttribute('aria-label', t('currency.selector'));
+  }
   setText('.header-subtitle', t('header.subtitle'));
   setTextById('open_shortcuts', t('header.shortcuts'));
   document.getElementById('open_shortcuts').setAttribute('title', t('header.shortcuts'));
@@ -1701,9 +1741,30 @@ function setUiLanguage(nextLanguage, persist){
   applyMainLanguage();
 }
 
+function setCostCurrency(nextCurrency, persist){
+  const normalized = normalizeCostCurrency(nextCurrency) || getDefaultCostCurrencyForLanguage(uiLanguage);
+  selectedCostCurrency = normalized;
+  if(persist !== false){
+    try {
+      localStorage.setItem(COST_CURRENCY_STORAGE_KEY, normalized);
+    } catch (e) {
+      // Ignore storage write errors.
+    }
+  }
+  applyMainLanguage();
+}
+
 function readStoredLanguage(){
   try {
     return localStorage.getItem(LANGUAGE_STORAGE_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function readStoredCostCurrency(){
+  try {
+    return localStorage.getItem(COST_CURRENCY_STORAGE_KEY) || '';
   } catch (e) {
     return '';
   }
@@ -1714,14 +1775,22 @@ function getRequestedLanguage(){
   return normalizeLanguage(params.get('lang') || readStoredLanguage() || uiLanguage);
 }
 
+function getRequestedCostCurrency(){
+  const params = new URLSearchParams(window.location.search);
+  const requested = normalizeCostCurrency(params.get('currency') || readStoredCostCurrency() || '');
+  return requested || getDefaultCostCurrencyForLanguage(uiLanguage);
+}
+
 const SEARCH_DEBOUNCE_MS = 180;
 const BUTTON_FEEDBACK_MS = 1200;
 const DETAIL_INTERACTION_LOCK_MS = 4000;
+const API_REQUEST_TIMEOUT_MS = 30000;
 let loadSessionsTimer = null;
 let loadSessionsRequestSeq = 0;
 let loadSessionDetailRequestSeq = 0;
 let loadLabeledItemsRequestSeq = 0;
 let todayUsageSummary = null;
+let todayUsageExchangeRate = null;
 let todayUsageSummaryStatus = 'idle';
 let todayUsageSummaryMessage = '';
 let todayUsageSummaryRequestSeq = 0;
@@ -1749,6 +1818,7 @@ let pendingDetailKeywordFocusIndex = -1;
 let detailKeywordSearchTotal = 0;
 let pendingEventsScrollRestoreTop = null;
 let pendingLabeledEventFocusId = '';
+let detailLoadingWatchdogTimer = 0;
 
 function esc(s){
   return (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2032,6 +2102,10 @@ function isSystemLabeledUserEvent(ev){
   }
   const labels = ev.system_labels || [];
   return labels.includes('SKILLS') || labels.includes('CONTINUATION_SUMMARY') || labels.includes('BACKGROUND_TASK');
+}
+
+function shouldShowSystemLabels(){
+  return detailMetaVisible;
 }
 
 function filterEventsToTurnBoundaries(events){
@@ -2407,7 +2481,11 @@ function openLabelManagerWindow(){
 
 function openCostSummaryWindow(){
   const features = 'width=1480,height=920,resizable=yes,scrollbars=yes';
-  window.open(`/costs?lang=${encodeURIComponent(uiLanguage)}`, 'claude_cost_summary', features);
+  const params = new URLSearchParams({
+    lang: uiLanguage,
+    currency: getPreferredCostCurrencyCode(),
+  });
+  window.open(`/costs?${params.toString()}`, 'claude_cost_summary', features);
 }
 
 function highlightSessionPath(s){
@@ -2483,10 +2561,119 @@ function formatUsageUsd(value){
   }).format(num);
 }
 
-function formatUsageCostDisplay(value){
-  return Number.isFinite(Number(value))
-    ? formatUsageUsd(value)
-    : t('usage.costUnknown');
+function formatUsageJpy(value){
+  const num = Number(value);
+  if(!Number.isFinite(num)) return '';
+  const abs = Math.abs(num);
+  const fractionDigits = abs >= 100 ? 0 : (abs >= 10 ? 1 : (abs >= 1 ? 2 : 3));
+  return new Intl.NumberFormat(getUiLocale(), {
+    style: 'currency',
+    currency: 'JPY',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(num);
+}
+
+function formatUsageCny(value){
+  const num = Number(value);
+  if(!Number.isFinite(num)) return '';
+  const abs = Math.abs(num);
+  const fractionDigits = abs >= 10 ? 2 : (abs >= 1 ? 3 : 4);
+  return new Intl.NumberFormat(getUiLocale(), {
+    style: 'currency',
+    currency: 'CNY',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(num);
+}
+
+function formatLocalCurrency(value, currencyCode){
+  const num = Number(value);
+  if(!Number.isFinite(num) || !currencyCode || currencyCode === 'USD'){
+    return '';
+  }
+  if(currencyCode === 'JPY'){
+    return formatUsageJpy(num);
+  }
+  if(currencyCode === 'CNY'){
+    return formatUsageCny(num);
+  }
+  const abs = Math.abs(num);
+  const fractionDigits = abs >= 10 ? 2 : (abs >= 1 ? 3 : 4);
+  return new Intl.NumberFormat(getUiLocale(), {
+    style: 'currency',
+    currency: currencyCode,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(num);
+}
+
+function getPreferredCostCurrencyCode(){
+  return normalizeCostCurrency(selectedCostCurrency) || 'USD';
+}
+
+function getExchangeRateValue(exchangeRate, currencyCode){
+  if(!exchangeRate || currencyCode === 'USD'){
+    return null;
+  }
+  const rate = currencyCode === 'JPY'
+    ? Number(exchangeRate.jpy_rate)
+    : currencyCode === 'CNY'
+      ? Number(exchangeRate.cny_rate)
+      : currencyCode === 'TWD'
+        ? Number(exchangeRate.twd_rate)
+        : currencyCode === 'HKD'
+          ? Number(exchangeRate.hkd_rate)
+          : NaN;
+  return Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+function convertUsdToLocalCurrency(value, exchangeRate, currencyCode){
+  const usd = Number(value);
+  const rate = getExchangeRateValue(exchangeRate, currencyCode);
+  if(!Number.isFinite(usd) || !Number.isFinite(rate) || rate <= 0){
+    return null;
+  }
+  return usd * rate;
+}
+
+function formatExchangeRateDisplay(exchangeRate){
+  const currencyCode = getPreferredCostCurrencyCode();
+  if(!exchangeRate || currencyCode === 'USD'){
+    return '';
+  }
+  const rate = getExchangeRateValue(exchangeRate, currencyCode);
+  if(!Number.isFinite(rate) || rate <= 0){
+    return '';
+  }
+  const pair = `${exchangeRate.base_currency || 'USD'}/${currencyCode}`;
+  const formattedRate = new Intl.NumberFormat(getUiLocale(), {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(rate);
+  const fetchedAt = exchangeRate.fetched_at ? fmt(exchangeRate.fetched_at) : '';
+  return fetchedAt
+    ? `${pair} ${formattedRate} @ ${fetchedAt}`
+    : `${pair} ${formattedRate}`;
+}
+
+function formatUsageCostDisplay(value, exchangeRate){
+  if(!Number.isFinite(Number(value))){
+    return t('usage.costUnknown');
+  }
+  const currencyCode = getPreferredCostCurrencyCode();
+  if(currencyCode === 'USD'){
+    return formatUsageUsd(value);
+  }
+  const localValue = convertUsdToLocalCurrency(value, exchangeRate, currencyCode);
+  if(localValue == null){
+    return formatUsageUsd(value);
+  }
+  const formattedLocal = formatLocalCurrency(localValue, currencyCode);
+  if(!formattedLocal){
+    return formatUsageUsd(value);
+  }
+  return `${formatUsageUsd(value)} / ${formattedLocal}`;
 }
 
 function formatCompactNumber(value){
@@ -2603,7 +2790,7 @@ function renderUsageBadges(usage, variant){
     }
   }
   if(Number.isFinite(Number(usage.cost_usd))){
-    badges.push(buildUsageBadge(t('usage.costUsd', { cost: formatUsageUsd(usage.cost_usd) }), 'usage-badge-cost'));
+    badges.push(buildUsageBadge(t('usage.costUsd', { cost: formatUsageCostDisplay(usage.cost_usd, state.activeExchangeRate) }), 'usage-badge-cost'));
   }
   return badges.join('');
 }
@@ -2634,7 +2821,7 @@ function renderUsageMetaRows(usage){
     },
     {
       label: t('usage.cost'),
-      value: formatUsageCostDisplay(usage.cost_usd),
+      value: formatUsageCostDisplay(usage.cost_usd, state.activeExchangeRate),
       tooltip: t('usage.tooltip.cost'),
     },
     {
@@ -2661,13 +2848,29 @@ function renderModelMetaRow(session){
   const models = Array.isArray(session.models)
     ? session.models.filter(Boolean)
     : [];
+  const effortLevel = session && session.effort_level
+    ? String(session.effort_level).trim()
+    : '';
+  let modelRow = '';
   if(models.length){
-    return `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.models'))}</span><span class="header-meta-value">${esc(models.join(', '))}</span></div>`;
+    const effortTag = effortLevel
+      ? `<span class="meta-tag">${esc(`${t('meta.effortLevel')}:`)}</span><span class="header-meta-text">${esc(effortLevel)}</span>`
+      : '';
+    modelRow = `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.models'))}</span><span class="header-meta-value">${esc(models.join(', '))}</span>${effortTag}</div>`;
+  } else if(session.model){
+    const effortTag = effortLevel
+      ? `<span class="meta-tag">${esc(`${t('meta.effortLevel')}:`)}</span><span class="header-meta-text">${esc(effortLevel)}</span>`
+      : '';
+    modelRow = `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.models'))}</span><span class="header-meta-value">${esc(session.model)}</span>${effortTag}</div>`;
+  } else if(effortLevel){
+    modelRow = `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.effortLevel'))}</span><span class="header-meta-value">${esc(effortLevel)}</span></div>`;
   }
-  if(session.model){
-    return `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.models'))}</span><span class="header-meta-value">${esc(session.model)}</span></div>`;
-  }
-  return '';
+
+  const fxDisplay = formatExchangeRateDisplay(state.activeExchangeRate);
+  const fxRow = fxDisplay
+    ? `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.fxRate'))}</span><span class="header-meta-value">${esc(fxDisplay)}</span></div>`
+    : '';
+  return modelRow + fxRow;
 }
 
 function findCostSummaryPeriod(summary, groupKey, periodKey, scopeKey){
@@ -2723,7 +2926,7 @@ function renderTodayUsageSummary(){
     },
     {
       label: t('usage.cost'),
-      value: formatUsageCostDisplay(todayUsageSummary.cost_usd),
+      value: formatUsageCostDisplay(todayUsageSummary.cost_usd, todayUsageExchangeRate),
       tooltip: t('usage.tooltip.cost'),
     },
     {
@@ -2752,6 +2955,7 @@ async function refreshTodayUsageSummary(){
       return;
     }
     todayUsageSummary = pickTodayUsageSummary(data);
+    todayUsageExchangeRate = data.exchange_rate || null;
     todayUsageSummaryStatus = todayUsageSummary ? 'ready' : 'empty';
     todayUsageSummaryMessage = '';
     renderTodayUsageSummary();
@@ -2759,6 +2963,7 @@ async function refreshTodayUsageSummary(){
     if(requestId !== todayUsageSummaryRequestSeq){
       return;
     }
+    todayUsageExchangeRate = null;
     todayUsageSummaryStatus = 'error';
     todayUsageSummaryMessage = normalizeRequestError(error, t('todaySummary.error'));
     renderTodayUsageSummary();
@@ -3635,7 +3840,7 @@ function formatTokenUsageEventBody(ev){
   lines.push(`${t('usage.cached')}: ${formatUsageCount(getUsageCachedTokens(usage))}`);
   lines.push(`${t('usage.output')}: ${formatUsageCount(usage ? usage.output_tokens || 0 : 0)}`);
   lines.push(`${t('usage.total')}: ${formatUsageCount(getUsageTotalTokens(usage))}`);
-  lines.push(`${t('usage.cost')}: ${formatUsageCostDisplay(usage ? usage.cost_usd : null)}`);
+  lines.push(`${t('usage.cost')}: ${formatUsageCostDisplay(usage ? usage.cost_usd : null, state.activeExchangeRate)}`);
   lines.push(`${t('usage.perDollar')}: ${formatTokensPerDollar(getUsageTotalTokens(usage), usage ? usage.cost_usd : null) || '-'}`);
   lines.push(`${t('usage.score')}: ${formatUsageScoreDisplay(performance.score)}`);
   lines.push(`${t('usage.rank')}: ${performance.rank || '-'}`);
@@ -4212,6 +4417,54 @@ function normalizeRequestError(error, fallback){
   return fallback;
 }
 
+function clearDetailLoadingWatchdog(){
+  if(detailLoadingWatchdogTimer){
+    clearTimeout(detailLoadingWatchdogTimer);
+    detailLoadingWatchdogTimer = 0;
+  }
+}
+
+function scheduleDetailLoadingWatchdog(path, requestId){
+  clearDetailLoadingWatchdog();
+  detailLoadingWatchdogTimer = setTimeout(() => {
+    if(!state.isDetailLoading){
+      return;
+    }
+    if(requestId !== loadSessionDetailRequestSeq){
+      return;
+    }
+    if(path !== state.activePath){
+      return;
+    }
+    state.isDetailLoading = false;
+    state.detailLoadMode = '';
+    if(!state.detailError){
+      state.detailError = `Detail loading timed out after ${Math.ceil(API_REQUEST_TIMEOUT_MS / 1000)}s`;
+    }
+    renderActiveSession();
+  }, API_REQUEST_TIMEOUT_MS + 1500);
+}
+
+async function fetchJsonWithTimeout(url, options, timeoutMs){
+  const timeout = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : API_REQUEST_TIMEOUT_MS;
+  const controller = new AbortController();
+  const requestOptions = options ? { ...options, signal: controller.signal } : { signal: controller.signal };
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+  try {
+    const response = await fetch(url, requestOptions);
+    return await response.json();
+  } catch (error) {
+    if(error && error.name === 'AbortError'){
+      throw new Error(`Request timed out after ${Math.ceil(timeout / 1000)}s`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function getActiveSortOrder(){
   const active = document.querySelector('.sort-tab.active');
   return active ? active.dataset.sort : 'desc';
@@ -4284,6 +4537,7 @@ async function loadSessions(options){
       } else {
         state.activePath = null;
         state.activeSession = null;
+        state.activeExchangeRate = null;
         state.activeEvents = [];
         state.activeRawLineCount = 0;
         state.detailError = '';
@@ -5414,6 +5668,29 @@ function renderActiveSession(){
   updateCopyResumeButtonState();
 }
 
+function safeRenderActiveSession(){
+  try {
+    renderActiveSession();
+  } catch (error) {
+    state.isDetailLoading = false;
+    state.detailLoadMode = '';
+    state.detailError = normalizeRequestError(error, t('error.detail'));
+    const meta = document.getElementById('meta');
+    const eventsBox = document.getElementById('events');
+    if(meta){
+      meta.innerHTML = `<div class="header-meta-row"><span class="header-meta-text error">${esc(state.detailError)}</span></div>`;
+    }
+    if(eventsBox){
+      eventsBox.innerHTML = renderInlineStatus(
+        t('status.detail.errorTitle'),
+        state.detailError,
+        'error'
+      );
+    }
+    setStatusLayer('detail_status');
+  }
+}
+
 async function openSession(path, options){
   const requestId = ++loadSessionDetailRequestSeq;
   const nextSession = state.sessions.find(s => s.path === path) || null;
@@ -5430,6 +5707,7 @@ async function openSession(path, options){
   state.isDetailLoading = true;
   state.detailError = '';
   state.detailLoadMode = loadMode;
+  state.activeExchangeRate = null;
   if(nextSession){
     state.activeSession = nextSession;
   }
@@ -5443,11 +5721,11 @@ async function openSession(path, options){
     clearMessageRangeSelection();
   }
   renderSessionList();
-  renderActiveSession();
+  safeRenderActiveSession();
+  scheduleDetailLoadingWatchdog(path, requestId);
   try {
     const metaUrl = '/api/session?path=' + encodeURIComponent(path) + '&include_events=false&ts=' + Date.now();
-    const mr = await fetch(metaUrl, { cache: 'no-store' });
-    const metaData = await mr.json();
+    const metaData = await fetchJsonWithTimeout(metaUrl, { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
     if(requestId !== loadSessionDetailRequestSeq) return;
     if(metaData.error){
       state.detailError = metaData.error;
@@ -5455,12 +5733,12 @@ async function openSession(path, options){
       return;
     }
     state.activeSession = metaData.session || nextSession;
+    state.activeExchangeRate = metaData.exchange_rate || null;
     state.detailError = '';
-    renderActiveSession();
+    safeRenderActiveSession();
 
     const eventsUrl = '/api/session?path=' + encodeURIComponent(path) + '&ts=' + Date.now();
-    const er = await fetch(eventsUrl, { cache: 'no-store' });
-    const eventsData = await er.json();
+    const eventsData = await fetchJsonWithTimeout(eventsUrl, { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
     if(requestId !== loadSessionDetailRequestSeq) return;
     if(eventsData.error){
       state.detailError = eventsData.error;
@@ -5468,6 +5746,7 @@ async function openSession(path, options){
       return;
     }
     state.activeSession = eventsData.session || state.activeSession;
+    state.activeExchangeRate = eventsData.exchange_rate || state.activeExchangeRate;
     state.activeEvents = eventsData.events || [];
     state.activeRawLineCount = eventsData.raw_line_count || 0;
     state.detailError = '';
@@ -5480,9 +5759,10 @@ async function openSession(path, options){
     state.detailError = normalizeRequestError(error, t('error.detail'));
   } finally {
     if(requestId === loadSessionDetailRequestSeq){
+      clearDetailLoadingWatchdog();
       state.isDetailLoading = false;
       state.detailLoadMode = '';
-      renderActiveSession();
+      safeRenderActiveSession();
       if(loadMode === 'refresh'){
         scheduleTodayUsageSummaryRefresh();
       }
@@ -6122,6 +6402,9 @@ document.addEventListener('selectionchange', () => {
 });
 document.getElementById('open_label_manager').addEventListener('click', openLabelManagerWindow);
 safeBindById('open_cost_summary', 'click', openCostSummaryWindow);
+safeBindById('currency_select', 'change', (event) => {
+  setCostCurrency(event.target.value);
+});
 document.addEventListener('click', (event) => {
   const picker = document.getElementById('label_picker');
   if(picker.classList.contains('hidden')) return;
@@ -6143,12 +6426,18 @@ window.addEventListener('message', async (event) => {
   await refreshLabeledViews();
 });
 window.addEventListener('storage', (event) => {
-  if(event.key !== LANGUAGE_STORAGE_KEY){
+  if(event.key === LANGUAGE_STORAGE_KEY){
+    const nextLanguage = normalizeLanguage(event.newValue || 'ja');
+    if(nextLanguage !== uiLanguage){
+      setUiLanguage(nextLanguage, false);
+    }
     return;
   }
-  const nextLanguage = normalizeLanguage(event.newValue || 'ja');
-  if(nextLanguage !== uiLanguage){
-    setUiLanguage(nextLanguage, false);
+  if(event.key === COST_CURRENCY_STORAGE_KEY){
+    const nextCurrency = normalizeCostCurrency(event.newValue || '') || getDefaultCostCurrencyForLanguage(uiLanguage);
+    if(nextCurrency !== getPreferredCostCurrencyCode()){
+      setCostCurrency(nextCurrency, false);
+    }
   }
 });
 window.addEventListener('resize', () => {
@@ -6169,6 +6458,7 @@ restoreFilters();
 initSegmentedInputs();
 initAllFlatpickr();
 setUiLanguage(getRequestedLanguage(), false);
+setCostCurrency(getRequestedCostCurrency(), false);
 updateFilterVisibility();
 updateCompactUiMode();
 updateDetailMetaVisibility();
