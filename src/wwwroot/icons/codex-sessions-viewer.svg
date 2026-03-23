@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Sessions Viewer icon</title>
+  <desc id="desc">A stacked session browser icon with a Codex code badge.</desc>
+  <defs>
+    <linearGradient id="bg" x1="18" y1="12" x2="110" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#153a67"/>
+      <stop offset="0.55" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#7dd3c7"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="24" y1="24" x2="96" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg)"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="#ffffff" stroke-opacity="0.16"/>
+  <path d="M26 18C18 24 13 34 12 46v50c6 13 18 21 34 24h36c20-2 34-17 36-37V46c-1-16-8-27-23-34H26z" fill="url(#glow)"/>
+  <g opacity="0.92">
+    <path d="M28 34h2v60h-2z" fill="#d9f7f2" fill-opacity="0.66"/>
+    <circle cx="29" cy="42" r="5" fill="#eefdf9"/>
+    <circle cx="29" cy="64" r="5" fill="#c7f6ea"/>
+    <circle cx="29" cy="86" r="5" fill="#9fe8d8"/>
+  </g>
+  <g fill="#ffffff" fill-opacity="0.95">
+    <rect x="40" y="30" width="56" height="18" rx="9"/>
+    <rect x="40" y="54" width="48" height="18" rx="9" fill-opacity="0.88"/>
+    <rect x="40" y="78" width="56" height="18" rx="9" fill-opacity="0.8"/>
+  </g>
+  <g fill="#0a3941" fill-opacity="0.76">
+    <rect x="48" y="36" width="30" height="3" rx="1.5"/>
+    <rect x="48" y="60" width="22" height="3" rx="1.5"/>
+    <rect x="48" y="84" width="30" height="3" rx="1.5"/>
+  </g>
+  <g>
+    <circle cx="95" cy="34" r="17" fill="#0b223f" fill-opacity="0.9"/>
+    <circle cx="95" cy="34" r="16.5" fill="none" stroke="#9fe8d8" stroke-opacity="0.46"/>
+    <path d="M88.5 28.5L82.5 34l6 5.5" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M101.5 28.5l6 5.5-6 5.5" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M97.5 26l-5 16" fill="none" stroke="#7dd3c7" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+</svg>

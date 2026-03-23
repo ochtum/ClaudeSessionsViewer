@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClaudeSessionsViewer", "ClaudeSessionsViewer.csproj", "{797D7029-1475-1948-D123-9A87C5F40D37}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{797D7029-1475-1948-D123-9A87C5F40D37}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{797D7029-1475-1948-D123-9A87C5F40D37}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{797D7029-1475-1948-D123-9A87C5F40D37}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{797D7029-1475-1948-D123-9A87C5F40D37}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {66115717-0B95-4FA9-A290-F418A898BAF3}
+	EndGlobalSection
+EndGlobal

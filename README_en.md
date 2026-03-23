@@ -5,14 +5,12 @@
 
 # ClaudeSessionsViewer
 
-A local viewer for searching and browsing Claude chat data.  
-It scans the following two storage families:
+This is a local viewer that lets you list, inspect in detail, and search Claude Code history. You can also attach labels to content you want to remember and search for it later.
 
-- `~/.claude/projects/` (Claude Code CLI / JSONL)
-- `%APPDATA%\Claude\IndexedDB\` (Claude Desktop / LevelDB)
-
-- This tool supports Japanese, English, Simplified Chinese, and Traditional Chinese.
-- Feedback and feature requests are welcome via issues.
+- This tool supports Japanese / English / Simplified Chinese / Traditional Chinese.
+- Please feel free to open an issue with any feedback or feature requests.
+- The first launch is slower, but after the initial loading process completes it runs quickly thanks to caching.
+  - We plan to improve startup speed soon by adding deferred loading.
 
 ## Screen Layout
 
@@ -20,63 +18,38 @@ It scans the following two storage families:
 
 ![image](/image/00001.jpg)
 
-### Label Manager Screen
+### Label Management Screen
 
 ![image](/image/00002.jpg)
 
-## Directory Layout
+### Shortcut Key List Screen
 
-```text
-.
-├─ viewer.py
-└─ scripts
-   └─ windows
-      ├─ launch_viewer.bat
-      └─ stop_viewer.bat
-```
+![image](/image/00003.jpg)
 
-## Prerequisites
+⭐ If this project is useful to you, I would appreciate a Star!
 
-- Python 3 (`py -3`, `python`, or `python3` must be available)
-- A web browser (Edge / Chrome, etc.)
+👀 If you want to follow updates, please consider using Watch too!
 
-If Python 3 is not installed (Windows / winget):
+## How to Run
 
-```powershell
-winget install -e --id Python.Python.3.12
-```
+After downloading the `app-framework-dependent` folder from Releases, extract it and run the included `run.cmd`.
 
-Verify installation:
+Note: Running this tool requires the .NET 10 SDK or .NET 10 Runtime. If you are not sure whether it is installed, or if you do not want to install it, download the `app-self-contained` folder instead.
+
+---
+
+If you build from `src`, run one of the following PowerShell scripts.
+
+- Framework-dependent build (if the .NET 10 SDK or .NET 10 Runtime is already installed)
 
 ```powershell
-py -3 --version
+.\publish.ps1 -CleanOutput
 ```
 
-## Launch
-
-### One-click Launch on Windows
-
-- `scripts\windows\launch_viewer.bat`
-- `scripts\windows\stop_viewer.bat`
-
-`launch_viewer.bat` starts `viewer.py` on Windows and opens the browser.
-
-Open the following URL after launch:
-
-```text
-http://127.0.0.1:8767
-```
-
-### Launch Directly with Python
+- Self-contained build (if the .NET 10 SDK or .NET 10 Runtime installation status is unknown, or if you do not want to install it)
 
 ```powershell
-python viewer.py
-```
-
-Or:
-
-```bash
-python3 viewer.py
+.\publish.ps1 -SelfContained -CleanOutput
 ```
 
 ## Default Scan Paths
@@ -84,158 +57,218 @@ python3 viewer.py
 - Claude Code CLI
   - `~/.claude/projects`
   - `%USERPROFILE%\.claude\projects`
-  - `WIN_HOME\.claude\projects` (when `WIN_HOME` is set)
+  - `WIN_HOME\.claude\projects` (when `WIN_HOME` is specified)
   - `/mnt/c/Users/*/.claude/projects`
-  - `\\wsl.localhost\<distro>\home\*\.claude\projects` (auto-detected when launched on Windows)
+  - `\\wsl.localhost\<distro>\home\*\.claude\projects` (WSL distros are automatically detected when launched on Windows)
 - Claude Desktop
   - `%APPDATA%\Claude\IndexedDB`
   - `%USERPROFILE%\AppData\Roaming\Claude\IndexedDB`
-  - `WIN_HOME\AppData\Roaming\Claude\IndexedDB` (when `WIN_HOME` is set)
+  - `WIN_HOME\AppData\Roaming\Claude\IndexedDB` (when `WIN_HOME` is specified)
   - `/mnt/c/Users/*/AppData/Roaming/Claude/IndexedDB`
 
-## Options
+## Screen Features
 
-To use custom Claude Code CLI directories, set `CLAUDE_SESSIONS_DIR`.  
-You can also override with `SESSIONS_DIR`. Multiple roots are separated with `os.pathsep` (`;` on Windows, `:` on Unix/WSL).
-
-```powershell
-$env:CLAUDE_SESSIONS_DIR = 'C:\path\to\.claude\projects'
-python viewer.py
-```
-
-To change the bind address, set `HOST`.
-
-```powershell
-$env:HOST = '0.0.0.0'
-python viewer.py
-```
-
-## UI Features
-
-- Left pane: session list, sorted newest first
-  - Shows session `source` labels (`Claude Code CLI` / `Claude Desktop`) and session labels in the list
-  - Shows a loading state during the initial load
-  - `Reload` reloads the session list
-    - During a manual `Reload`, the list shows an updating overlay and button state feedback
-  - `Clear` resets the left-pane search conditions
-  - `Hide` / `Show` collapses or expands the search filter area
-  - In vertical layout, the header button `Hide List` / `Show List` can hide or show the entire left pane
-- Top-left filters
-  - Filter by `project/path` / `Start date` / `End date` / `Event start datetime` / `Event end datetime` / keyword / `source` / session label / event label
-  - `Start date` / `End date` use native browser `date` inputs, while event datetimes use split `date + time` inputs
-  - The time field for an event datetime becomes enabled after the corresponding date is set
-  - Keyword search uses a SQLite-backed search index
-  - `project/path` matches both `project` and `relative_path`, and treats `-`, `/`, and `\` as equivalent separators
-  - Search targets include event text extracted from `message`, `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other textual events
-  - `project/path`, datetime, `source`, and label conditions are always evaluated with AND
+- Header
+  - Language switch (`日本語` / `English` / `简体中文` / `繁體中文`) and currency switch (`USD` / `JPY` / `CNY` / `TWD` / `HKD`) are placed in the upper right
+  - Includes `Label Management`, `Cost Display`, `Meta Display`, `Shortcuts`, and the list visibility toggle for mobile layouts
+  - Displays a "Today's usage" summary below the header so you can quickly check tokens, cost, and score
+  - `Meta Display` is hidden by default. It lets you inspect the selected session's `session root` / `path` / `cwd` / `time` / `source` / `events` / `raw lines`
+- Left pane
+  - Two tabs: `Session List` and `Label List`
+  - The session list shows the `source` label (`Claude Code CLI` / `Claude Desktop`) and session labels
+  - Displays the count at the top as `sessions: filtered/total`
+  - Sort order can be switched with the `Newest` / `Oldest` / `Last Updated` tabs
+  - `Clear` resets the search and filter conditions in the left pane
+  - `Show Filters` / `Hide Filters` collapses the search and filter area
+  - In vertical layout, you can toggle the entire left pane with `Hide List` / `Show List` in the upper right of the header
+- Left-pane search and filters
+  - Filter by `cwd` / keyword / `Start Date` / `End Date` / `Event Start DateTime` / `Event End DateTime` / `source` / `subagents` / session label / event label
+  - Keyword search covers not only `message`, but also `function_call.arguments` / `function_output.output` / `agent_update.message`
+  - In the keyword field, text enclosed in double quotes is treated as a single phrase
+    - Example: search `"Working Space"` as one phrase
+  - `cwd` / date and time / `source` / label conditions are always combined with AND
   - The `AND/OR` switch applies only to the keyword field
     - `AND`: must include all space-separated keywords
-    - `OR`: must include at least one space-separated keyword
-- Right pane: chronological event view for the selected session
-  - Shows a loading state during the first detail load, and an updating overlay during manual `Refresh`
-  - The detail header shows the `source` label (`Claude Code CLI` / `Claude Desktop`)
-  - The detail header uses a 4-row layout
-    - Row 1: display filters, `Clear`, `Refresh`, and `Hide` / `Show` to collapse rows 2, 3, and 4 together
-    - Row 2: copy actions, label actions, and selection-copy actions
-    - Row 3: keyword input, `Filter`, `Search`, `Previous`, `Next`, and `Keyword Clear`
-    - Row 4: single-`message` anchor selection mode, clear-anchor action, and before/after message filtering
-  - Display options
-    - `Show only user instructions`
-    - `Show only AI responses`
-    - `Show only each input and final response`
-      - For each turn, keeps one `user` message and only the last `assistant` message before the next `user`
-    - `Reverse display order`
-    - `event label: all` filter
-  - Keyword search
-    - `Filter`: shows only events that contain the keyword
-    - `Search`: highlights matches and lets you move through them with `Previous` / `Next`
-    - `Keyword Clear`: clears the input, filter state, and search state together
-    - Matching is a literal substring match, not AND / OR parsing
-    - Search targets include the full displayed event body text
-  - `Event start datetime` / `Event end datetime` can narrow the event timeline shown in the right pane
-  - Right-pane event datetime filters also use split `date + time` inputs, and the time field becomes enabled after a date is entered
-  - `Clear` resets the detail-side display filters
-  - `Refresh` reloads only the currently selected session
-  - `Copy Resume Command` copies `claude --resume <session_id>`
-  - `Copy Displayed Messages` copies all messages currently visible under the active display filters
-  - Session label display and `Add Session Label`
-  - Per-event label display / add / remove
+    - `OR`: must include any of the space-separated keywords
+  - The time field for event date/time becomes enabled when the corresponding date is entered
+  - Filter conditions are preserved the next time the app is launched
+- Left-pane label list
+  - Displays labeled sessions and labeled events grouped by label
+  - Distinguishes item types such as `message` / `function_call` / `function_output` / `agent_update` / `token_usage`
+  - Clicking an item jumps to the target session or target event
+- Right pane: timeline view of events in the selected session
+  - Shows a loading indicator on the first detail load, and an overlay while details are being updated during manual `Refresh`
+  - The detail toolbar is organized into `Display` / `Actions` / `Search` / `Range Selection`
+  - `Detail Actions` / `Search` / `Range Selection` can each be opened or closed independently
+  - If no session is selected, display, search, and range-selection operations are disabled
+- Right-pane display and actions
+  - Display conditions: `Show user instructions only` / `Show AI responses only` / `Show only each input and the final response` / `Reverse display order` / `Show token usage only` / label filter
+  - `Cost Sort` can reorder user-message-based groups by `Total Tokens` / `Cost` / `Score`
+  - `Refresh` re-fetches only the selected session
+  - `Clear` resets the entire state of the right pane
+    - Display filters
+    - Detail keyword input, `Filter` / `Search` state
+    - Selection mode, selected events
+    - Anchor selection mode, anchor, show before anchor / show after anchor
+    - Open label picker
+  - `Copy Session Resume Command` copies `codex resume <session ID>`
+  - `Copy Displayed Messages` copies all currently displayed `message` items together
+  - Shows session labels and `Add Label to Session`
+  - Supports label display / add / remove for each event
   - Each `message` event has its own `Copy` button
-  - `Selection Mode` lets you check individual `message` events and copy them together with `Copy Selected`
-    - Even when filters are applied, already selected `message` events remain selected
-  - `Anchor Selection Mode` lets you choose one `message` event and filter the view to messages before or after that anchor
-  - Displays `message` (`user` / `assistant`), `tool_result`, `queue`, `progress`, `notice`, `snippet`, and other extracted textual events
-  - `user` messages use a light blue background, `assistant` uses light green, system / notice events use gray tones, and tool events use teal tones
-- Label Manager
-  - Opens in a separate window from the `Label Manager` button in the upper-right
-  - Manages session labels and event labels in one shared UI
-  - Label colors can be entered directly as `#hex`, `rgb(...)`, or `oklch(...)`, or selected from color presets
+- Right-pane search and selection
+  - Detail keywords separate `Filter` and `Search`
+    - `Filter`: shows only events that contain the keyword
+    - `Search`: highlights matches and moves through them with `Previous` / `Next`
+    - Hit count is shown as `current / total`
+    - `Clear Search`: clears the input field, filter, and search state together
+  - Detail keywords use plain partial matching of the entered text, not AND / OR logic
+  - Search targets are `message` / `function_call` / `function_output` / `agent_update`
+  - Pressing `Enter` in the search field runs the search and removes focus, so you can move with `N` / `P`
+  - `Event Start DateTime` / `Event End DateTime` can narrow the event timeline shown in the right pane
+  - The event date/time filter in the right pane also uses split `date + time` inputs, and the time field is enabled after entering a date
+  - In `Selection Mode`, you can check events one by one and copy them together with `Copy Selected`
+    - Even while a filter is active, already selected events are preserved
+  - `Show Selected Events Only` narrows the view to selected events only
+  - In `Anchor Selection Mode`, you can choose a single `message` and filter with `Show After Anchor Only` / `Show Before Anchor Only`
+- Event display
+  - `message` (`user` / `assistant` / `developer`)
+  - `user` uses a light blue background, while execution context such as `AGENTS.md` and `environment_context` uses a gray background
+  - `function_call` / `function_output`
+  - `agent_update`
+  - `token_usage`
+- Label Management
+  - Opens in a separate window from the `Label Management` button in the upper right
+  - Shares the same language setting as the main screen
+  - Manages session labels and event labels together
+  - Label colors can be entered directly as `#hex` / `rgb(...)` / `oklch(...)`, or selected from color presets
+  - In the label-addition UI as well, you can view candidates while keeping their colors visible
+- Cost Display
+  - Opens in a separate window from the `Cost Display` button in the upper right
+  - Lets you review usage totals while switching the cost display according to the selected currency
 
+## Shortcut Keys
 
-## Keyboard Shortcuts
+While the cursor is inside an input field, shortcuts are not executed. Press `Esc` to close the shortcut list or label picker, or to move focus away from a search input.
 
-Shortcuts do not run while an input is focused. Press `Esc` to close the shortcut dialog or label picker, or to leave a search field.
+| Key         | Action                                                                            |
+| ----------- | --------------------------------------------------------------------------------- |
+| `F5`        | Refresh the currently displayed list or session details                           |
+| `Shift + F` | Toggle the filter display in the left pane                                        |
+| `Shift + L` | Run `Clear` in the left pane                                                      |
+| `/`         | Focus the search input field                                                      |
+| `N`         | Move to the next hit in detail search                                             |
+| `P`         | Move to the previous hit in detail search                                         |
+| `M`         | Toggle meta display for `path / cwd / time`                                       |
+| `[`         | Open the previous session                                                         |
+| `]`         | Open the next session                                                             |
+| `1`         | Toggle `Show user instructions only`                                              |
+| `2`         | Toggle `Show AI responses only`                                                   |
+| `3`         | Toggle `Show only each input and the final response`                              |
+| `4`         | Toggle `Reverse display order`                                                    |
+| `5`         | Toggle `Show token usage only`                                                    |
+| `Shift + D` | Run `Clear` in the right pane                                                     |
+| `Shift + T` | Toggle showing and hiding detail actions                                          |
+| `Shift + R` | Copy the session resume command (`claude --resume <session ID>`)                  |
+| `Shift + C` | Copy the displayed messages                                                       |
+| `Shift + S` | Toggle the start and end of selection mode                                        |
+| `Shift + X` | Copy the selected messages                                                        |
+| `Shift + G` | Toggle the start and end of anchor selection mode                                 |
+| `Shift + H` | Clear the anchor                                                                  |
+| `,`         | Show only items before the anchor                                                 |
+| `.`         | Show only items after the anchor                                                  |
+| `Esc`       | Close the shortcut list or add-label popup, and move focus away from search input |
 
-| Key | Action |
-| --- | --- |
-| `F5` | Refresh the current list or session detail |
-| `Shift + F` | Toggle the left-pane filters |
-| `Shift + L` | Run `Clear` on the left pane |
-| `/` | Focus the search input |
-| `N` | Move to the next detail-search match |
-| `P` | Move to the previous detail-search match |
-| `M` | Toggle the `path / cwd / time` meta block |
-| `[` | Open the previous session |
-| `]` | Open the next session |
-| `1` | Toggle `Only user instructions` |
-| `2` | Toggle `Only AI responses` |
-| `3` | Toggle `Only each input and final reply` |
-| `4` | Toggle `Reverse order` |
-| `Shift + D` | Clear right-pane filters and active modes |
-| `Shift + T` | Toggle detail actions |
-| `Shift + R` | Copy the session resume command (`claude --resume <session_id>`) |
-| `Shift + C` | Copy displayed messages |
-| `Shift + S` | Toggle selection mode |
-| `Shift + X` | Copy selected messages |
-| `Shift + G` | Toggle anchor mode |
-| `Shift + H` | Clear the anchor |
-| `,` | Show only events before the anchor |
-| `.` | Show only events after the anchor |
-| `Esc` | Close the shortcut dialog or label picker, and leave search fields |
+## Important Constraints
 
-## Important Limitations
+- Claude Code CLI (JSONL) can be displayed in a structured format.
+- Claude Desktop (IndexedDB/LevelDB) has the following specifications and limitations.
 
-- Claude Code CLI (JSONL) can be parsed and displayed structurally.
-- Claude Desktop (IndexedDB/LevelDB) has the following behavior and limitations.
+### About Claude Desktop's Data Structure
 
-### Claude Desktop Data Structure
+As a result of investigation, it was found that Claude Desktop stores only **chat draft messages before sending** in `%APPDATA%\Claude\IndexedDB\`.
 
-Investigation showed that Claude Desktop stores only **unsent chat draft messages** in `%APPDATA%\Claude\IndexedDB\`.
+| Item                               | Description                                             |
+| ---------------------------------- | ------------------------------------------------------- |
+| Data that is stored                | Drafts in the chat input field (unsent messages)        |
+| Data that is not stored            | Sent conversation history (user messages and AI replies) |
+| Where sent conversations are stored | Anthropic's servers (not available locally)            |
 
-| Item | Description |
-| ---- | ---- |
-| Stored locally | Draft text in the chat input box (unsent messages) |
-| Not stored locally | Sent conversation history (user messages and AI responses) |
-| Actual storage for sent conversations | Anthropic servers, not local files |
+This Viewer properly parses LevelDB log files (`.log`) and accurately displays draft messages.
 
-This viewer properly parses LevelDB log files (`.log`) and reconstructs draft messages.
+- Decode LevelDB WriteBatch records block by block
+- Restore Chromium IndexedDB string keys (UTF-16BE)
+- Skip the Blink SerializedScriptValue header and extract UTF-16LE JSON
+- Collect plain text from TipTap / ProseMirror document trees
 
-- Decodes LevelDB WriteBatch records block by block
-- Restores Chromium IndexedDB string keys (UTF-16BE)
-- Skips the Blink SerializedScriptValue header and extracts UTF-16LE JSON
-- Collects plain text from TipTap / ProseMirror document trees
-
-> **Why sent conversations are not visible**  
-> Claude Desktop is an Electron wrapper around the claude.ai web app. Conversation history is stored in Anthropic's cloud and is not synchronized to local IndexedDB. Because of that, this viewer can only show drafts currently being edited.
+> **Why conversation history is not visible**  
+> Claude Desktop is an Electron wrapper around the claude.ai web app. Conversation history is stored in Anthropic's cloud and is not synchronized to local IndexedDB. Because of this, this Viewer can display only the draft currently being edited.
 
 ## Notes
 
-- The search index is stored in `.cache/search_index.sqlite3` and only changed sessions are re-indexed.
-- On Windows, `viewer.py` runs `wsl.exe -l -q` and also scans each distro's `~/.claude/projects`.
-- To limit which distros are auto-detected, set `CLAUDE_WSL_DISTROS` (for example: `Ubuntu;Debian`).
-- To keep the UI responsive with large logs, the list is capped at `400` sessions and the detail view is capped at `4000` events.
-- By default, the viewer listens only on `127.0.0.1` for local use.
+- Label data is stored in `.cache/label-store-claude.json`.
+- If no actual data from Claude Code / Claude Desktop is found at all, the bundled `sample-data/claude/projects` is automatically displayed as dummy data.
+- If you want to explicitly change the source location, you can specify the Claude Code CLI root with `CLAUDE_SESSIONS_DIR` or `SESSIONS_DIR`.
+- On Windows, `wsl.exe -l -q` is used to enumerate WSL distros, and `~/.claude/projects` in each distro is also discovered automatically.
+- If you want to limit which distros are auto-detected, specify `CLAUDE_WSL_DISTROS` (example: `Ubuntu;Debian`).
+- To handle large logs, the list is limited to a maximum of `400` items and events are limited to a maximum of `4000`.
+- By default, the Viewer listens only on localhost (`127.0.0.1`).
 
-## License
+## File Structure
 
-This project is provided under the MIT License. See the `LICENSE` file for details.
+```text
+.
+├── .gitignore                           # Root exclusion settings
+├── LICENSE                              # License
+├── README.md                            # Japanese README
+├── README_en.md                         # English README
+├── publish.ps1                          # Publish script for distribution
+├── image/
+│   ├── 00001.jpg                        # Main screen sample for README
+│   ├── 00002.jpg                        # Label management screen sample for README
+│   └── 00003.jpg                        # Shortcut screen sample for README
+└── src/
+    ├── .cache/
+    │   └── label-store-claude.json      # Storage location for label definitions and mappings
+    ├── ClaudeSessionsViewer.sln         # Solution
+    ├── ClaudeSessionsViewer.csproj      # ASP.NET Core / Blazor project definition
+    ├── Program.cs                       # App startup, URL settings, API endpoint definitions
+    ├── appsettings.json                 # Production settings
+    ├── appsettings.Development.json     # Development settings
+    ├── Components/
+    │   ├── App.razor                    # HTML root and shared script loading
+    │   ├── Routes.razor                 # Routing definitions
+    │   ├── _Imports.razor               # Shared Razor using directives
+    │   ├── Layout/
+    │   │   ├── MainLayout.razor         # Shared layout
+    │   │   ├── MainLayout.razor.css     # Styles for the shared layout
+    │   │   ├── ReconnectModal.razor     # Reconnect modal UI
+    │   │   ├── ReconnectModal.razor.css # Styles for the reconnect modal
+    │   │   └── ReconnectModal.razor.js  # Script for the reconnect modal
+    │   └── Pages/
+    │       ├── Error.razor              # Error screen
+    │       ├── Home.razor               # Main screen
+    │       ├── Labels.razor             # Label management screen
+    │       └── NotFound.razor           # 404 screen
+    ├── Models/
+    │   └── ViewerDtos.cs                # DTOs for API responses/requests
+    ├── Properties/
+    │   ├── AssemblyInfo.cs              # Version information
+    │   └── launchSettings.json          # Local development launch settings
+    ├── Services/
+    │   ├── LabelStore.cs                # Label storage and validation logic
+    │   └── ViewerService.cs             # Session discovery, loading, and search logic
+    └── wwwroot/
+        ├── app.css                      # Shared global styles
+        ├── css/
+        │   ├── labels.css               # Styles for the label management screen
+        │   └── viewer.css               # Styles for the main screen
+        ├── icons/
+        │   ├── claude-sessions-viewer.svg # App icon (Claude version)
+        │   └── codex-sessions-viewer.svg  # App icon (Codex version)
+        └── js/
+            ├── labels.js                # Script for the label management screen
+            └── viewer.js                # Script for the main screen
+```
+
+## ❗ This project is provided under the MIT License. See the LICENSE file for details.

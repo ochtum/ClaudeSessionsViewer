@@ -1,0 +1,38 @@
+@page "/costs"
+
+<PageTitle>コスト表示</PageTitle>
+
+<HeadContent>
+    <link rel="icon" href="/icons/claude-sessions-viewer.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/css/costs.css" />
+</HeadContent>
+
+<div class="costs-page">
+  <div class="costs-header">
+    <div>
+      <div class="costs-badge" id="page_badge">Claude Sessions Viewer</div>
+      <h1 class="costs-title" id="page_title">コスト表示</h1>
+      <div class="costs-copy" id="page_copy">月別・週別・日別の usage 集計を、セッション別と token usage イベント別で見比べられます。</div>
+    </div>
+    <div class="costs-actions">
+      <select id="language_select" class="language-select" aria-label="Language">
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+        <option value="zh-Hans">简体中文</option>
+        <option value="zh-Hant">繁體中文</option>
+      </select>
+      <select id="currency_select" class="language-select" aria-label="Currency">
+        <option value="USD">USD</option>
+        <option value="JPY">JPY</option>
+        <option value="CNY">CNY</option>
+        <option value="TWD">TWD</option>
+        <option value="HKD">HKD</option>
+      </select>
+      <button id="refresh_costs" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <div class="costs-meta" id="costs_meta" aria-live="polite"></div>
+  <div class="costs-status" id="costs_status" aria-live="polite"></div>
+  <div class="costs-groups" id="costs_groups"></div>
+</div>

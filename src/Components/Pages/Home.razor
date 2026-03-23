@@ -1,0 +1,418 @@
+@page "/"
+@using System.Reflection
+
+<PageTitle>Claude Sessions Viewer</PageTitle>
+
+<HeadContent>
+    <link rel="icon" href="/icons/claude-sessions-viewer.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@@4.6.13/dist/flatpickr.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@@4.6.13/dist/l10n/ja.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@@4.6.13/dist/l10n/zh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@@4.6.13/dist/l10n/zh-tw.js"></script>
+    <link rel="stylesheet" href="/css/viewer.css" />
+</HeadContent>
+
+<header>
+  <div class="header-bar">
+    <div class="header-main">
+      <h1><img class="brand-mark" src="/icons/claude-sessions-viewer.svg" alt="" aria-hidden="true" />Claude Sessions Viewer</h1>
+      <div class="header-subtitle">Session logs, labels, and event review for Claude workflows</div>
+      <div id="meta" class="header-meta hidden" aria-live="polite"></div>
+    </div>
+    <div class="header-actions">
+      <div class="header-actions-top">
+        <select id="language_select" class="language-select" aria-label="Language">
+          <option value="ja">日本語</option>
+          <option value="en">English</option>
+          <option value="zh-Hans">简体中文</option>
+          <option value="zh-Hant">繁體中文</option>
+        </select>
+        <select id="currency_select" class="language-select" aria-label="Currency">
+          <option value="USD">USD</option>
+          <option value="JPY">JPY</option>
+          <option value="CNY">CNY</option>
+          <option value="TWD">TWD</option>
+          <option value="HKD">HKD</option>
+        </select>
+        <button id="open_label_manager" class="utility-action">ラベル管理</button>
+        <button id="open_cost_summary" class="utility-action">コスト表示</button>
+        <button id="toggle_meta" class="utility-action" title="M">メタ表示</button>
+        <button id="open_shortcuts" class="utility-action" title="ショートカット一覧を表示">ショートカット</button>
+        <button id="toggle_session_list_mobile" class="utility-action">一覧を隠す</button>
+        <span class="app-version">v@(AppVersion)</span>
+      </div>
+      <div id="today_usage_summary" class="today-usage-summary" aria-live="polite"></div>
+    </div>
+  </div>
+</header>
+  <div class="container">
+  <aside class="left">
+    <div class="left-pane-tabs" role="tablist" aria-label="Left pane tabs">
+      <button id="left_tab_sessions" class="left-pane-tab active" data-pane-tab="sessions" role="tab" aria-selected="true">セッションリスト</button>
+      <button id="left_tab_labels" class="left-pane-tab" data-pane-tab="labels" role="tab" aria-selected="false">ラベルリスト</button>
+    </div>
+    <div id="left_panel_sessions" class="left-pane-panel">
+      <div class="toolbar collapsed">
+        <div class="toolbar-topline">
+          <div>
+            <div class="section-kicker">Session Browser</div>
+            <div class="toolbar-heading">検索と絞り込み</div>
+            <div class="toolbar-copy">候補を探してから一覧を見る、という流れに整理しました。</div>
+          </div>
+          <div class="toolbar-utility">
+            <button id="reload" class="primary-action" title="F5">Reload</button>
+            <button id="clear" class="secondary-action" title="Shift + L">Clear</button>
+            <button id="toggle_filters" class="utility-action" title="Shift + F">フィルタを表示</button>
+          </div>
+        </div>
+        <div class="toolbar-body">
+          <section class="toolbar-section">
+            <div class="toolbar-section-head">
+              <div class="toolbar-section-title">検索</div>
+              <div class="toolbar-section-copy">cwd とキーワードで候補を先に絞り込みます。</div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>作業ディレクトリ</span>
+                <input id="cwd_q" placeholder="cwd (部分一致)" />
+              </label>
+              <label class="field">
+                <span>キーワード</span>
+                <input id="q" placeholder="keyword filter" />
+              </label>
+              <label class="field">
+                <span>条件</span>
+                <select id="mode">
+                  <option value="and">keyword AND</option>
+                  <option value="or">keyword OR</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="toolbar-section">
+            <div class="toolbar-section-head">
+              <div class="toolbar-section-title">フィルター</div>
+              <div class="toolbar-section-copy">期間・source・ラベルで一覧を整理します。</div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>開始日</span>
+                <input id="date_from" type="hidden" />
+              </label>
+              <label class="field">
+                <span>終了日</span>
+                <input id="date_to" type="hidden" />
+              </label>
+              <div class="field">
+                <span id="event_date_from_label">イベント開始日時</span>
+                <div class="datetime-split">
+                  <input id="event_date_from_date" type="hidden" />
+                  <input id="event_date_from_time" type="hidden" />
+                </div>
+              </div>
+              <div class="field">
+                <span id="event_date_to_label">イベント終了日時</span>
+                <div class="datetime-split">
+                  <input id="event_date_to_date" type="hidden" />
+                  <input id="event_date_to_time" type="hidden" />
+                </div>
+              </div>
+              <label class="field">
+                <span>source</span>
+                <select id="source_filter">
+                  <option value="all">source: all</option>
+                  <option value="claude_cli">source: Claude Code CLI</option>
+                  <option value="claude_desktop">source: Claude Desktop</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>subagents</span>
+                <select id="subagents_filter">
+                  <option value="include">含む</option>
+                  <option value="exclude">含まない</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>セッションラベル</span>
+                <select id="session_label_filter">
+                  <option value="">session label: all</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>イベントラベル</span>
+                <select id="event_label_filter">
+                  <option value="">event label: all</option>
+                </select>
+              </label>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div id="session_count" class="session-count" aria-live="polite"></div>
+      <div class="sort-tabs" role="tablist">
+        <button class="sort-tab active" data-sort="desc" role="tab" aria-selected="true">新しい順</button>
+        <button class="sort-tab" data-sort="asc" role="tab" aria-selected="false">古い順</button>
+        <button class="sort-tab" data-sort="updated" role="tab" aria-selected="false">最終更新日時順</button>
+      </div>
+      <div class="content-shell">
+        <div id="sessions"></div>
+        <div id="sessions_status" class="status-layer hidden" aria-live="polite"></div>
+      </div>
+    </div>
+    <div id="left_panel_labels" class="left-pane-panel hidden">
+      <div class="toolbar label-toolbar">
+        <div class="toolbar-topline">
+          <div>
+            <div id="label_browser_kicker" class="section-kicker">Label Browser</div>
+            <div id="label_browser_heading" class="toolbar-heading">ラベルリスト</div>
+            <div id="label_browser_copy" class="toolbar-copy">ラベルを付けたセッションとイベントをここからまとめて開けます。</div>
+          </div>
+        </div>
+      </div>
+      <div id="labeled_count" class="session-count" aria-live="polite"></div>
+      <div class="content-shell">
+        <div id="labeled_items"></div>
+        <div id="labeled_items_status" class="status-layer hidden" aria-live="polite"></div>
+      </div>
+    </div>
+  </aside>
+  <main class="right">
+    <div class="detail-toolbar">
+      <div class="detail-toolbar-main">
+        <section class="detail-toolbar-row primary">
+          <div class="detail-group-head">
+            <div class="detail-group-title">表示</div>
+            <div class="detail-group-copy">今見たいログだけに整えます。</div>
+          </div>
+          <div class="detail-display-stack">
+            <div class="detail-display-row">
+              <div class="toggle-list">
+                <label class="toggle-chip" title="1"><input type="checkbox" id="only_user_instruction" /> ユーザー指示のみ表示</label>
+                <label class="toggle-chip" title="2"><input type="checkbox" id="only_ai_response" /> AIレスポンスのみ表示</label>
+                <label class="toggle-chip" title="3"><input type="checkbox" id="turn_boundary_only" /> 各入力と最終応答のみ</label>
+                <label class="toggle-chip" title="4"><input type="checkbox" id="reverse_order" /> 表示順を逆にする</label>
+              </div>
+              <label class="field inline-field">
+                <span>ラベルフィルター</span>
+                <select id="detail_event_label_filter" title="ラベルで絞り込み">
+                  <option value="">label</option>
+                </select>
+              </label>
+            </div>
+            <div class="detail-display-row">
+              <label class="toggle-chip" title="5"><input type="checkbox" id="only_token_usage" /> token usageのみ表示</label>
+              <label class="field inline-field">
+                <span>コストソート</span>
+                <select id="detail_cost_sort" title="コストソート">
+                  <option value=""></option>
+                  <option value="total">トークントータル順</option>
+                  <option value="cost">コスト順</option>
+                  <option value="score">score順</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="detail-toolbar-utility">
+            <button id="refresh_detail" class="primary-action" title="F5" disabled>Refresh</button>
+            <button id="clear_detail" class="secondary-action" title="Shift + D" disabled>Clear</button>
+            <button id="toggle_detail_actions" class="utility-action" title="Shift + T" aria-pressed="false">詳細操作</button>
+            <button id="toggle_detail_search" class="utility-action" title="/" aria-pressed="false">検索</button>
+            <button id="toggle_detail_range" class="utility-action" title="Shift + G" aria-pressed="false">範囲選択</button>
+          </div>
+        </section>
+        <section id="detail_action_row" class="detail-toolbar-row secondary hidden">
+          <div class="detail-group-head">
+            <div class="detail-group-title">操作</div>
+            <div class="detail-group-copy">コピー、ラベル付け、選択モードをここにまとめます。</div>
+          </div>
+          <div class="button-row">
+            <button id="copy_resume_command" class="secondary-action" title="Shift + R" disabled>セッション再開コマンドコピー</button>
+            <button id="add_session_label" disabled>セッションにラベル追加</button>
+            <button id="copy_displayed_messages" class="secondary-action" title="Shift + C" disabled>表示中メッセージコピー</button>
+          </div>
+        </section>
+        <section id="detail_keyword_row" class="detail-toolbar-row keyword hidden">
+          <div class="detail-group-head">
+            <div class="detail-group-title">検索</div>
+            <div class="detail-group-copy">詳細キーワードのフィルターとヒット移動を分離しました。</div>
+          </div>
+          <label class="field field-grow">
+            <span>詳細キーワード</span>
+            <input id="detail_keyword_q" placeholder="detail keyword" title="/ でフォーカス" />
+          </label>
+          <div class="button-row">
+            <button id="detail_keyword_filter" disabled>フィルター</button>
+            <button id="detail_keyword_search" disabled>検索</button>
+            <button id="detail_keyword_prev" class="secondary-action" title="P" disabled>前へ</button>
+            <button id="detail_keyword_next" class="secondary-action" title="N" disabled>次へ</button>
+            <span id="detail_keyword_match_count" class="match-counter hidden"></span>
+            <button id="detail_keyword_clear" class="secondary-action" disabled>検索をクリア</button>
+          </div>
+          <div class="detail-event-date-row">
+            <div class="field">
+              <span id="detail_event_date_from_label">イベント開始日時</span>
+              <div class="datetime-split">
+                <input id="detail_event_date_from_date" type="hidden" />
+                <input id="detail_event_date_from_time" type="hidden" />
+              </div>
+            </div>
+            <div class="field">
+              <span id="detail_event_date_to_label">イベント終了日時</span>
+              <div class="datetime-split">
+                <input id="detail_event_date_to_date" type="hidden" />
+                <input id="detail_event_date_to_time" type="hidden" />
+              </div>
+            </div>
+            <div class="detail-event-date-actions">
+              <button id="clear_detail_event_date" class="secondary-action">日時クリア</button>
+            </div>
+          </div>
+        </section>
+        <section id="detail_message_range_row" class="detail-toolbar-row range hidden">
+          <div class="detail-group-head">
+            <div class="detail-group-title">範囲選択</div>
+            <div class="detail-group-copy">起点を決めて、前後どちらを見るかを明確に切り替えます。</div>
+          </div>
+          <div class="button-row">
+            <button id="message_range_selection_mode" title="Shift + G" disabled>起点選択モード</button>
+            <button id="clear_message_range_selection" class="secondary-action" title="Shift + H" disabled>起点解除</button>
+            <button id="detail_message_range_after" title="." disabled>起点以降のみ表示</button>
+            <button id="detail_message_range_before" title="," disabled>起点以前のみ表示</button>
+          </div>
+          <div class="button-row">
+            <button id="event_selection_mode" title="Shift + S" disabled>選択モード</button>
+            <button id="copy_selected_messages" class="secondary-action" title="Shift + X" disabled>選択コピー</button>
+            <label class="toggle-chip" title="6"><input type="checkbox" id="selected_events_only" /> 選択イベントのみ表示</label>
+          </div>
+        </section>
+      </div>
+    </div>
+    <div class="session-label-strip empty" id="session_label_strip">セッションラベルはまだありません</div>
+    <div class="events-shell">
+      <div id="events"></div>
+      <div id="detail_status" class="status-layer hidden" aria-live="polite"></div>
+    </div>
+  </main>
+</div>
+<div id="label_picker" class="label-picker hidden"></div>
+<div id="shortcut_dialog" class="shortcut-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="shortcut_dialog_title">
+  <div class="shortcut-card">
+    <div class="shortcut-head">
+      <div>
+        <div id="shortcut_dialog_title" class="shortcut-title">ショートカット</div>
+        <div class="shortcut-copy">入力欄にカーソルがある間は実行されません。`Esc` で閉じるか、検索入力からカーソルを外せます。</div>
+      </div>
+      <button id="close_shortcuts" class="utility-action" type="button">閉じる</button>
+    </div>
+    <div class="shortcut-list">
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>F5</kbd></div>
+        <div class="shortcut-desc">表示中の一覧またはセッション詳細を更新</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>F</kbd></div>
+        <div class="shortcut-desc">左ペインのフィルタ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>L</kbd></div>
+        <div class="shortcut-desc">左ペインの Clear を実行</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>/</kbd></div>
+        <div class="shortcut-desc">検索入力欄にフォーカス</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>N</kbd></div>
+        <div class="shortcut-desc">詳細検索の次のヒットへ移動</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>P</kbd></div>
+        <div class="shortcut-desc">詳細検索の前のヒットへ移動</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>M</kbd></div>
+        <div class="shortcut-desc">path / cwd / time のメタ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>[</kbd></div>
+        <div class="shortcut-desc">前のセッションを開く</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>]</kbd></div>
+        <div class="shortcut-desc">次のセッションを開く</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>1</kbd></div>
+        <div class="shortcut-desc">ユーザー指示のみ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>2</kbd></div>
+        <div class="shortcut-desc">AIレスポンスのみ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>3</kbd></div>
+        <div class="shortcut-desc">各入力と最終応答のみを切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>4</kbd></div>
+        <div class="shortcut-desc">表示順を逆にするを切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>5</kbd></div>
+        <div class="shortcut-desc">token usageのみ表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>D</kbd></div>
+        <div class="shortcut-desc">右ペインの Clear を実行</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>T</kbd></div>
+        <div class="shortcut-desc">詳細操作の表示と非表示を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>R</kbd></div>
+        <div class="shortcut-desc">セッション再開コマンドをコピー</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>C</kbd></div>
+        <div class="shortcut-desc">表示中メッセージをコピー</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>S</kbd></div>
+        <div class="shortcut-desc">選択モードの開始と終了を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>X</kbd></div>
+        <div class="shortcut-desc">選択中メッセージをコピー</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>G</kbd></div>
+        <div class="shortcut-desc">起点選択モードの開始と終了を切り替え</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Shift</kbd><span class="shortcut-plus">+</span><kbd>H</kbd></div>
+        <div class="shortcut-desc">起点を解除</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>,</kbd></div>
+        <div class="shortcut-desc">起点以前のみ表示</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>.</kbd></div>
+        <div class="shortcut-desc">起点以降のみ表示</div>
+      </div>
+      <div class="shortcut-row">
+        <div class="shortcut-keys"><kbd>Esc</kbd></div>
+        <div class="shortcut-desc">ショートカット一覧やラベル追加ポップアップを閉じる。検索入力欄からカーソルを外す。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+    private static readonly string AppVersion = Assembly.GetExecutingAssembly()
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+')[0]
+        ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
+        ?? "unknown";
+}
