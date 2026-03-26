@@ -34,7 +34,8 @@ const COST_I18N = {
     'column.period': '期間',
     'column.items': '件数',
     'column.input': 'input',
-    'column.cache': 'cache',
+    'column.cacheCreate': 'cache create',
+    'column.cacheRead': 'cache read',
     'column.output': 'output',
     'column.total': 'total',
     'column.cost': 'cost',
@@ -74,7 +75,8 @@ const COST_I18N = {
     'column.period': 'Period',
     'column.items': 'Items',
     'column.input': 'input',
-    'column.cache': 'cache',
+    'column.cacheCreate': 'cache create',
+    'column.cacheRead': 'cache read',
     'column.output': 'output',
     'column.total': 'total',
     'column.cost': 'cost',
@@ -114,7 +116,8 @@ const COST_I18N = {
     'column.period': '期间',
     'column.items': '数量',
     'column.input': 'input',
-    'column.cache': 'cache',
+    'column.cacheCreate': 'cache create',
+    'column.cacheRead': 'cache read',
     'column.output': 'output',
     'column.total': 'total',
     'column.cost': 'cost',
@@ -461,7 +464,8 @@ function renderScopeTable(periods){
     <th>${esc(t('column.period'))}</th>
     <th>${esc(t('column.items'))}</th>
     <th>${esc(t('column.input'))}</th>
-    <th>${esc(t('column.cache'))}</th>
+    <th>${esc(t('column.cacheCreate'))}</th>
+    <th>${esc(t('column.cacheRead'))}</th>
     <th>${esc(t('column.output'))}</th>
     <th>${esc(t('column.total'))}</th>
     <th>${esc(t('column.cost'))}</th>
@@ -470,11 +474,14 @@ function renderScopeTable(periods){
     <th>${esc(t('column.rank'))}</th>
   </tr></thead><tbody>${periods.map(period => {
     const performance = getUsageCostPerformance(period.total_tokens || 0, period.cost_usd);
+    const cacheCreationTokens = period.cache_creation_tokens ?? period.cache_tokens ?? 0;
+    const cacheReadTokens = period.cache_read_tokens || 0;
     return `<tr>
       <td class="costs-period-label">${esc(t(`period.${period.key}`))}</td>
       <td>${esc(formatNumber(period.item_count || 0))}</td>
       <td>${esc(formatNumber(period.input_tokens || 0))}</td>
-      <td>${esc(formatNumber(period.cache_tokens || 0))}</td>
+      <td>${esc(formatNumber(cacheCreationTokens))}</td>
+      <td>${esc(formatNumber(cacheReadTokens))}</td>
       <td>${esc(formatNumber(period.output_tokens || 0))}</td>
       <td>${esc(formatNumber(period.total_tokens || 0))}</td>
       <td>${esc(formatPeriodCostDisplay(period))}</td>

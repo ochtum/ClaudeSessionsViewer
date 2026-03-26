@@ -110,6 +110,10 @@ public sealed class CostSummaryPeriodDto
 
     public long InputTokens { get; init; }
 
+    public long CacheCreationTokens { get; init; }
+
+    public long CacheReadTokens { get; init; }
+
     public long CacheTokens { get; init; }
 
     public long OutputTokens { get; init; }

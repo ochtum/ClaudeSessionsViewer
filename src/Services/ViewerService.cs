@@ -3621,7 +3621,8 @@ public sealed class ViewerService
     {
         private int _itemCount;
         private long _inputTokens;
-        private long _cacheTokens;
+        private long _cacheCreationTokens;
+        private long _cacheReadTokens;
         private long _outputTokens;
         private long _totalTokens;
         private decimal _costUsd;
@@ -3631,7 +3632,8 @@ public sealed class ViewerService
         {
             _itemCount++;
             _inputTokens += usage.InputTokens;
-            _cacheTokens += usage.CacheCreationTokens + usage.CacheReadTokens;
+            _cacheCreationTokens += usage.CacheCreationTokens;
+            _cacheReadTokens += usage.CacheReadTokens;
             _outputTokens += usage.OutputTokens;
             _totalTokens += usage.TotalTokens;
 
@@ -3647,12 +3649,15 @@ public sealed class ViewerService
 
         public CostSummaryPeriodDto ToDto(string key)
         {
+            var cacheTokens = _cacheCreationTokens + _cacheReadTokens;
             return new CostSummaryPeriodDto
             {
                 Key = key,
                 ItemCount = _itemCount,
                 InputTokens = _inputTokens,
-                CacheTokens = _cacheTokens,
+                CacheCreationTokens = _cacheCreationTokens,
+                CacheReadTokens = _cacheReadTokens,
+                CacheTokens = cacheTokens,
                 OutputTokens = _outputTokens,
                 TotalTokens = _totalTokens,
                 CostUsd = _hasUnknownCost ? null : _costUsd,
