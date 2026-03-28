@@ -476,6 +476,41 @@ header h1 {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+.sessions-background-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  background: rgba(236, 253, 245, 0.92);
+  color: #0f766e;
+  font-size: var(--text-label);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.sessions-background-indicator::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: sessions-background-indicator-pulse 1.1s ease-in-out infinite;
+}
+.sessions-background-indicator.hidden {
+  display: none;
+}
+@keyframes sessions-background-indicator-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 .toolbar-body,
 .detail-toolbar-main {
   display: grid;

@@ -6,6 +6,7 @@ namespace ClaudeSessionsViewer.Services;
 public sealed class ViewerSettingsStore
 {
     private const int DefaultSessionListMax = 1000;
+    private const int DefaultSessionListInitialLoadCount = 100;
     private const int DefaultSessionEventsMax = 10000;
     private const int MinLimit = 1;
     private const int MaxLimit = 100_000;
@@ -47,6 +48,7 @@ public sealed class ViewerSettingsStore
             var dto = ReadSettings();
             var snapshot = new ViewerSettingsSnapshot(
                 NormalizeLimit(dto.SessionListMax, DefaultSessionListMax),
+                NormalizeLimit(dto.SessionListInitialLoadCount, DefaultSessionListInitialLoadCount),
                 NormalizeLimit(dto.SessionEventsMax, DefaultSessionEventsMax),
                 lastWrite.Ticks);
             _cachedSnapshot = snapshot;
@@ -65,6 +67,7 @@ public sealed class ViewerSettingsStore
         var defaults = new ViewerSettingsFile
         {
             SessionListMax = DefaultSessionListMax,
+            SessionListInitialLoadCount = DefaultSessionListInitialLoadCount,
             SessionEventsMax = DefaultSessionEventsMax,
         };
         var json = JsonSerializer.Serialize(defaults, SerializerOptions);
@@ -110,6 +113,7 @@ public sealed class ViewerSettingsStore
 
     public sealed record ViewerSettingsSnapshot(
         int SessionListMax,
+        int SessionListInitialLoadCount,
         int SessionEventsMax,
         long Version);
 
@@ -117,6 +121,9 @@ public sealed class ViewerSettingsStore
     {
         [JsonPropertyName("session_list_max")]
         public int? SessionListMax { get; set; }
+
+        [JsonPropertyName("session_list_initial_load_count")]
+        public int? SessionListInitialLoadCount { get; set; }
 
         [JsonPropertyName("session_events_max")]
         public int? SessionEventsMax { get; set; }

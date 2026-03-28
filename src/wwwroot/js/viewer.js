@@ -5,13 +5,16 @@ const state = {
   labeledEvents: [],
   activePath: null,
   activeSession: null,
+  activeSessionVersion: '',
   activeExchangeRate: null,
   activeEvents: [],
   activeRawLineCount: 0,
   sessionRoot: '',
   labels: [],
   isSessionsLoading: false,
+  isSessionsBackgroundLoading: false,
   hasLoadedSessions: false,
+  sessionsTotalCount: 0,
   sessionsError: '',
   sessionsLoadMode: '',
   isLabeledLoading: false,
@@ -31,6 +34,10 @@ const state = {
 const FILTER_STORAGE_KEY = 'claude_sessions_viewer_filters_v4';
 const LANGUAGE_STORAGE_KEY = 'claude_sessions_viewer_language_v1';
 const COST_CURRENCY_STORAGE_KEY = 'claude_sessions_viewer_cost_currency_v1';
+const COST_SUMMARY_CACHE_KEY = 'claude_sessions_viewer_cost_summary_cache_v1';
+const SESSION_BACKGROUND_APPEND_DELAY_MS = 80;
+const COST_SUMMARY_PRELOAD_INTERVAL_MS = 5 * 60 * 1000;
+const COST_SUMMARY_CACHE_MAX_AGE_MS = COST_SUMMARY_PRELOAD_INTERVAL_MS;
 const fpInstances = {};
 const segInstances = {};
 const FP_LOCALE_MAP = {
@@ -789,6 +796,9 @@ const I18N = {
     'status.sessions.emptyCopy': '読み込み対象ディレクトリに .jsonl セッションがあるか確認してください。',
     'status.sessions.refreshTitle': '一覧を更新中...',
     'status.sessions.refreshCopy': '最新のセッションを再取得しています。',
+    'status.sessions.backgroundTitle': '残りのセッションを読み込み中...',
+    'status.sessions.backgroundCopy': '操作は続けたまま、一覧を少しずつ追加しています。',
+    'status.sessions.backgroundInline': '追加読込中 {loaded} / {total}',
     'status.labels.loadingTitle': 'ラベルリストを読み込み中...',
     'status.labels.loadingCopy': 'ラベル付きのセッションとイベントを整理しています。',
     'status.labels.errorTitle': 'ラベルリストの取得に失敗しました',
@@ -1025,6 +1035,9 @@ const I18N = {
     'status.sessions.emptyCopy': 'Check whether the target directory contains .jsonl sessions.',
     'status.sessions.refreshTitle': 'Refreshing list...',
     'status.sessions.refreshCopy': 'Fetching the latest sessions again.',
+    'status.sessions.backgroundTitle': 'Loading more sessions...',
+    'status.sessions.backgroundCopy': 'The remaining sessions are being added in the background.',
+    'status.sessions.backgroundInline': 'Loading more {loaded} / {total}',
     'status.labels.loadingTitle': 'Loading labeled items...',
     'status.labels.loadingCopy': 'Collecting labeled sessions and events.',
     'status.labels.errorTitle': 'Failed to load the label list',
@@ -1261,6 +1274,9 @@ const I18N = {
     'status.sessions.emptyCopy': '请确认目标目录中是否存在 .jsonl 会话文件。',
     'status.sessions.refreshTitle': '正在刷新列表...',
     'status.sessions.refreshCopy': '正在重新获取最新会话。',
+    'status.sessions.backgroundTitle': '正在继续加载其余会话...',
+    'status.sessions.backgroundCopy': '不会打断当前操作，列表会逐步追加。',
+    'status.sessions.backgroundInline': '继续加载 {loaded} / {total}',
     'status.labels.loadingTitle': '正在加载标签列表...',
     'status.labels.loadingCopy': '正在整理带标签的会话和事件。',
     'status.labels.errorTitle': '获取标签列表失败',
@@ -1462,6 +1478,9 @@ I18N['zh-Hant'] = {
   'status.sessions.emptyCopy': '請確認目標目錄中是否存在 .jsonl 工作階段檔案。',
   'status.sessions.refreshTitle': '正在刷新列表...',
   'status.sessions.refreshCopy': '正在重新取得最新工作階段。',
+  'status.sessions.backgroundTitle': '正在繼續載入其餘工作階段...',
+  'status.sessions.backgroundCopy': '不會打斷目前操作，列表會逐步追加。',
+  'status.sessions.backgroundInline': '繼續載入 {loaded} / {total}',
   'status.detail.loadingTitle': '正在載入工作階段詳情...',
   'status.detail.loadingCopy': '正在取得事件。',
   'status.detail.errorTitle': '載入詳情失敗',
@@ -1811,6 +1830,7 @@ let todayUsageSummaryStatus = 'idle';
 let todayUsageSummaryMessage = '';
 let todayUsageSummaryRequestSeq = 0;
 let todayUsageSummaryTimer = 0;
+let costSummaryRefreshTimer = 0;
 let saveFiltersFrame = 0;
 let deferredDetailSyncTimer = 0;
 let labelManagerWindow = null;
@@ -1856,6 +1876,17 @@ function renderInlineStatus(title, copy, tone){
   return `<div class="status-wrap">${buildStatusCard(title, copy, tone)}</div>`;
 }
 
+function scheduleBackgroundTask(callback, delayMs){
+  const delay = Number.isFinite(delayMs) ? Math.max(0, delayMs) : 0;
+  window.setTimeout(() => {
+    if(typeof window.requestIdleCallback === 'function'){
+      window.requestIdleCallback(() => callback(), { timeout: 1000 });
+      return;
+    }
+    callback();
+  }, delay);
+}
+
 function setStatusLayer(id, title, copy, tone){
   const layer = document.getElementById(id);
   if(!layer){
@@ -1868,6 +1899,85 @@ function setStatusLayer(id, title, copy, tone){
   }
   layer.innerHTML = buildStatusCard(title, copy, tone);
   layer.classList.remove('hidden');
+}
+
+function readCostSummaryCache(){
+  try {
+    const raw = localStorage.getItem(COST_SUMMARY_CACHE_KEY) || '';
+    if(!raw){
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if(!parsed || typeof parsed !== 'object' || !parsed.data){
+      return null;
+    }
+    const savedAt = Number(parsed.saved_at);
+    return {
+      data: parsed.data,
+      savedAt: Number.isFinite(savedAt) ? savedAt : 0,
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeCostSummaryCache(data){
+  if(!data){
+    return;
+  }
+  try {
+    localStorage.setItem(COST_SUMMARY_CACHE_KEY, JSON.stringify({
+      saved_at: Date.now(),
+      data,
+    }));
+  } catch (error) {
+    // Ignore storage quota errors and keep the in-memory state only.
+  }
+}
+
+function isCostSummaryCacheFresh(entry){
+  return !!entry
+    && Number.isFinite(entry.savedAt)
+    && entry.savedAt > 0
+    && (Date.now() - entry.savedAt) <= COST_SUMMARY_CACHE_MAX_AGE_MS;
+}
+
+function setTodayUsageFromCostSummary(data){
+  todayUsageSummary = pickTodayUsageSummary(data);
+  todayUsageExchangeRate = data && data.exchange_rate ? data.exchange_rate : null;
+  todayUsageSummaryStatus = todayUsageSummary ? 'ready' : 'empty';
+  todayUsageSummaryMessage = '';
+}
+
+function scheduleNextCostSummaryRefresh(delayMs){
+  if(costSummaryRefreshTimer){
+    clearTimeout(costSummaryRefreshTimer);
+  }
+  costSummaryRefreshTimer = window.setTimeout(() => {
+    costSummaryRefreshTimer = 0;
+    scheduleBackgroundTask(() => {
+      void loadTodayUsageSummary({ backgroundRefresh: true });
+    }, 0);
+  }, Math.max(0, delayMs));
+}
+
+function updateSessionsBackgroundIndicator(){
+  const indicator = document.getElementById('sessions_background_indicator');
+  if(!indicator){
+    return;
+  }
+  if(state.isSessionsBackgroundLoading){
+    indicator.textContent = t('status.sessions.backgroundInline', {
+      loaded: formatNumber(state.sessions.length),
+      total: formatNumber(state.sessionsTotalCount || state.sessions.length),
+    });
+    indicator.setAttribute('title', t('status.sessions.backgroundCopy'));
+    indicator.classList.remove('hidden');
+    return;
+  }
+  indicator.textContent = '';
+  indicator.removeAttribute('title');
+  indicator.classList.add('hidden');
 }
 
 function updateReloadButtonState(){
@@ -2965,29 +3075,55 @@ function renderTodayUsageSummary(){
   box.innerHTML = `<div class="today-usage-card"><span class="today-usage-title">${esc(t('todayUsage.title'))}</span><div class="today-usage-items">${metrics.map(({ label, value, tooltip }) => `<span class="usage-metric" data-tooltip="${esc(tooltip)}" tabindex="0" aria-label="${esc(`${label}: ${tooltip}`)}"><span class="meta-tag">${esc(`${label}:`)}</span><span class="header-meta-text usage-metric-value">${esc(value)}</span></span>`).join('')}</div></div>`;
 }
 
-async function refreshTodayUsageSummary(){
+async function loadTodayUsageSummary(options){
+  const opts = options || {};
+  const cached = !opts.forceRefresh ? readCostSummaryCache() : null;
+  const hasCachedData = !!(cached && cached.data);
+  const hasExistingData = !!todayUsageSummary;
+
+  if(hasCachedData){
+    setTodayUsageFromCostSummary(cached.data);
+    renderTodayUsageSummary();
+  } else if(!opts.backgroundRefresh || !hasExistingData){
+    todayUsageSummaryStatus = 'loading';
+    todayUsageSummaryMessage = '';
+    renderTodayUsageSummary();
+  }
+
+  const shouldFetchNow = !!opts.forceRefresh || !hasCachedData || !isCostSummaryCacheFresh(cached);
+  if(!shouldFetchNow){
+    scheduleNextCostSummaryRefresh(COST_SUMMARY_PRELOAD_INTERVAL_MS);
+    return;
+  }
+
   const requestId = ++todayUsageSummaryRequestSeq;
-  todayUsageSummaryStatus = 'loading';
-  todayUsageSummaryMessage = '';
-  renderTodayUsageSummary();
   try {
-    const data = await fetchJsonWithTimeout(`/api/cost-summary?ts=${Date.now()}`, { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
+    const params = new URLSearchParams();
+    params.set('ts', Date.now().toString());
+    if(opts.forceRefresh){
+      params.set('force', '1');
+    }
+    const data = await fetchJsonWithTimeout(`/api/cost-summary?${params.toString()}`, { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
     if(requestId !== todayUsageSummaryRequestSeq){
       return;
     }
-    todayUsageSummary = pickTodayUsageSummary(data);
-    todayUsageExchangeRate = data.exchange_rate || null;
-    todayUsageSummaryStatus = todayUsageSummary ? 'ready' : 'empty';
-    todayUsageSummaryMessage = '';
-    renderTodayUsageSummary();
+    writeCostSummaryCache(data);
+    setTodayUsageFromCostSummary(data);
   } catch (error) {
     if(requestId !== todayUsageSummaryRequestSeq){
       return;
     }
-    todayUsageExchangeRate = null;
-    todayUsageSummaryStatus = 'error';
-    todayUsageSummaryMessage = normalizeRequestError(error, t('todaySummary.error'));
+    if(!hasCachedData && !hasExistingData){
+      todayUsageExchangeRate = null;
+      todayUsageSummaryStatus = 'error';
+      todayUsageSummaryMessage = normalizeRequestError(error, t('todaySummary.error'));
+    }
+  } finally {
+    if(requestId !== todayUsageSummaryRequestSeq){
+      return;
+    }
     renderTodayUsageSummary();
+    scheduleNextCostSummaryRefresh(COST_SUMMARY_PRELOAD_INTERVAL_MS);
   }
 }
 
@@ -2997,7 +3133,7 @@ function scheduleTodayUsageSummaryRefresh(){
   }
   todayUsageSummaryTimer = setTimeout(() => {
     todayUsageSummaryTimer = 0;
-    refreshTodayUsageSummary();
+    loadTodayUsageSummary();
   }, 90);
 }
 
@@ -4521,11 +4657,93 @@ function setActiveSortOrder(value){
   });
 }
 
+async function fetchSessionVersion(path){
+  return await fetchJsonWithTimeout('/api/session-version?path=' + encodeURIComponent(path) + '&ts=' + Date.now(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
+}
+
+function shouldUseProgressiveInitialSessionLoad(loadMode, q, sessionLabelId, eventLabelId){
+  return loadMode === 'initial' && !q && !sessionLabelId && !eventLabelId;
+}
+
+function getSessionListTotalCount(data, fallbackCount){
+  const totalCount = Number(data && data.total_count);
+  return Number.isFinite(totalCount) && totalCount >= 0 ? totalCount : fallbackCount;
+}
+
+function appendLoadedSessions(sessions){
+  const previousFilteredCount = state.filtered.length;
+  state.sessions = state.sessions.concat(sessions);
+  const filters = getSessionListFilterState();
+  const appendedFiltered = sessions.filter(session => matchesSessionListFilters(session, filters));
+  state.filtered = state.filtered.concat(appendedFiltered);
+  renderSessionList({ appendSessions: appendedFiltered, previousFilteredCount });
+}
+
+async function fetchSessionListChunk(requestId, sortOrder, offset){
+  const params = new URLSearchParams();
+  params.set('ts', Date.now().toString());
+  params.set('offset', String(offset));
+  if(sortOrder && sortOrder !== 'desc'){
+    params.set('sort', sortOrder);
+  }
+  const data = await fetchJsonWithTimeout('/api/sessions-lite?' + params.toString(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
+  if(requestId !== loadSessionsRequestSeq){
+    return null;
+  }
+  return data;
+}
+
+async function loadSessionsProgressively(requestId, sortOrder){
+  const firstData = await fetchSessionListChunk(requestId, sortOrder, 0);
+  if(!firstData){
+    return;
+  }
+
+  state.sessions = Array.isArray(firstData.sessions) ? firstData.sessions : [];
+  state.sessionsTotalCount = getSessionListTotalCount(firstData, state.sessions.length);
+  state.sessionRoot = firstData.root || '';
+  state.hasLoadedSessions = true;
+  state.isSessionsLoading = false;
+  applyFilter();
+
+  let offset = state.sessions.length;
+  let hasMore = !!firstData.has_more && offset < state.sessionsTotalCount;
+  state.isSessionsBackgroundLoading = hasMore;
+  renderSessionList();
+
+  while(hasMore){
+    await new Promise(resolve => scheduleBackgroundTask(resolve, SESSION_BACKGROUND_APPEND_DELAY_MS));
+    if(requestId !== loadSessionsRequestSeq){
+      return;
+    }
+
+    const nextData = await fetchSessionListChunk(requestId, sortOrder, offset);
+    if(!nextData){
+      return;
+    }
+
+    const nextSessions = Array.isArray(nextData.sessions) ? nextData.sessions : [];
+    if(nextSessions.length === 0){
+      hasMore = false;
+      break;
+    }
+
+    state.sessionRoot = nextData.root || state.sessionRoot;
+    state.sessionsTotalCount = getSessionListTotalCount(nextData, state.sessions.length + nextSessions.length);
+    appendLoadedSessions(nextSessions);
+    offset += nextSessions.length;
+    hasMore = !!nextData.has_more && offset < state.sessionsTotalCount;
+    state.isSessionsBackgroundLoading = hasMore;
+    renderSessionList();
+  }
+}
+
 async function loadSessions(options){
   saveFilters();
   const requestId = ++loadSessionsRequestSeq;
   const loadMode = options && options.mode ? options.mode : 'auto';
   state.isSessionsLoading = true;
+  state.isSessionsBackgroundLoading = false;
   state.sessionsError = '';
   state.sessionsLoadMode = loadMode;
   renderSessionList();
@@ -4548,12 +4766,40 @@ async function loadSessions(options){
   if(sortOrder && sortOrder !== 'desc'){
     params.set('sort', sortOrder);
   }
+  if(loadMode === 'reload' || loadMode === 'reload_refresh'){
+    params.set('force', '1');
+  }
+  if(shouldUseProgressiveInitialSessionLoad(loadMode, q, sessionLabelId, eventLabelId)){
+    state.sessions = [];
+    state.filtered = [];
+    state.sessionsTotalCount = 0;
+    renderSessionList();
+    try {
+      await loadSessionsProgressively(requestId, sortOrder);
+    } catch (error) {
+      if(requestId !== loadSessionsRequestSeq){
+        return;
+      }
+      state.sessionsError = normalizeRequestError(error, t('error.sessions'));
+      renderSessionList();
+    } finally {
+      if(requestId === loadSessionsRequestSeq){
+        state.isSessionsLoading = false;
+        state.isSessionsBackgroundLoading = false;
+        state.hasLoadedSessions = true;
+        state.sessionsLoadMode = '';
+        renderSessionList();
+      }
+    }
+    return;
+  }
   try {
     const data = await fetchJsonWithTimeout('/api/sessions?' + params.toString(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
     if(requestId !== loadSessionsRequestSeq){
       return;
     }
     state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+    state.sessionsTotalCount = state.sessions.length;
     state.sessionsError = data.error || '';
     state.sessionRoot = data.root || '';
     applyFilter();
@@ -4579,6 +4825,7 @@ async function loadSessions(options){
       } else {
         state.activePath = null;
         state.activeSession = null;
+        state.activeSessionVersion = '';
         state.activeExchangeRate = null;
         state.activeEvents = [];
         state.activeRawLineCount = 0;
@@ -4765,14 +5012,9 @@ function clearFilters(){
   loadSessions({ mode: 'clear' });
 }
 
-function applyFilter(){
-  const cwdQ = document.getElementById('cwd_q').value.toLowerCase().trim();
-  const sourceFilter = normalizeSourceFilter(document.getElementById('source_filter').value || 'all');
-  const subagentsFilter = normalizeSubagentsFilter(document.getElementById('subagents_filter').value || 'include');
+function getSessionListFilterState(){
   const fromRaw = getFpDateValue('date_from');
   const toRaw = getFpDateValue('date_to');
-  const fromTs = parseOptionalDateStart(fromRaw);
-  const toTs = parseOptionalDateEnd(toRaw);
   const evFromRaw = buildDateTimeIsoFromParts(
     getFpDateValue('event_date_from_date'),
     document.getElementById('event_date_from_time').value,
@@ -4783,47 +5025,60 @@ function applyFilter(){
     document.getElementById('event_date_to_time').value,
     'end'
   );
-  const evFromTs = parseOptionalDatetimeStart(evFromRaw);
-  const evToTs = parseOptionalDatetimeEnd(evToRaw);
-  state.filtered = state.sessions.filter(s => {
-    const cwdMatched = !cwdQ || (s.cwd || '').toLowerCase().includes(cwdQ);
-    const sourceMatched = sourceFilter === 'all' || normalizeSourceFilter(s.source_type || s.source) === sourceFilter;
-    const isSubagents = hasSubagentsSegment(s);
-    const subagentsMatched = subagentsFilter === 'exclude' ? !isSubagents : true;
+  return {
+    cwdQ: document.getElementById('cwd_q').value.toLowerCase().trim(),
+    sourceFilter: normalizeSourceFilter(document.getElementById('source_filter').value || 'all'),
+    subagentsFilter: normalizeSubagentsFilter(document.getElementById('subagents_filter').value || 'include'),
+    fromTs: parseOptionalDateStart(fromRaw),
+    toTs: parseOptionalDateEnd(toRaw),
+    evFromTs: parseOptionalDatetimeStart(evFromRaw),
+    evToTs: parseOptionalDatetimeEnd(evToRaw),
+  };
+}
 
-    let dateMatched = true;
-    if(fromTs !== null || toTs !== null){
-      const sessionTs = toTimestamp(s.started_at || s.mtime);
-      if(Number.isNaN(sessionTs)){
+function matchesSessionListFilters(session, filters){
+  const cwdMatched = !filters.cwdQ || (session.cwd || '').toLowerCase().includes(filters.cwdQ);
+  const sourceMatched = filters.sourceFilter === 'all' || normalizeSourceFilter(session.source_type || session.source) === filters.sourceFilter;
+  const isSubagents = hasSubagentsSegment(session);
+  const subagentsMatched = filters.subagentsFilter === 'exclude' ? !isSubagents : true;
+
+  let dateMatched = true;
+  if(filters.fromTs !== null || filters.toTs !== null){
+    const sessionTs = toTimestamp(session.started_at || session.mtime);
+    if(Number.isNaN(sessionTs)){
+      dateMatched = false;
+    } else {
+      if(filters.fromTs !== null && sessionTs < filters.fromTs){
         dateMatched = false;
-      } else {
-        if(fromTs !== null && sessionTs < fromTs){
-          dateMatched = false;
-        }
-        if(toTs !== null && sessionTs > toTs){
-          dateMatched = false;
-        }
+      }
+      if(filters.toTs !== null && sessionTs > filters.toTs){
+        dateMatched = false;
       }
     }
+  }
 
-    let eventDateMatched = true;
-    if(evFromTs !== null || evToTs !== null){
-      const minTs = s.min_event_ts ? toTimestamp(s.min_event_ts) : NaN;
-      const maxTs = s.max_event_ts ? toTimestamp(s.max_event_ts) : NaN;
-      if(Number.isNaN(minTs) || Number.isNaN(maxTs)){
+  let eventDateMatched = true;
+  if(filters.evFromTs !== null || filters.evToTs !== null){
+    const minTs = session.min_event_ts ? toTimestamp(session.min_event_ts) : NaN;
+    const maxTs = session.max_event_ts ? toTimestamp(session.max_event_ts) : NaN;
+    if(Number.isNaN(minTs) || Number.isNaN(maxTs)){
+      eventDateMatched = false;
+    } else {
+      if(filters.evFromTs !== null && maxTs < filters.evFromTs){
         eventDateMatched = false;
-      } else {
-        if(evFromTs !== null && maxTs < evFromTs){
-          eventDateMatched = false;
-        }
-        if(evToTs !== null && minTs > evToTs){
-          eventDateMatched = false;
-        }
+      }
+      if(filters.evToTs !== null && minTs > filters.evToTs){
+        eventDateMatched = false;
       }
     }
+  }
 
-    return cwdMatched && sourceMatched && subagentsMatched && dateMatched && eventDateMatched;
-  });
+  return cwdMatched && sourceMatched && subagentsMatched && dateMatched && eventDateMatched;
+}
+
+function applyFilter(){
+  const filters = getSessionListFilterState();
+  state.filtered = state.sessions.filter(session => matchesSessionListFilters(session, filters));
   saveFilters();
   renderSessionList();
 }
@@ -4926,8 +5181,12 @@ function renderLabeledGroup(title, count, cardsHtml){
   `;
 }
 
-function renderSessionList(){
+function renderSessionList(options){
+  const opts = options || {};
+  const appendSessions = Array.isArray(opts.appendSessions) ? opts.appendSessions : null;
+  const previousFilteredCount = Number.isFinite(opts.previousFilteredCount) ? opts.previousFilteredCount : 0;
   const box = document.getElementById('sessions');
+  const previousScrollTop = box ? box.scrollTop : 0;
   updateReloadButtonState();
   if(state.isSessionsLoading && !state.hasLoadedSessions){
     box.innerHTML = renderInlineStatus(
@@ -4953,9 +5212,19 @@ function renderSessionList(){
           t('status.sessions.emptyCopy'),
           'empty'
         );
+  } else if(appendSessions && (appendSessions.length > 0 || previousFilteredCount > 0)){
+    if(previousFilteredCount === 0){
+      box.innerHTML = appendSessions.map(s => renderSessionCard(s, { active: state.activePath === s.path })).join('');
+    } else if(appendSessions.length > 0){
+      box.insertAdjacentHTML('beforeend', appendSessions.map(s => renderSessionCard(s, { active: state.activePath === s.path })).join(''));
+    }
   } else {
     box.innerHTML = state.filtered.map(s => renderSessionCard(s, { active: state.activePath === s.path })).join('');
   }
+  if(box){
+    box.scrollTop = previousScrollTop;
+  }
+  updateSessionsBackgroundIndicator();
   if(state.isSessionsLoading && state.hasLoadedSessions && (state.sessionsLoadMode === 'reload' || state.sessionsLoadMode === 'reload_refresh' || state.sessionsLoadMode === 'auto' || state.sessionsLoadMode === 'clear')){
     setStatusLayer(
       'sessions_status',
@@ -4968,10 +5237,11 @@ function renderSessionList(){
   }
   const countEl = document.getElementById('session_count');
   if(countEl){
-    if(state.hasLoadedSessions && state.sessions.length > 0){
+    if(state.hasLoadedSessions && (state.sessions.length > 0 || state.sessionsTotalCount > 0)){
       const currentIndex = state.activePath ? state.filtered.findIndex(s => s.path === state.activePath) : -1;
       const currentLabel = currentIndex >= 0 ? String(currentIndex + 1) : '-';
-      countEl.textContent = t('summary.sessions', { current: currentLabel, filtered: state.filtered.length, total: state.sessions.length });
+      const totalCount = state.sessionsTotalCount || state.sessions.length;
+      countEl.textContent = t('summary.sessions', { current: currentLabel, filtered: state.filtered.length, total: totalCount });
     } else {
       countEl.textContent = '';
     }
@@ -5737,6 +6007,10 @@ async function openSession(path, options){
   const nextSession = state.sessions.find(s => s.path === path) || null;
   const previousPath = state.activeSession && state.activeSession.path ? state.activeSession.path : state.activePath;
   const loadMode = options && options.mode ? options.mode : 'open';
+  const canCheckVersionFirst = previousPath === path
+    && state.activeEvents.length > 0
+    && !!state.activeSessionVersion
+    && (loadMode === 'open' || loadMode === 'refresh' || loadMode === 'sync');
   if(!(options && options.preserveLabeledFocus)){
     pendingLabeledEventFocusId = '';
   }
@@ -5744,20 +6018,47 @@ async function openSession(path, options){
     pendingAutomaticDetailSync = false;
     clearDeferredDetailSyncTimer();
   }
-  state.activePath = path;
-  state.isDetailLoading = true;
-  state.detailError = '';
-  state.detailLoadMode = loadMode;
-  state.activeExchangeRate = null;
   if(nextSession){
-    state.activeSession = nextSession;
+    state.activeSession = {
+      ...(state.activeSession || {}),
+      ...nextSession,
+    };
   }
+  state.activePath = path;
   if(!state.activeSession || state.activeSession.path !== path){
     state.activeSession = nextSession;
   }
+  if(canCheckVersionFirst){
+    renderSessionList();
+    renderLabeledList();
+    safeRenderActiveSession();
+    try {
+      const versionData = await fetchSessionVersion(path);
+      if(requestId !== loadSessionDetailRequestSeq){
+        return;
+      }
+      if(!versionData.error && versionData.session_version && versionData.session_version === state.activeSessionVersion){
+        state.detailError = '';
+        renderSessionList();
+        safeRenderActiveSession();
+        return;
+      }
+    } catch (error) {
+      if(requestId !== loadSessionDetailRequestSeq){
+        return;
+      }
+      // Fall through to the full refresh path when version check fails.
+    }
+  }
+  const effectiveLoadMode = canCheckVersionFirst ? 'refresh' : loadMode;
+  state.isDetailLoading = true;
+  state.detailError = '';
+  state.detailLoadMode = effectiveLoadMode;
+  state.activeExchangeRate = null;
   if(previousPath !== path){
     state.activeEvents = [];
     state.activeRawLineCount = 0;
+    state.activeSessionVersion = '';
     clearSelectedEventIds();
     clearMessageRangeSelection();
   }
@@ -5775,6 +6076,7 @@ async function openSession(path, options){
       return;
     }
     state.activeSession = metaData.session || nextSession;
+    state.activeSessionVersion = metaData.session_version || state.activeSessionVersion;
     state.activeExchangeRate = metaData.exchange_rate || null;
     state.detailError = '';
     safeRenderActiveSession();
@@ -5788,6 +6090,7 @@ async function openSession(path, options){
       return;
     }
     state.activeSession = eventsData.session || state.activeSession;
+    state.activeSessionVersion = eventsData.session_version || state.activeSessionVersion;
     state.activeExchangeRate = eventsData.exchange_rate || state.activeExchangeRate;
     state.activeEvents = eventsData.events || [];
     state.activeRawLineCount = eventsData.raw_line_count || 0;
@@ -5805,7 +6108,7 @@ async function openSession(path, options){
       state.isDetailLoading = false;
       state.detailLoadMode = '';
       safeRenderActiveSession();
-      if(loadMode === 'refresh'){
+      if(effectiveLoadMode === 'refresh'){
         scheduleTodayUsageSummaryRefresh();
       }
     }
@@ -5815,6 +6118,7 @@ async function openSession(path, options){
 async function refreshActiveSession(){
   if(!state.activePath) return;
   await openSession(state.activePath, { mode: 'refresh' });
+  await loadTodayUsageSummary({ forceRefresh: true });
 }
 
 function isEditableTarget(target){
@@ -5961,7 +6265,7 @@ async function triggerViewerRefresh(){
     if(state.activePath){
       await openSession(state.activePath, { mode: 'refresh' });
     }
-    await loadTodayUsageSummary();
+    await loadTodayUsageSummary({ forceRefresh: true });
     return;
   }
   const loadMode = state.activePath ? 'reload_refresh' : 'reload';
@@ -5969,7 +6273,7 @@ async function triggerViewerRefresh(){
   if(loadMode === 'reload_refresh' && state.activePath){
     await openSession(state.activePath, { mode: 'refresh' });
   }
-  await loadTodayUsageSummary();
+  await loadTodayUsageSummary({ forceRefresh: true });
 }
 
 function moveDetailKeywordSearchByShortcut(step){
@@ -6479,6 +6783,14 @@ window.addEventListener('storage', (event) => {
     const nextCurrency = normalizeCostCurrency(event.newValue || '') || getDefaultCostCurrencyForLanguage(uiLanguage);
     if(nextCurrency !== getPreferredCostCurrencyCode()){
       setCostCurrency(nextCurrency, false);
+    }
+    return;
+  }
+  if(event.key === COST_SUMMARY_CACHE_KEY){
+    const cached = readCostSummaryCache();
+    if(cached && cached.data){
+      setTodayUsageFromCostSummary(cached.data);
+      renderTodayUsageSummary();
     }
   }
 });

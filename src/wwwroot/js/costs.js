@@ -1,6 +1,8 @@
 (() => {
 const LANGUAGE_STORAGE_KEY = 'claude_sessions_viewer_language_v1';
 const COST_CURRENCY_STORAGE_KEY = 'claude_sessions_viewer_cost_currency_v1';
+const COST_SUMMARY_CACHE_KEY = 'claude_sessions_viewer_cost_summary_cache_v1';
+const COST_SUMMARY_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh-Hans', 'zh-Hant'];
 const SUPPORTED_COST_CURRENCIES = ['USD', 'JPY', 'CNY', 'TWD', 'HKD'];
 const COST_I18N = {
@@ -433,6 +435,53 @@ function setStatus(text, tone){
   status.classList.toggle('error', tone === 'error');
 }
 
+function readCostSummaryCache(){
+  try {
+    const raw = localStorage.getItem(COST_SUMMARY_CACHE_KEY) || '';
+    if(!raw){
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if(!parsed || typeof parsed !== 'object' || !parsed.data){
+      return null;
+    }
+    const savedAt = Number(parsed.saved_at);
+    return {
+      data: parsed.data,
+      savedAt: Number.isFinite(savedAt) ? savedAt : 0,
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeCostSummaryCache(data){
+  if(!data){
+    return;
+  }
+  try {
+    localStorage.setItem(COST_SUMMARY_CACHE_KEY, JSON.stringify({
+      saved_at: Date.now(),
+      data,
+    }));
+  } catch (error) {
+    // Ignore storage quota errors and keep the page state only.
+  }
+}
+
+function isCostSummaryCacheFresh(entry){
+  return !!entry
+    && Number.isFinite(entry.savedAt)
+    && entry.savedAt > 0
+    && (Date.now() - entry.savedAt) <= COST_SUMMARY_CACHE_MAX_AGE_MS;
+}
+
+function applyCostSummaryData(data){
+  costSummaryData = data || null;
+  renderMeta();
+  renderGroups();
+}
+
 function renderMeta(){
   const meta = document.getElementById('costs_meta');
   if(!meta){
@@ -554,23 +603,30 @@ function applyLanguage(){
   renderGroups();
 }
 
-async function loadCostSummary(){
+async function loadCostSummary(options){
+  const opts = options || {};
   const refresh = document.getElementById('refresh_costs');
   if(refresh){
     refresh.disabled = true;
   }
-  setStatus(t('status.loading'));
+  if(!opts.silent){
+    setStatus(t('status.loading'));
+  }
   try {
-    const response = await fetch(`/api/cost-summary?ts=${Date.now()}`, { cache: 'no-store' });
+    const params = new URLSearchParams();
+    params.set('ts', Date.now().toString());
+    if(opts.forceRefresh){
+      params.set('force', '1');
+    }
+    const response = await fetch(`/api/cost-summary?${params.toString()}`, { cache: 'no-store' });
     const data = await readJsonResponse(response);
-    costSummaryData = data;
-    renderMeta();
-    renderGroups();
+    writeCostSummaryCache(data);
+    applyCostSummaryData(data);
     setStatus('');
   } catch (error) {
-    costSummaryData = null;
-    renderMeta();
-    renderGroups();
+    if(!costSummaryData || opts.clearOnError){
+      applyCostSummaryData(null);
+    }
     setStatus(t('status.error'), 'error');
   } finally {
     if(refresh){
@@ -681,7 +737,7 @@ function initCostsPage(){
   const refresh = document.getElementById('refresh_costs');
   if(refresh){
     refresh.addEventListener('click', () => {
-      void loadCostSummary();
+      void loadCostSummary({ forceRefresh: true });
     });
   }
 
@@ -699,10 +755,27 @@ function initCostsPage(){
       if(nextCurrency !== getPreferredCostCurrencyCode()){
         setCostCurrency(nextCurrency, false);
       }
+      return;
+    }
+    if(event.key === COST_SUMMARY_CACHE_KEY){
+      const cached = readCostSummaryCache();
+      if(cached && cached.data){
+        applyCostSummaryData(cached.data);
+        setStatus('');
+      }
     }
   });
 
-  void loadCostSummary();
+  const cached = readCostSummaryCache();
+  if(cached && cached.data){
+    applyCostSummaryData(cached.data);
+    setStatus('');
+    if(!isCostSummaryCacheFresh(cached)){
+      void loadCostSummary({ silent: true });
+    }
+  } else {
+    void loadCostSummary();
+  }
 }
 
 if(document.readyState === 'loading'){

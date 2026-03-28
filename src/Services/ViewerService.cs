@@ -12,8 +12,10 @@ public sealed class ViewerService
 {
     private const int MaxDesktopScanBytes = 2 * 1024 * 1024;
     private const int SearchTextLimit = 50_000;
-    private const int MaxCacheEntries = 500;
+    private const int MaxCacheEntries = 2000;
     private const long TieredPricingThresholdTokens = 200_000;
+    private static readonly TimeSpan SessionItemsCacheTtl = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan CostSummaryCacheTtl = TimeSpan.FromMinutes(5);
 
     private static readonly string[] TextKeys =
     [
@@ -85,9 +87,13 @@ public sealed class ViewerService
     private readonly ExchangeRateService _exchangeRates;
     private readonly string _contentRootPath;
     private readonly ConcurrentDictionary<string, SessionCacheEntry> _cache = new(PathComparer);
+    private readonly SemaphoreSlim _costSummaryCacheLock = new(1, 1);
+    private readonly object _sessionItemsCacheLock = new();
     private IReadOnlyList<string>? _cliRoots;
     private IReadOnlyList<string>? _desktopRoots;
     private IReadOnlyList<string>? _wslCliRootsOnWindows;
+    private CostSummaryCacheEntry? _costSummaryCache;
+    private SessionItemsCacheEntry? _sessionItemsCache;
 
     public ViewerService(
         LabelStore labelStore,
@@ -166,7 +172,32 @@ public sealed class ViewerService
         };
     }
 
-    public async Task<CostSummaryResponse> GetCostSummaryAsync(CancellationToken cancellationToken = default)
+    public async Task<CostSummaryResponse> GetCostSummaryAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+    {
+        if (!forceRefresh && TryGetCachedCostSummary(out var cached))
+        {
+            return cached;
+        }
+
+        await _costSummaryCacheLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!forceRefresh && TryGetCachedCostSummary(out cached))
+            {
+                return cached;
+            }
+
+            var response = await BuildCostSummaryAsync(cancellationToken);
+            _costSummaryCache = new CostSummaryCacheEntry(DateTimeOffset.UtcNow, response);
+            return response;
+        }
+        finally
+        {
+            _costSummaryCacheLock.Release();
+        }
+    }
+
+    private async Task<CostSummaryResponse> BuildCostSummaryAsync(CancellationToken cancellationToken = default)
     {
         var nowLocal = DateTime.Now;
         var exchangeRate = await _exchangeRates.GetUsdJpyRateAsync(cancellationToken);
@@ -268,12 +299,26 @@ public sealed class ViewerService
         };
     }
 
+    private bool TryGetCachedCostSummary(out CostSummaryResponse response)
+    {
+        var cached = _costSummaryCache;
+        if (cached is not null && DateTimeOffset.UtcNow - cached.BuiltAtUtc <= CostSummaryCacheTtl)
+        {
+            response = cached.Response;
+            return true;
+        }
+
+        response = null!;
+        return false;
+    }
+
     public async Task<SessionListResponse> GetSessionsAsync(
         string? query,
         string? mode,
         string? sort,
         int? sessionLabelId,
         int? eventLabelId,
+        bool forceRefreshSessionItems = false,
         CancellationToken cancellationToken = default)
     {
         var roots = GetRoots();
@@ -286,7 +331,7 @@ public sealed class ViewerService
             .ToArray();
 
         var sessions = new List<SessionSummaryDto>();
-        foreach (var item in EnumerateAllSessionItems())
+        foreach (var item in EnumerateAllSessionItems(forceRefreshSessionItems))
         {
             cancellationToken.ThrowIfCancellationRequested();
             IndexRecord record;
@@ -343,11 +388,77 @@ public sealed class ViewerService
                 .ThenByDescending(session => session.Mtime, StringComparer.Ordinal),
         };
 
+        var limitedSessions = ordered.Take(settings.SessionListMax).ToArray();
         return new SessionListResponse
         {
             Root = BuildRootSummaryText(roots),
             Roots = roots,
-            Sessions = ordered.Take(settings.SessionListMax).ToArray(),
+            Sessions = limitedSessions,
+            TotalCount = limitedSessions.Length,
+            Offset = 0,
+            Limit = settings.SessionListMax,
+            HasMore = false,
+        };
+    }
+
+    public async Task<SessionListResponse> GetSessionsLiteAsync(
+        string? sort,
+        int? offset,
+        int? limit,
+        CancellationToken cancellationToken = default)
+    {
+        var roots = GetRoots();
+        var settings = _viewerSettings.GetSnapshot();
+        var snapshot = await _labelStore.GetSnapshotAsync(cancellationToken);
+        var normalizedSort = sort is "asc" or "updated" ? sort : "desc";
+        var allItems = EnumerateAllSessionItems();
+
+        SessionItem[] limitedItems = allItems
+            .Take(settings.SessionListMax)
+            .ToArray();
+        if (normalizedSort == "asc")
+        {
+            Array.Reverse(limitedItems);
+        }
+
+        var totalCount = limitedItems.Length;
+        var normalizedOffset = Math.Clamp(offset ?? 0, 0, totalCount);
+        var normalizedLimit = Math.Clamp(limit ?? settings.SessionListInitialLoadCount, 1, settings.SessionListMax);
+        var pageItems = limitedItems
+            .Skip(normalizedOffset)
+            .Take(normalizedLimit)
+            .ToArray();
+
+        var sessions = new List<SessionSummaryDto>(pageItems.Length);
+        foreach (var item in pageItems)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            IndexRecord record;
+            try
+            {
+                record = GetOrBuildIndexRecord(item);
+            }
+            catch (FileNotFoundException)
+            {
+                continue;
+            }
+
+            var sessionLabelIds = snapshot.SessionLabels.TryGetValue(record.Summary.Path, out var labelIds)
+                ? labelIds
+                : Array.Empty<int>();
+            sessions.Add(WithSessionLabelIds(record.Summary, sessionLabelIds));
+        }
+
+        return new SessionListResponse
+        {
+            Root = BuildRootSummaryText(roots),
+            Roots = roots,
+            Sessions = sessions,
+            TotalCount = totalCount,
+            Offset = normalizedOffset,
+            Limit = normalizedLimit,
+            HasMore = normalizedOffset + sessions.Count < totalCount,
         };
     }
 
@@ -358,6 +469,14 @@ public sealed class ViewerService
         CancellationToken cancellationToken = default)
     {
         var item = ResolveSessionItem(rawPath, rawSourceType);
+        var fileInfo = new FileInfo(item.Path);
+        if (!fileInfo.Exists)
+        {
+            _cache.TryRemove(item.Path, out _);
+            throw new FileNotFoundException("session file not found", item.Path);
+        }
+
+        var sessionVersion = BuildSessionVersion(fileInfo);
         var snapshot = await _labelStore.GetSnapshotAsync(cancellationToken);
         var exchangeRate = await _exchangeRates.GetUsdJpyRateAsync(cancellationToken);
         var indexRecord = GetOrBuildIndexRecord(item);
@@ -372,6 +491,7 @@ public sealed class ViewerService
                     indexRecord.Summary,
                     sessionLabelIds,
                     ResolveLabels(sessionLabelIds, snapshot.LabelById)),
+                SessionVersion = sessionVersion,
                 ExchangeRate = exchangeRate,
             };
         }
@@ -387,6 +507,7 @@ public sealed class ViewerService
                 indexRecord.Summary,
                 sessionLabelIds,
                 ResolveLabels(sessionLabelIds, snapshot.LabelById)),
+            SessionVersion = sessionVersion,
             Events = eventsData.Events
                 .Select(@event => WithEventLabels(
                     @event,
@@ -398,6 +519,23 @@ public sealed class ViewerService
                 .ToArray(),
             RawLineCount = eventsData.RawLineCount,
             ExchangeRate = exchangeRate,
+        };
+    }
+
+    public SessionVersionResponse GetSessionVersion(string? rawPath, string? rawSourceType)
+    {
+        var item = ResolveSessionItem(rawPath, rawSourceType);
+        var fileInfo = new FileInfo(item.Path);
+        if (!fileInfo.Exists)
+        {
+            _cache.TryRemove(item.Path, out _);
+            throw new FileNotFoundException("session file not found", item.Path);
+        }
+
+        return new SessionVersionResponse
+        {
+            Path = item.Path,
+            SessionVersion = BuildSessionVersion(fileInfo),
         };
     }
 
@@ -760,8 +898,36 @@ public sealed class ViewerService
         }
     }
 
-    private IReadOnlyList<SessionItem> EnumerateAllSessionItems()
+    private IReadOnlyList<SessionItem> EnumerateAllSessionItems(bool forceRefresh = false)
     {
+        var cliRoots = GetClaudeCliRoots()
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Select(CanonicalizePath)
+            .Distinct(PathComparer)
+            .OrderBy(root => root, PathComparer)
+            .ToArray();
+        var desktopRoots = GetClaudeDesktopRoots()
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Select(CanonicalizePath)
+            .Distinct(PathComparer)
+            .OrderBy(root => root, PathComparer)
+            .ToArray();
+        var cacheKey = string.Join("|",
+            cliRoots.Select(root => $"cli:{root}")
+                .Concat(desktopRoots.Select(root => $"desktop:{root}")));
+        var now = DateTime.UtcNow;
+
+        lock (_sessionItemsCacheLock)
+        {
+            if (!forceRefresh
+                && _sessionItemsCache is not null
+                && _sessionItemsCache.RootsKey == cacheKey
+                && now - _sessionItemsCache.BuiltAtUtc <= SessionItemsCacheTtl)
+            {
+                return _sessionItemsCache.Items;
+            }
+        }
+
         var items = new Dictionary<string, SessionItem>(PathComparer);
         var options = new EnumerationOptions
         {
@@ -770,7 +936,7 @@ public sealed class ViewerService
             ReturnSpecialDirectories = false,
         };
 
-        foreach (var root in GetClaudeCliRoots())
+        foreach (var root in cliRoots)
         {
             if (!Directory.Exists(root))
             {
@@ -784,7 +950,7 @@ public sealed class ViewerService
             }
         }
 
-        foreach (var root in GetClaudeDesktopRoots())
+        foreach (var root in desktopRoots)
         {
             if (!Directory.Exists(root))
             {
@@ -801,10 +967,17 @@ public sealed class ViewerService
             }
         }
 
-        return items.Values
+        var results = items.Values
             .OrderByDescending(item => SafeGetLastWriteTimeUtc(item.Path))
             .ThenBy(item => item.Path, PathComparer)
             .ToArray();
+
+        lock (_sessionItemsCacheLock)
+        {
+            _sessionItemsCache = new SessionItemsCacheEntry(cacheKey, now, results);
+        }
+
+        return results;
     }
 
     private SessionItem ResolveSessionItem(string? rawPath, string? rawSourceType)
@@ -2820,6 +2993,12 @@ public sealed class ViewerService
         return new FileSignature(fileInfo.LastWriteTimeUtc.Ticks, fileInfo.Length);
     }
 
+    private static string BuildSessionVersion(FileInfo fileInfo)
+    {
+        var signature = GetSignature(fileInfo);
+        return $"{signature.LastWriteTicks}:{signature.Size}";
+    }
+
     private static string CanonicalizePath(string rawPath)
     {
         foreach (var candidate in ExpandPathCandidates(rawPath))
@@ -3454,6 +3633,15 @@ public sealed class ViewerService
     private readonly record struct SessionItem(string SourceType, string Path, string Root);
 
     private readonly record struct FileSignature(long LastWriteTicks, long Size);
+
+    private sealed record CostSummaryCacheEntry(
+        DateTimeOffset BuiltAtUtc,
+        CostSummaryResponse Response);
+
+    private sealed record SessionItemsCacheEntry(
+        string RootsKey,
+        DateTime BuiltAtUtc,
+        IReadOnlyList<SessionItem> Items);
 
     private sealed class SessionCacheEntry
     {
