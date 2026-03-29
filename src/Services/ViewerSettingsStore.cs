@@ -1,15 +1,17 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 
 namespace ClaudeSessionsViewer.Services;
 
 public sealed class ViewerSettingsStore
 {
     private const int DefaultSessionListMax = 1000;
-    private const int DefaultSessionListInitialLoadCount = 100;
+    private const int DefaultSessionListInitialLoadCount = 50;
     private const int DefaultSessionEventsMax = 10000;
     private const int MinLimit = 1;
     private const int MaxLimit = 100_000;
+    private const string Crlf = "\r\n";
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -28,14 +30,14 @@ public sealed class ViewerSettingsStore
         var cacheDir = Path.Combine(AppStoragePathHelper.ResolveCacheRoot(environment.ContentRootPath), ".cache");
         Directory.CreateDirectory(cacheDir);
         _storagePath = Path.Combine(cacheDir, "viewer-settings.json");
-        EnsureDefaultFileExists();
+        EnsureSettingsFileExists();
     }
 
     public ViewerSettingsSnapshot GetSnapshot()
     {
         lock (_gate)
         {
-            EnsureDefaultFileExists();
+            EnsureSettingsFileExists();
             var lastWrite = File.Exists(_storagePath)
                 ? new FileInfo(_storagePath).LastWriteTimeUtc
                 : DateTime.MinValue;
@@ -57,21 +59,57 @@ public sealed class ViewerSettingsStore
         }
     }
 
-    private void EnsureDefaultFileExists()
+    private void EnsureSettingsFileExists()
     {
-        if (File.Exists(_storagePath))
+        if (!File.Exists(_storagePath))
         {
+            WriteSettingsFile(new ViewerSettingsFile
+            {
+                SessionListMax = DefaultSessionListMax,
+                SessionListInitialLoadCount = DefaultSessionListInitialLoadCount,
+                SessionEventsMax = DefaultSessionEventsMax,
+            });
             return;
         }
 
-        var defaults = new ViewerSettingsFile
+        TryAddMissingInitialLoadCount();
+    }
+
+    private void TryAddMissingInitialLoadCount()
+    {
+        try
         {
-            SessionListMax = DefaultSessionListMax,
-            SessionListInitialLoadCount = DefaultSessionListInitialLoadCount,
-            SessionEventsMax = DefaultSessionEventsMax,
-        };
-        var json = JsonSerializer.Serialize(defaults, SerializerOptions);
-        File.WriteAllText(_storagePath, json + Environment.NewLine);
+            var json = File.ReadAllText(_storagePath);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind is not JsonValueKind.Object ||
+                document.RootElement.TryGetProperty("session_list_initial_load_count", out _))
+            {
+                return;
+            }
+
+            var root = JsonNode.Parse(json) as JsonObject;
+            if (root is null)
+            {
+                return;
+            }
+
+            root["session_list_initial_load_count"] = DefaultSessionListInitialLoadCount;
+            WriteSettingsJson(root.ToJsonString(SerializerOptions));
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        catch (JsonException)
+        {
+        }
     }
 
     private ViewerSettingsFile ReadSettings()
@@ -99,6 +137,31 @@ public sealed class ViewerSettingsStore
         {
             return new ViewerSettingsFile();
         }
+    }
+
+    private void WriteSettingsFile(ViewerSettingsFile settings)
+    {
+        WriteSettingsJson(JsonSerializer.Serialize(settings, SerializerOptions));
+    }
+
+    private void WriteSettingsJson(string json)
+    {
+        File.WriteAllText(_storagePath, EnsureTrailingCrlf(NormalizeToCrlf(json)));
+    }
+
+    private static string NormalizeToCrlf(string value)
+    {
+        return value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Replace("\n", Crlf, StringComparison.Ordinal);
+    }
+
+    private static string EnsureTrailingCrlf(string value)
+    {
+        return value.EndsWith(Crlf, StringComparison.Ordinal)
+            ? value
+            : value + Crlf;
     }
 
     private static int NormalizeLimit(int? rawValue, int fallback)
