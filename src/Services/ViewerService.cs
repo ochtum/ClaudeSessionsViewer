@@ -13,7 +13,6 @@ public sealed class ViewerService
     private const int MaxDesktopScanBytes = 2 * 1024 * 1024;
     private const int SearchTextLimit = 50_000;
     private const int MaxCacheEntries = 2000;
-    private const long TieredPricingThresholdTokens = 200_000;
     private static readonly TimeSpan SessionItemsCacheTtl = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan CostSummaryCacheTtl = TimeSpan.FromMinutes(5);
 
@@ -64,26 +63,9 @@ public sealed class ViewerService
         WriteIndented = true,
     };
 
-    private static readonly IReadOnlyDictionary<string, ClaudeModelPricing> ClaudePricingByModel = new Dictionary<string, ClaudeModelPricing>(StringComparer.Ordinal)
-    {
-        ["claude-sonnet-4-6"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.0000225m, 0.0000075m, 0.0000006m),
-        ["claude-sonnet-4-5"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.0000225m, 0.0000075m, 0.0000006m),
-        ["claude-sonnet-4"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.0000225m, 0.0000075m, 0.0000006m),
-        ["claude-sonnet-3-7"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m),
-        ["claude-sonnet-3-5"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m, 0.000006m, 0.00003m, 0.0000075m, 0.0000006m),
-        ["claude-haiku-4-5"] = new(0.000001m, 0.000005m, 0.00000125m, 0.0000001m),
-        ["claude-haiku-3-5"] = new(0.0000008m, 0.000004m, 0.000001m, 0.00000008m),
-        ["claude-haiku-3"] = new(0.00000025m, 0.00000125m, 0.0000003125m, 0.000000025m),
-        ["claude-opus-4-6"] = new(0.000005m, 0.000025m, 0.00000625m, 0.0000005m, 0.00001m, 0.0000375m, 0.0000125m, 0.000001m),
-        ["claude-opus-4-5"] = new(0.000005m, 0.000025m, 0.00000625m, 0.0000005m),
-        ["claude-opus-4-1"] = new(0.000015m, 0.000075m, 0.00001875m, 0.0000015m),
-        ["claude-opus-4"] = new(0.000015m, 0.000075m, 0.00001875m, 0.0000015m),
-        ["claude-opus-3"] = new(0.000015m, 0.000075m, 0.00001875m, 0.0000015m),
-        ["claude-sonnet-3"] = new(0.000003m, 0.000015m, 0.00000375m, 0.0000003m),
-    };
-
     private readonly LabelStore _labelStore;
     private readonly ViewerSettingsStore _viewerSettings;
+    private readonly ModelPricingService _modelPricing;
     private readonly ExchangeRateService _exchangeRates;
     private readonly string _contentRootPath;
     private readonly ConcurrentDictionary<string, SessionCacheEntry> _cache = new(PathComparer);
@@ -99,10 +81,12 @@ public sealed class ViewerService
         LabelStore labelStore,
         ViewerSettingsStore viewerSettings,
         IHostEnvironment hostEnvironment,
+        ModelPricingService modelPricing,
         ExchangeRateService exchangeRates)
     {
         _labelStore = labelStore;
         _viewerSettings = viewerSettings;
+        _modelPricing = modelPricing;
         _exchangeRates = exchangeRates;
         _contentRootPath = CanonicalizePath(hostEnvironment.ContentRootPath);
     }
@@ -174,7 +158,8 @@ public sealed class ViewerService
 
     public async Task<CostSummaryResponse> GetCostSummaryAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
-        if (!forceRefresh && TryGetCachedCostSummary(out var cached))
+        var pricingVersion = _modelPricing.GetCatalogVersion();
+        if (!forceRefresh && TryGetCachedCostSummary(pricingVersion, out var cached))
         {
             return cached;
         }
@@ -182,13 +167,13 @@ public sealed class ViewerService
         await _costSummaryCacheLock.WaitAsync(cancellationToken);
         try
         {
-            if (!forceRefresh && TryGetCachedCostSummary(out cached))
+            if (!forceRefresh && TryGetCachedCostSummary(pricingVersion, out cached))
             {
                 return cached;
             }
 
             var response = await BuildCostSummaryAsync(cancellationToken);
-            _costSummaryCache = new CostSummaryCacheEntry(DateTimeOffset.UtcNow, response);
+            _costSummaryCache = new CostSummaryCacheEntry(DateTimeOffset.UtcNow, pricingVersion, response);
             return response;
         }
         finally
@@ -237,12 +222,15 @@ public sealed class ViewerService
             }
 
             var sessionTimestamp = FirstNonEmpty(indexRecord.Summary.StartedAt, indexRecord.Summary.Mtime);
-            if (indexRecord.Summary.Usage is not null
+            var sessionUsage = string.Equals(item.SourceType, "claude_cli", StringComparison.Ordinal)
+                ? BuildCliSessionUsageForCostSummary(item.Path)
+                : indexRecord.Summary.Usage;
+            if (sessionUsage is not null
                 && TryParseLocalTimestamp(sessionTimestamp, out var sessionLocalTimestamp))
             {
                 foreach (var group in groups)
                 {
-                    group.AddSessionUsage(sessionLocalTimestamp, indexRecord.Summary.Usage);
+                    group.AddSessionUsage(sessionLocalTimestamp, sessionUsage);
                 }
             }
 
@@ -250,7 +238,7 @@ public sealed class ViewerService
             try
             {
                 usageEvents = string.Equals(item.SourceType, "claude_cli", StringComparison.Ordinal)
-                    ? EnumerateCliTokenUsageEvents(item.Path)
+                    ? EnumerateCliTokenUsageEventsForCostSummary(item.Path)
                     : Array.Empty<SessionEventDto>();
             }
             catch (OperationCanceledException)
@@ -299,10 +287,12 @@ public sealed class ViewerService
         };
     }
 
-    private bool TryGetCachedCostSummary(out CostSummaryResponse response)
+    private bool TryGetCachedCostSummary(long pricingVersion, out CostSummaryResponse response)
     {
         var cached = _costSummaryCache;
-        if (cached is not null && DateTimeOffset.UtcNow - cached.BuiltAtUtc <= CostSummaryCacheTtl)
+        if (cached is not null
+            && cached.PricingVersion == pricingVersion
+            && DateTimeOffset.UtcNow - cached.BuiltAtUtc <= CostSummaryCacheTtl)
         {
             response = cached.Response;
             return true;
@@ -1044,6 +1034,8 @@ public sealed class ViewerService
             Signature = signature,
             IndexRecord = built,
             EventsData = cached is not null && cached.Signature == signature ? cached.EventsData : null,
+            ViewerSettingsVersion = cached?.ViewerSettingsVersion ?? 0,
+            MaxEvents = cached?.MaxEvents ?? 0,
         };
         TrimCacheIfNeeded();
         return built;
@@ -1554,6 +1546,61 @@ public sealed class ViewerService
             EffortLevel = sourceEvent.EffortLevel,
             Usage = sourceEvent.Usage,
         };
+    }
+
+    private UsageMetricsDto? BuildCliSessionUsageForCostSummary(string path)
+    {
+        var usageAccumulator = new UsageAccumulator();
+        foreach (var line in File.ReadLines(path))
+        {
+            if (!TryParseJson(line, out var document))
+            {
+                continue;
+            }
+
+            using (document!)
+            {
+                var root = document.RootElement;
+                var usage = ExtractUsageForCostSummary(root, ExtractModelName(root));
+                usageAccumulator.Add(usage);
+            }
+        }
+
+        return usageAccumulator.ToUsage();
+    }
+
+    private IEnumerable<SessionEventDto> EnumerateCliTokenUsageEventsForCostSummary(string path)
+    {
+        var rawLineCount = 0;
+        foreach (var line in File.ReadLines(path))
+        {
+            rawLineCount++;
+            if (!TryParseJson(line, out var document))
+            {
+                continue;
+            }
+
+            using (document!)
+            {
+                var root = document.RootElement;
+                var usage = ExtractUsageForCostSummary(root, ExtractModelName(root));
+                if (usage is null)
+                {
+                    continue;
+                }
+
+                yield return new SessionEventDto
+                {
+                    EventId = $"line-{rawLineCount}-usage",
+                    Timestamp = ExtractTimestamp(root),
+                    Kind = "token_usage",
+                    Role = "system",
+                    Model = ExtractModelName(root),
+                    EffortLevel = ExtractEffortLevel(root),
+                    Usage = usage,
+                };
+            }
+        }
     }
 
     private static EventsData LoadDesktopEvents(string path, int maxEvents)
@@ -2490,8 +2537,41 @@ public sealed class ViewerService
         var outputTokens = GetInt64(usage, "output_tokens");
         var cacheCreationTokens = GetInt64(usage, "cache_creation_input_tokens");
         var cacheReadTokens = GetInt64(usage, "cache_read_input_tokens");
+        var costUsd = TryExtractCostUsd(obj, usage);
+
+        if (inputTokens == 0
+            && outputTokens == 0
+            && cacheCreationTokens == 0
+            && cacheReadTokens == 0
+            && costUsd is null)
+        {
+            return null;
+        }
+
+        return CreateUsageMetrics(
+            inputTokens,
+            outputTokens,
+            cacheCreationTokens,
+            cacheReadTokens,
+            costUsd);
+    }
+
+    private UsageMetricsDto? ExtractUsageForCostSummary(JsonElement obj, string modelName)
+    {
+        if (!TryGetProperty(obj, "message", out var message)
+            || message.ValueKind != JsonValueKind.Object
+            || !TryGetProperty(message, "usage", out var usage)
+            || usage.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var inputTokens = GetInt64(usage, "input_tokens");
+        var outputTokens = GetInt64(usage, "output_tokens");
+        var cacheCreationTokens = GetInt64(usage, "cache_creation_input_tokens");
+        var cacheReadTokens = GetInt64(usage, "cache_read_input_tokens");
         var costUsd = TryExtractCostUsd(obj, usage)
-            ?? TryCalculateCostUsdFromModel(
+            ?? _modelPricing.TryCalculateCostUsd(
                 modelName,
                 inputTokens,
                 outputTokens,
@@ -3232,116 +3312,6 @@ public sealed class ViewerService
         return GetDecimal(usageElement, "costUSD");
     }
 
-    private static decimal? TryCalculateCostUsdFromModel(
-        string rawModelName,
-        long inputTokens,
-        long outputTokens,
-        long cacheCreationTokens,
-        long cacheReadTokens)
-    {
-        var key = NormalizeClaudePricingModelKey(rawModelName);
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return null;
-        }
-
-        if (!ClaudePricingByModel.TryGetValue(key, out var pricing))
-        {
-            return null;
-        }
-
-        var inputCost = CalculateTieredTokenCost(inputTokens, pricing.InputCostPerToken, pricing.InputCostPerTokenAbove200k);
-        var outputCost = CalculateTieredTokenCost(outputTokens, pricing.OutputCostPerToken, pricing.OutputCostPerTokenAbove200k);
-        var cacheCreationCost = CalculateTieredTokenCost(cacheCreationTokens, pricing.CacheCreationInputCostPerToken, pricing.CacheCreationInputCostPerTokenAbove200k);
-        var cacheReadCost = CalculateTieredTokenCost(cacheReadTokens, pricing.CacheReadInputCostPerToken, pricing.CacheReadInputCostPerTokenAbove200k);
-        return inputCost + outputCost + cacheCreationCost + cacheReadCost;
-    }
-
-    private static decimal CalculateTieredTokenCost(long tokens, decimal unitCost, decimal? unitCostAbove200k)
-    {
-        if (tokens <= 0)
-        {
-            return 0m;
-        }
-
-        if (!unitCostAbove200k.HasValue || tokens <= TieredPricingThresholdTokens)
-        {
-            return tokens * unitCost;
-        }
-
-        var baseTokens = TieredPricingThresholdTokens;
-        var aboveTokens = tokens - TieredPricingThresholdTokens;
-        return (baseTokens * unitCost) + (aboveTokens * unitCostAbove200k.Value);
-    }
-
-    private static string NormalizeClaudePricingModelKey(string rawModelName)
-    {
-        var normalized = (rawModelName ?? string.Empty).Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return string.Empty;
-        }
-
-        if (normalized.Contains("claude-sonnet-4-6", StringComparison.Ordinal))
-        {
-            return "claude-sonnet-4-6";
-        }
-        if (normalized.Contains("claude-sonnet-4-5", StringComparison.Ordinal))
-        {
-            return "claude-sonnet-4-5";
-        }
-        if (normalized.Contains("claude-sonnet-4", StringComparison.Ordinal) || normalized.Contains("claude-4-sonnet", StringComparison.Ordinal))
-        {
-            return "claude-sonnet-4";
-        }
-        if (normalized.Contains("claude-3-7-sonnet", StringComparison.Ordinal) || normalized.Contains("claude-sonnet-3-7", StringComparison.Ordinal))
-        {
-            return "claude-sonnet-3-7";
-        }
-        if (normalized.Contains("claude-3-5-sonnet", StringComparison.Ordinal) || normalized.Contains("claude-sonnet-3-5", StringComparison.Ordinal))
-        {
-            return "claude-sonnet-3-5";
-        }
-        if (normalized.Contains("claude-haiku-4-5", StringComparison.Ordinal))
-        {
-            return "claude-haiku-4-5";
-        }
-        if (normalized.Contains("claude-3-5-haiku", StringComparison.Ordinal) || normalized.Contains("claude-haiku-3-5", StringComparison.Ordinal))
-        {
-            return "claude-haiku-3-5";
-        }
-        if (normalized.Contains("claude-3-haiku", StringComparison.Ordinal))
-        {
-            return "claude-haiku-3";
-        }
-        if (normalized.Contains("claude-opus-4-6", StringComparison.Ordinal))
-        {
-            return "claude-opus-4-6";
-        }
-        if (normalized.Contains("claude-opus-4-5", StringComparison.Ordinal))
-        {
-            return "claude-opus-4-5";
-        }
-        if (normalized.Contains("claude-opus-4-1", StringComparison.Ordinal))
-        {
-            return "claude-opus-4-1";
-        }
-        if (normalized.Contains("claude-opus-4", StringComparison.Ordinal) || normalized.Contains("claude-4-opus", StringComparison.Ordinal))
-        {
-            return "claude-opus-4";
-        }
-        if (normalized.Contains("claude-3-opus", StringComparison.Ordinal))
-        {
-            return "claude-opus-3";
-        }
-        if (normalized.Contains("claude-3-sonnet", StringComparison.Ordinal))
-        {
-            return "claude-sonnet-3";
-        }
-
-        return string.Empty;
-    }
-
     private static string GetString(JsonElement element, string propertyName)
     {
         return TryGetProperty(element, propertyName, out var value)
@@ -3636,6 +3606,7 @@ public sealed class ViewerService
 
     private sealed record CostSummaryCacheEntry(
         DateTimeOffset BuiltAtUtc,
+        long PricingVersion,
         CostSummaryResponse Response);
 
     private sealed record SessionItemsCacheEntry(
@@ -3852,16 +3823,6 @@ public sealed class ViewerService
             };
         }
     }
-
-    private readonly record struct ClaudeModelPricing(
-        decimal InputCostPerToken,
-        decimal OutputCostPerToken,
-        decimal CacheCreationInputCostPerToken,
-        decimal CacheReadInputCostPerToken,
-        decimal? InputCostPerTokenAbove200k = null,
-        decimal? OutputCostPerTokenAbove200k = null,
-        decimal? CacheCreationInputCostPerTokenAbove200k = null,
-        decimal? CacheReadInputCostPerTokenAbove200k = null);
 
     private readonly record struct LevelDbEntry(byte[] Key, byte[] Value);
 

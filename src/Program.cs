@@ -83,6 +83,7 @@ public class Program
         });
         builder.Services.AddSingleton<LabelStore>();
         builder.Services.AddSingleton<ViewerSettingsStore>();
+        builder.Services.AddSingleton<ModelPricingService>();
         builder.Services.AddSingleton<ExchangeRateService>();
         builder.Services.AddSingleton<ViewerService>();
 
