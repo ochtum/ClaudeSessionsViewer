@@ -52,6 +52,21 @@ public sealed class ModelPricingService
         long cacheCreationTokens,
         long cacheReadTokens)
     {
+        return TryCalculateCostBreakdownUsd(
+            rawModel,
+            inputTokens,
+            outputTokens,
+            cacheCreationTokens,
+            cacheReadTokens)?.TotalCostUsd;
+    }
+
+    public CostBreakdownUsd? TryCalculateCostBreakdownUsd(
+        string rawModel,
+        long inputTokens,
+        long outputTokens,
+        long cacheCreationTokens,
+        long cacheReadTokens)
+    {
         if (!TryResolvePricing(rawModel, out var pricing))
         {
             return null;
@@ -73,8 +88,12 @@ public sealed class ModelPricingService
             cacheReadTokens,
             pricing.CachedInputCostPerMillionTokens,
             pricing.CachedInputCostPerMillionTokensAbove200k);
-
-        return inputCost + outputCost + cacheCreationCost + cacheReadCost;
+        return new CostBreakdownUsd(
+            inputCost,
+            cacheCreationCost,
+            cacheReadCost,
+            outputCost,
+            inputCost + cacheCreationCost + cacheReadCost + outputCost);
     }
 
     private bool TryResolvePricing(string rawModel, out PricingCatalogEntry pricing)
@@ -476,6 +495,13 @@ public sealed class ModelPricingService
             fileInfo.Exists ? fileInfo.LastWriteTimeUtc.Ticks : 0L,
             fileInfo.Exists ? fileInfo.Length : 0L);
     }
+
+    public readonly record struct CostBreakdownUsd(
+        decimal InputCostUsd,
+        decimal CacheCreationCostUsd,
+        decimal CacheReadCostUsd,
+        decimal OutputCostUsd,
+        decimal TotalCostUsd);
 
     private sealed record PricingCatalogSnapshot(
         string Path,

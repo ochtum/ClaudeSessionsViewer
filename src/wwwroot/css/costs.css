@@ -114,6 +114,14 @@ select {
   line-height: 1.7;
 }
 
+.costs-note {
+  margin-top: 8px;
+  max-width: 760px;
+  color: #0f5a73;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .costs-actions {
   display: flex;
   gap: 12px;
@@ -307,6 +315,22 @@ select {
 
 .costs-period-label {
   font-weight: 600;
+}
+
+.costs-metric-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.costs-metric-value {
+  font-weight: 600;
+}
+
+.costs-metric-cost {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .rank-pill {

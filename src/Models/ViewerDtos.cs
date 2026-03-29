@@ -12,6 +12,14 @@ public sealed class UsageMetricsDto
 
     public long TotalTokens { get; init; }
 
+    public decimal? InputCostUsd { get; init; }
+
+    public decimal? CacheCreationCostUsd { get; init; }
+
+    public decimal? CacheReadCostUsd { get; init; }
+
+    public decimal? OutputCostUsd { get; init; }
+
     public decimal? CostUsd { get; init; }
 }
 
@@ -119,6 +127,14 @@ public sealed class CostSummaryPeriodDto
     public long OutputTokens { get; init; }
 
     public long TotalTokens { get; init; }
+
+    public decimal? InputCostUsd { get; init; }
+
+    public decimal? CacheCreationCostUsd { get; init; }
+
+    public decimal? CacheReadCostUsd { get; init; }
+
+    public decimal? OutputCostUsd { get; init; }
 
     public decimal? CostUsd { get; init; }
 }

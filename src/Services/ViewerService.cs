@@ -2570,13 +2570,14 @@ public sealed class ViewerService
         var outputTokens = GetInt64(usage, "output_tokens");
         var cacheCreationTokens = GetInt64(usage, "cache_creation_input_tokens");
         var cacheReadTokens = GetInt64(usage, "cache_read_input_tokens");
-        var costUsd = TryExtractCostUsd(obj, usage)
-            ?? _modelPricing.TryCalculateCostUsd(
-                modelName,
-                inputTokens,
-                outputTokens,
-                cacheCreationTokens,
-                cacheReadTokens);
+        var costBreakdown = _modelPricing.TryCalculateCostBreakdownUsd(
+            modelName,
+            inputTokens,
+            outputTokens,
+            cacheCreationTokens,
+            cacheReadTokens);
+        var costUsd = costBreakdown?.TotalCostUsd
+            ?? TryExtractCostUsd(obj, usage);
 
         if (inputTokens == 0
             && outputTokens == 0
@@ -2592,7 +2593,11 @@ public sealed class ViewerService
             outputTokens,
             cacheCreationTokens,
             cacheReadTokens,
-            costUsd);
+            costUsd,
+            costBreakdown?.InputCostUsd,
+            costBreakdown?.CacheCreationCostUsd,
+            costBreakdown?.CacheReadCostUsd,
+            costBreakdown?.OutputCostUsd);
     }
 
     private static string ExtractTimestamp(JsonElement obj)
@@ -3270,7 +3275,11 @@ public sealed class ViewerService
         long outputTokens,
         long cacheCreationTokens,
         long cacheReadTokens,
-        decimal? costUsd)
+        decimal? costUsd,
+        decimal? inputCostUsd = null,
+        decimal? cacheCreationCostUsd = null,
+        decimal? cacheReadCostUsd = null,
+        decimal? outputCostUsd = null)
     {
         return new UsageMetricsDto
         {
@@ -3279,6 +3288,10 @@ public sealed class ViewerService
             CacheCreationTokens = cacheCreationTokens,
             CacheReadTokens = cacheReadTokens,
             TotalTokens = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens,
+            InputCostUsd = inputCostUsd,
+            CacheCreationCostUsd = cacheCreationCostUsd,
+            CacheReadCostUsd = cacheReadCostUsd,
+            OutputCostUsd = outputCostUsd,
             CostUsd = costUsd,
         };
     }
@@ -3667,9 +3680,14 @@ public sealed class ViewerService
         private long _outputTokens;
         private long _cacheCreationTokens;
         private long _cacheReadTokens;
+        private decimal _inputCostUsd;
+        private decimal _cacheCreationCostUsd;
+        private decimal _cacheReadCostUsd;
+        private decimal _outputCostUsd;
         private decimal _costUsd;
         private bool _hasUsage;
         private bool _hasCompleteCost = true;
+        private bool _hasCompleteCostBreakdown = true;
 
         public void Add(UsageMetricsDto? usage)
         {
@@ -3683,6 +3701,21 @@ public sealed class ViewerService
             _outputTokens += usage.OutputTokens;
             _cacheCreationTokens += usage.CacheCreationTokens;
             _cacheReadTokens += usage.CacheReadTokens;
+
+            if (usage.InputCostUsd.HasValue
+                && usage.CacheCreationCostUsd.HasValue
+                && usage.CacheReadCostUsd.HasValue
+                && usage.OutputCostUsd.HasValue)
+            {
+                _inputCostUsd += usage.InputCostUsd.Value;
+                _cacheCreationCostUsd += usage.CacheCreationCostUsd.Value;
+                _cacheReadCostUsd += usage.CacheReadCostUsd.Value;
+                _outputCostUsd += usage.OutputCostUsd.Value;
+            }
+            else
+            {
+                _hasCompleteCostBreakdown = false;
+            }
 
             if (usage.CostUsd.HasValue)
             {
@@ -3703,7 +3736,11 @@ public sealed class ViewerService
                     _outputTokens,
                     _cacheCreationTokens,
                     _cacheReadTokens,
-                    _hasCompleteCost ? _costUsd : null);
+                    _hasCompleteCost ? _costUsd : null,
+                    _hasCompleteCostBreakdown ? _inputCostUsd : null,
+                    _hasCompleteCostBreakdown ? _cacheCreationCostUsd : null,
+                    _hasCompleteCostBreakdown ? _cacheReadCostUsd : null,
+                    _hasCompleteCostBreakdown ? _outputCostUsd : null);
         }
     }
 
@@ -3784,8 +3821,13 @@ public sealed class ViewerService
         private long _cacheReadTokens;
         private long _outputTokens;
         private long _totalTokens;
+        private decimal _inputCostUsd;
+        private decimal _cacheCreationCostUsd;
+        private decimal _cacheReadCostUsd;
+        private decimal _outputCostUsd;
         private decimal _costUsd;
         private bool _hasUnknownCost;
+        private bool _hasUnknownCostBreakdown;
 
         public void Add(UsageMetricsDto usage)
         {
@@ -3795,6 +3837,21 @@ public sealed class ViewerService
             _cacheReadTokens += usage.CacheReadTokens;
             _outputTokens += usage.OutputTokens;
             _totalTokens += usage.TotalTokens;
+
+            if (usage.InputCostUsd.HasValue
+                && usage.CacheCreationCostUsd.HasValue
+                && usage.CacheReadCostUsd.HasValue
+                && usage.OutputCostUsd.HasValue)
+            {
+                _inputCostUsd += usage.InputCostUsd.Value;
+                _cacheCreationCostUsd += usage.CacheCreationCostUsd.Value;
+                _cacheReadCostUsd += usage.CacheReadCostUsd.Value;
+                _outputCostUsd += usage.OutputCostUsd.Value;
+            }
+            else
+            {
+                _hasUnknownCostBreakdown = true;
+            }
 
             if (usage.CostUsd.HasValue)
             {
@@ -3819,6 +3876,10 @@ public sealed class ViewerService
                 CacheTokens = cacheTokens,
                 OutputTokens = _outputTokens,
                 TotalTokens = _totalTokens,
+                InputCostUsd = _hasUnknownCostBreakdown ? null : _inputCostUsd,
+                CacheCreationCostUsd = _hasUnknownCostBreakdown ? null : _cacheCreationCostUsd,
+                CacheReadCostUsd = _hasUnknownCostBreakdown ? null : _cacheReadCostUsd,
+                OutputCostUsd = _hasUnknownCostBreakdown ? null : _outputCostUsd,
                 CostUsd = _hasUnknownCost ? null : _costUsd,
             };
         }

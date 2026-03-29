@@ -13,6 +13,7 @@ const COST_I18N = {
     'page.badge': 'Claude Sessions Viewer',
     'page.heroTitle': 'コスト表示',
     'page.heroCopy': '月別・週別・日別の usage 集計を、セッション別と token usage イベント別で見比べられます。',
+    'page.note': '金額内訳は input / cache create / cache read / output をそれぞれ個別に集計しています。',
     'page.refresh': 'Refresh',
     'meta.generatedAt': '更新日時',
     'meta.timeZone': 'タイムゾーン',
@@ -54,6 +55,7 @@ const COST_I18N = {
     'page.badge': 'Claude Sessions Viewer',
     'page.heroTitle': 'Cost Summary',
     'page.heroCopy': 'Compare monthly, weekly, and daily usage totals with session-based and token-usage-event-based views.',
+    'page.note': 'Breakdown costs are shown separately for input, cache create, cache read, and output.',
     'page.refresh': 'Refresh',
     'meta.generatedAt': 'Updated',
     'meta.timeZone': 'Time zone',
@@ -95,6 +97,7 @@ const COST_I18N = {
     'page.badge': 'Claude Sessions Viewer',
     'page.heroTitle': '成本汇总',
     'page.heroCopy': '可按月、周、日查看 usage 汇总，并对比“按会话”和“按 token usage 事件”两种视角。',
+    'page.note': '金额明细会分别显示 input、cache create、cache read、output 的金额。',
     'page.refresh': 'Refresh',
     'meta.generatedAt': '更新时间',
     'meta.timeZone': '时区',
@@ -137,6 +140,7 @@ COST_I18N['zh-Hant'] = {
   'page.title': '成本彙總 | Claude Sessions Viewer',
   'page.heroTitle': '成本彙總',
   'page.heroCopy': '可按月、週、日查看 usage 彙總，並比較「按工作階段」與「按 token usage 事件」兩種視角。',
+  'page.note': '金額明細會分別顯示 input、cache create、cache read、output 的金額。',
   'meta.generatedAt': '更新時間',
   'meta.timeZone': '時區',
   'meta.fxRate': '匯率',
@@ -366,6 +370,23 @@ function formatPeriodCostDisplay(period){
     : t('usage.costUnknown');
 }
 
+function formatMetricCostDisplay(value, itemCount){
+  if(Number(itemCount || 0) === 0){
+    return '';
+  }
+  return typeof value === 'number' && Number.isFinite(value)
+    ? formatCostDisplay(value, costSummaryData && costSummaryData.exchange_rate)
+    : t('usage.costUnknown');
+}
+
+function renderMetricCell(tokenValue, costValue, itemCount){
+  const costText = formatMetricCostDisplay(costValue, itemCount);
+  return `<div class="costs-metric-cell">
+    <div class="costs-metric-value">${esc(formatNumber(tokenValue || 0))}</div>
+    ${costText ? `<div class="costs-metric-cost">${esc(costText)}</div>` : ''}
+  </div>`;
+}
+
 function formatTokensPerDollar(totalTokens, costUsd){
   const total = Number(totalTokens);
   const cost = Number(costUsd);
@@ -528,10 +549,10 @@ function renderScopeTable(periods){
     return `<tr>
       <td class="costs-period-label">${esc(t(`period.${period.key}`))}</td>
       <td>${esc(formatNumber(period.item_count || 0))}</td>
-      <td>${esc(formatNumber(period.input_tokens || 0))}</td>
-      <td>${esc(formatNumber(cacheCreationTokens))}</td>
-      <td>${esc(formatNumber(cacheReadTokens))}</td>
-      <td>${esc(formatNumber(period.output_tokens || 0))}</td>
+      <td>${renderMetricCell(period.input_tokens || 0, period.input_cost_usd, period.item_count || 0)}</td>
+      <td>${renderMetricCell(cacheCreationTokens, period.cache_creation_cost_usd, period.item_count || 0)}</td>
+      <td>${renderMetricCell(cacheReadTokens, period.cache_read_cost_usd, period.item_count || 0)}</td>
+      <td>${renderMetricCell(period.output_tokens || 0, period.output_cost_usd, period.item_count || 0)}</td>
       <td>${esc(formatNumber(period.total_tokens || 0))}</td>
       <td>${esc(formatPeriodCostDisplay(period))}</td>
       <td>${esc(formatTokensPerDollar(period.total_tokens || 0, period.cost_usd) || '-')}</td>
@@ -598,6 +619,10 @@ function applyLanguage(){
   const copy = document.getElementById('page_copy');
   if(copy){
     copy.textContent = t('page.heroCopy');
+  }
+  const note = document.getElementById('page_note');
+  if(note){
+    note.textContent = t('page.note');
   }
   renderMeta();
   renderGroups();
