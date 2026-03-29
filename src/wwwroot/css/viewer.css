@@ -263,6 +263,14 @@ header h1 {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.usage-metric-primary {
+  color: inherit;
+}
+.usage-metric-secondary {
+  color: var(--muted);
+  font-size: 0.92em;
+  font-weight: 500;
+}
 .header-meta-text {
   color: var(--muted);
   font-size: var(--text-label);
@@ -2311,6 +2319,7 @@ pre {
 }
 .ev-body-wrap{position:relative;}
 .ev-body-wrap.collapsed pre{max-height:calc(10 * 1.65em + 20px);overflow:hidden;position:relative;}
+.token-usage-body .usage-metric-secondary{color:#64748b;}
 .ev-body-wrap.collapsed pre::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.4em;background:linear-gradient(to bottom,rgba(248,250,252,0),rgba(248,250,252,0.95));border-radius:0 0 12px 12px;pointer-events:none;}
 .ev-body-toggle{display:none;margin-top:4px;padding:2px 8px;border:1px solid rgba(203,213,225,0.56);border-radius:8px;background:rgba(248,250,252,0.78);color:var(--muted);font-size:var(--text-caption);cursor:pointer;}
 .ev-body-wrap.collapsible .ev-body-toggle{display:block;}

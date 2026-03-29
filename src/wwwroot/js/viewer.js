@@ -2435,7 +2435,7 @@ function buildEventCardHtml(ev, selectedEventLabelId, fallbackIndex, searchMeta)
   const bodyText = getEventBodyText(ev);
   const eventMatches = searchMeta && searchMeta.matchesByEvent ? (searchMeta.matchesByEvent.get(eventKey) || []) : [];
   const usageHtml = renderUsageBadges(ev.usage, 'event');
-  const bodyInner = `${usageHtml ? `<div class="event-usage-row">${usageHtml}</div>` : ''}<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`;
+  const bodyInner = `${usageHtml ? `<div class="event-usage-row">${usageHtml}</div>` : ''}${ev && ev.kind === 'token_usage' ? renderTokenUsageEventBodyHtml(ev) : `<pre>${renderHighlightedEventBody(bodyText, eventMatches)}</pre>`}`;
   const body = `<div class="ev-body-wrap" data-event-key="${esc(eventKey)}">${bodyInner}<button class="ev-body-toggle">${esc(t('detail.bodyExpand'))}</button></div>`;
   const selectionKey = getEventSelectionKey(ev);
   const isSelectable = state.isEventSelectionMode && isSelectableMessageEvent(ev);
@@ -2801,6 +2801,65 @@ function formatUsageCostDisplay(value, exchangeRate){
   return `${formatUsageUsd(value)} / ${formattedLocal}`;
 }
 
+function formatUsageMetricWithCostDisplay(tokenValue, costUsd, exchangeRate){
+  const normalizedTokenCount = Number(tokenValue || 0);
+  const tokenText = formatUsageCount(normalizedTokenCount);
+  const numericCost = Number(costUsd);
+  if(Number.isFinite(numericCost)){
+    if(normalizedTokenCount > 0 || numericCost !== 0){
+      return `${tokenText} (${formatUsageCostDisplay(numericCost, exchangeRate)})`;
+    }
+    return tokenText;
+  }
+  if(normalizedTokenCount > 0){
+    return `${tokenText} (${t('usage.costUnknown')})`;
+  }
+  return tokenText;
+}
+
+function getUsageMetricDisplayParts(tokenValue, costUsd, exchangeRate){
+  const normalizedTokenCount = Number(tokenValue || 0);
+  const primaryText = formatUsageCount(normalizedTokenCount);
+  const numericCost = Number(costUsd);
+  const secondaryText = Number.isFinite(numericCost)
+    ? (normalizedTokenCount > 0 || numericCost !== 0 ? formatUsageCostDisplay(numericCost, exchangeRate) : '')
+    : (normalizedTokenCount > 0 ? t('usage.costUnknown') : '');
+  return {
+    primaryText,
+    secondaryText,
+  };
+}
+
+function renderPlainUsageMetricValueHtml(value){
+  return `<span class="usage-metric-primary">${esc(value)}</span>`;
+}
+
+function renderUsageMetricValueHtml(tokenValue, costUsd, exchangeRate){
+  const { primaryText, secondaryText } = getUsageMetricDisplayParts(tokenValue, costUsd, exchangeRate);
+  return `<span class="usage-metric-primary">${esc(primaryText)}</span>${secondaryText ? ` <span class="usage-metric-secondary">(${esc(secondaryText)})</span>` : ''}`;
+}
+
+function renderTokenUsageEventBodyHtml(ev){
+  const usage = ev && ev.usage ? ev.usage : null;
+  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage ? usage.cost_usd : null);
+  const lines = [];
+  const cacheCreateTokens = usage ? usage.cache_creation_tokens || 0 : 0;
+  const cacheReadTokens = usage ? usage.cache_read_tokens || 0 : 0;
+  if(ev && ev.model){
+    lines.push(`${esc(t('usage.model'))}: ${renderPlainUsageMetricValueHtml(stringifyEventBodyValue(ev.model))}`);
+  }
+  lines.push(`${esc(t('usage.input'))}: ${renderUsageMetricValueHtml(usage ? usage.input_tokens || 0 : 0, usage ? usage.input_cost_usd : null, state.activeExchangeRate)}`);
+  lines.push(`${esc(t('usage.cacheCreate'))}: ${renderUsageMetricValueHtml(cacheCreateTokens, usage ? usage.cache_creation_cost_usd : null, state.activeExchangeRate)}`);
+  lines.push(`${esc(t('usage.cacheRead'))}: ${renderUsageMetricValueHtml(cacheReadTokens, usage ? usage.cache_read_cost_usd : null, state.activeExchangeRate)}`);
+  lines.push(`${esc(t('usage.output'))}: ${renderUsageMetricValueHtml(usage ? usage.output_tokens || 0 : 0, usage ? usage.output_cost_usd : null, state.activeExchangeRate)}`);
+  lines.push(`${esc(t('usage.total'))}: ${renderPlainUsageMetricValueHtml(formatUsageCount(getUsageTotalTokens(usage)))}`);
+  lines.push(`${esc(t('usage.cost'))}: ${renderPlainUsageMetricValueHtml(formatUsageCostDisplay(usage ? usage.cost_usd : null, state.activeExchangeRate))}`);
+  lines.push(`${esc(t('usage.perDollar'))}: ${renderPlainUsageMetricValueHtml(formatTokensPerDollar(getUsageTotalTokens(usage), usage ? usage.cost_usd : null) || '-')}`);
+  lines.push(`${esc(t('usage.score'))}: ${renderPlainUsageMetricValueHtml(formatUsageScoreDisplay(performance.score))}`);
+  lines.push(`${esc(t('usage.rank'))}: ${renderPlainUsageMetricValueHtml(performance.rank || '-')}`);
+  return `<pre class="token-usage-body">${lines.join('\n')}</pre>`;
+}
+
 function formatCompactNumber(value){
   const num = Number(value);
   if(!Number.isFinite(num)) return '-';
@@ -2928,51 +2987,51 @@ function renderUsageMetaRows(usage){
   const metrics = [
     {
       label: t('usage.input'),
-      value: formatUsageCount(usage.input_tokens || 0),
+      valueHtml: renderUsageMetricValueHtml(usage.input_tokens, usage.input_cost_usd, state.activeExchangeRate),
       tooltip: t('usage.tooltip.input'),
     },
     {
       label: t('usage.cacheCreate'),
-      value: formatUsageCount(cacheCreateTokens),
+      valueHtml: renderUsageMetricValueHtml(cacheCreateTokens, usage.cache_creation_cost_usd, state.activeExchangeRate),
       tooltip: t('usage.tooltip.cacheCreate'),
     },
     {
       label: t('usage.cacheRead'),
-      value: formatUsageCount(cacheReadTokens),
+      valueHtml: renderUsageMetricValueHtml(cacheReadTokens, usage.cache_read_cost_usd, state.activeExchangeRate),
       tooltip: t('usage.tooltip.cacheRead'),
     },
     {
       label: t('usage.output'),
-      value: formatUsageCount(usage.output_tokens || 0),
+      valueHtml: renderUsageMetricValueHtml(usage.output_tokens, usage.output_cost_usd, state.activeExchangeRate),
       tooltip: t('usage.tooltip.output'),
     },
     {
       label: t('usage.total'),
-      value: formatUsageCount(getUsageTotalTokens(usage)),
+      valueHtml: renderPlainUsageMetricValueHtml(formatUsageCount(getUsageTotalTokens(usage))),
       tooltip: t('usage.tooltip.total'),
     },
     {
       label: t('usage.cost'),
-      value: formatUsageCostDisplay(usage.cost_usd, state.activeExchangeRate),
+      valueHtml: renderPlainUsageMetricValueHtml(formatUsageCostDisplay(usage.cost_usd, state.activeExchangeRate)),
       tooltip: t('usage.tooltip.cost'),
     },
     {
       label: t('usage.perDollar'),
-      value: formatTokensPerDollar(getUsageTotalTokens(usage), usage.cost_usd) || '-',
+      valueHtml: renderPlainUsageMetricValueHtml(formatTokensPerDollar(getUsageTotalTokens(usage), usage.cost_usd) || '-'),
       tooltip: t('usage.tooltip.perDollar'),
     },
     {
       label: t('usage.score'),
-      value: formatUsageScoreDisplay(performance.score),
+      valueHtml: renderPlainUsageMetricValueHtml(formatUsageScoreDisplay(performance.score)),
       tooltip: t('usage.tooltip.score'),
     },
     {
       label: t('usage.rank'),
-      value: performance.rank || '-',
+      valueHtml: renderPlainUsageMetricValueHtml(performance.rank || '-'),
       tooltip: t('usage.tooltip.rank'),
     },
   ];
-  return `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.usage'))}</span><div class="usage-meta-items">${metrics.map(({ label, value, tooltip }) => `<span class="usage-metric" data-tooltip="${esc(tooltip)}" tabindex="0" aria-label="${esc(`${label}: ${tooltip}`)}"><span class="meta-tag">${esc(`${label}:`)}</span><span class="header-meta-text usage-metric-value">${esc(value)}</span></span>`).join('')}</div></div>`;
+  return `<div class="header-meta-row"><span class="header-meta-label">${esc(t('meta.usage'))}</span><div class="usage-meta-items">${metrics.map(({ label, valueHtml, tooltip }) => `<span class="usage-metric" data-tooltip="${esc(tooltip)}" tabindex="0" aria-label="${esc(`${label}: ${tooltip}`)}"><span class="meta-tag">${esc(`${label}:`)}</span><span class="header-meta-text usage-metric-value">${valueHtml}</span></span>`).join('')}</div></div>`;
 }
 
 function renderModelMetaRow(session){
@@ -3995,10 +4054,10 @@ function formatTokenUsageEventBody(ev){
   if(ev && ev.model){
     lines.push(`${t('usage.model')}: ${stringifyEventBodyValue(ev.model)}`);
   }
-  lines.push(`${t('usage.input')}: ${formatUsageCount(usage ? usage.input_tokens || 0 : 0)}`);
-  lines.push(`${t('usage.cacheCreate')}: ${formatUsageCount(cacheCreateTokens)}`);
-  lines.push(`${t('usage.cacheRead')}: ${formatUsageCount(cacheReadTokens)}`);
-  lines.push(`${t('usage.output')}: ${formatUsageCount(usage ? usage.output_tokens || 0 : 0)}`);
+  lines.push(`${t('usage.input')}: ${formatUsageMetricWithCostDisplay(usage ? usage.input_tokens || 0 : 0, usage ? usage.input_cost_usd : null, state.activeExchangeRate)}`);
+  lines.push(`${t('usage.cacheCreate')}: ${formatUsageMetricWithCostDisplay(cacheCreateTokens, usage ? usage.cache_creation_cost_usd : null, state.activeExchangeRate)}`);
+  lines.push(`${t('usage.cacheRead')}: ${formatUsageMetricWithCostDisplay(cacheReadTokens, usage ? usage.cache_read_cost_usd : null, state.activeExchangeRate)}`);
+  lines.push(`${t('usage.output')}: ${formatUsageMetricWithCostDisplay(usage ? usage.output_tokens || 0 : 0, usage ? usage.output_cost_usd : null, state.activeExchangeRate)}`);
   lines.push(`${t('usage.total')}: ${formatUsageCount(getUsageTotalTokens(usage))}`);
   lines.push(`${t('usage.cost')}: ${formatUsageCostDisplay(usage ? usage.cost_usd : null, state.activeExchangeRate)}`);
   lines.push(`${t('usage.perDollar')}: ${formatTokensPerDollar(getUsageTotalTokens(usage), usage ? usage.cost_usd : null) || '-'}`);
