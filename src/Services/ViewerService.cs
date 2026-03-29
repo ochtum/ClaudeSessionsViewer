@@ -309,6 +309,8 @@ public sealed class ViewerService
         int? sessionLabelId,
         int? eventLabelId,
         bool forceRefreshSessionItems = false,
+        int? offset = null,
+        int? limit = null,
         CancellationToken cancellationToken = default)
     {
         var roots = GetRoots();
@@ -343,7 +345,7 @@ public sealed class ViewerService
                 continue;
             }
 
-            if (terms.Length > 0 && !MatchesTerms(record.SearchText, terms, normalizedMode))
+            if (terms.Length > 0 && !MatchesSearchTerms(record, item, terms, normalizedMode))
             {
                 continue;
             }
@@ -379,15 +381,25 @@ public sealed class ViewerService
         };
 
         var limitedSessions = ordered.Take(settings.SessionListMax).ToArray();
+        var totalCount = limitedSessions.Length;
+        var normalizedOffset = Math.Clamp(offset ?? 0, 0, totalCount);
+        var defaultLimit = offset.HasValue || limit.HasValue
+            ? settings.SessionListInitialLoadCount
+            : settings.SessionListMax;
+        var normalizedLimit = Math.Clamp(limit ?? defaultLimit, 1, settings.SessionListMax);
+        var pageSessions = limitedSessions
+            .Skip(normalizedOffset)
+            .Take(normalizedLimit)
+            .ToArray();
         return new SessionListResponse
         {
             Root = BuildRootSummaryText(roots),
             Roots = roots,
-            Sessions = limitedSessions,
-            TotalCount = limitedSessions.Length,
-            Offset = 0,
-            Limit = settings.SessionListMax,
-            HasMore = false,
+            Sessions = pageSessions,
+            TotalCount = totalCount,
+            Offset = normalizedOffset,
+            Limit = normalizedLimit,
+            HasMore = normalizedOffset + pageSessions.Length < totalCount,
         };
     }
 
@@ -1234,7 +1246,8 @@ public sealed class ViewerService
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Concat(searchChunks));
 
-        return new IndexRecord(summary, searchText);
+        var searchTextTruncated = searchLength >= SearchTextLimit;
+        return new IndexRecord(summary, searchText, searchTextTruncated);
     }
 
     private IndexRecord BuildDesktopIndexRecord(SessionItem item, FileInfo fileInfo)
@@ -1293,7 +1306,8 @@ public sealed class ViewerService
                     NormalizeSearchText(summary.Project),
                 }.Where(value => !string.IsNullOrWhiteSpace(value)).Concat(searchChunks));
 
-                return new IndexRecord(summary, searchText);
+                var searchTextTruncated = searchLength >= SearchTextLimit;
+                return new IndexRecord(summary, searchText, searchTextTruncated);
             }
         }
 
@@ -1358,7 +1372,8 @@ public sealed class ViewerService
                 NormalizeSearchText(summary.Project),
             }.Where(value => !string.IsNullOrWhiteSpace(value)).Concat(searchChunks));
 
-            return new IndexRecord(summary, searchText);
+            var searchTextTruncated = searchLength >= SearchTextLimit;
+            return new IndexRecord(summary, searchText, searchTextTruncated);
         }
         catch
         {
@@ -1368,7 +1383,7 @@ public sealed class ViewerService
                 NormalizeSearchText(summary.Source),
                 NormalizeSearchText(summary.SourceType),
                 NormalizeSearchText(summary.Project),
-            }.Where(value => !string.IsNullOrWhiteSpace(value))));
+            }.Where(value => !string.IsNullOrWhiteSpace(value))), false);
         }
     }
 
@@ -2801,6 +2816,143 @@ public sealed class ViewerService
             : terms.All(term => searchText.Contains(term, StringComparison.Ordinal));
     }
 
+    private static bool MatchesSearchTerms(IndexRecord record, SessionItem item, IReadOnlyList<string> terms, string mode)
+    {
+        if (MatchesTerms(record.SearchText, terms, mode))
+        {
+            return true;
+        }
+
+        if (!record.SearchTextTruncated)
+        {
+            return false;
+        }
+
+        var fullSearchText = BuildFullSearchText(record.Summary, item);
+        return MatchesTerms(fullSearchText, terms, mode);
+    }
+
+    private static string BuildFullSearchText(SessionSummaryDto summary, SessionItem item)
+    {
+        return item.SourceType == "claude_cli"
+            ? BuildFullCliSearchText(summary, item)
+            : BuildFullDesktopSearchText(summary, item);
+    }
+
+    private static string BuildFullCliSearchText(SessionSummaryDto summary, SessionItem item)
+    {
+        var builder = new StringBuilder();
+        foreach (var prefix in new[]
+        {
+            summary.RelativePath,
+            summary.Project,
+            summary.Cwd,
+            summary.Source,
+            summary.SourceType,
+            summary.FirstUserText,
+            summary.FirstRealUserText,
+        })
+        {
+            AppendNormalizedSearchText(builder, prefix);
+        }
+
+        try
+        {
+            var rawLineCount = 0;
+            foreach (var line in File.ReadLines(item.Path))
+            {
+                rawLineCount++;
+                if (!TryParseJson(line, out var document))
+                {
+                    continue;
+                }
+
+                using (document!)
+                {
+                    var @event = BuildCliEvent(document.RootElement, rawLineCount);
+                    AppendNormalizedSearchText(builder, @event.Text);
+                    foreach (var label in @event.SystemLabels)
+                    {
+                        AppendNormalizedSearchText(builder, label);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Fall back to the indexed prefix when the file cannot be read.
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildFullDesktopSearchText(SessionSummaryDto summary, SessionItem item)
+    {
+        var builder = new StringBuilder();
+        foreach (var prefix in new[]
+        {
+            summary.RelativePath,
+            summary.Source,
+            summary.SourceType,
+            summary.Project,
+        })
+        {
+            AppendNormalizedSearchText(builder, prefix);
+        }
+
+        try
+        {
+            if (string.Equals(Path.GetExtension(item.Path), ".log", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var entry in ParseDesktopEntries(item.Path))
+                {
+                    AppendNormalizedSearchText(builder, entry.Text);
+                }
+
+                return builder.ToString();
+            }
+
+            var raw = File.ReadAllBytes(item.Path);
+            var objects = ExtractJsonObjectsFromBytes(raw, 256);
+            if (objects.Count > 0)
+            {
+                foreach (var obj in objects)
+                {
+                    AppendNormalizedSearchText(builder, string.Join(" ", ExtractTextRecursive(obj)).Trim());
+                }
+            }
+            else
+            {
+                foreach (var snippet in ExtractReadableSnippets(raw, 800))
+                {
+                    AppendNormalizedSearchText(builder, snippet);
+                }
+            }
+        }
+        catch
+        {
+            // Fall back to the indexed prefix when the file cannot be read.
+        }
+
+        return builder.ToString();
+    }
+
+    private static void AppendNormalizedSearchText(StringBuilder builder, string? text)
+    {
+        var normalized = NormalizeSearchText(text);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        if (builder.Length > 0)
+        {
+            builder.Append(' ');
+        }
+
+        builder.Append(normalized);
+    }
+
     private static int AppendSearchChunk(List<string> chunks, string? text, int currentLength, int limit)
     {
         var normalized = NormalizeSearchText(text);
@@ -3663,15 +3815,18 @@ public sealed class ViewerService
 
     private sealed class IndexRecord
     {
-        public IndexRecord(SessionSummaryDto summary, string searchText)
+        public IndexRecord(SessionSummaryDto summary, string searchText, bool searchTextTruncated)
         {
             Summary = summary;
             SearchText = searchText;
+            SearchTextTruncated = searchTextTruncated;
         }
 
         public SessionSummaryDto Summary { get; }
 
         public string SearchText { get; }
+
+        public bool SearchTextTruncated { get; }
     }
 
     private sealed class UsageAccumulator

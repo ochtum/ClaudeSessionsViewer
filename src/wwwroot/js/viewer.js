@@ -4720,8 +4720,50 @@ async function fetchSessionVersion(path){
   return await fetchJsonWithTimeout('/api/session-version?path=' + encodeURIComponent(path) + '&ts=' + Date.now(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
 }
 
-function shouldUseProgressiveInitialSessionLoad(loadMode, q, sessionLabelId, eventLabelId){
-  return loadMode === 'initial' && !q && !sessionLabelId && !eventLabelId;
+function shouldUseProgressiveInitialSessionLoad(loadMode){
+  return loadMode === 'initial';
+}
+
+function buildSessionListRequestParams(options){
+  const opts = options || {};
+  const params = new URLSearchParams();
+  params.set('ts', Date.now().toString());
+
+  if(typeof opts.offset === 'number' && Number.isFinite(opts.offset) && opts.offset >= 0){
+    params.set('offset', String(opts.offset));
+  }
+
+  if(typeof opts.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0){
+    params.set('limit', String(opts.limit));
+  }
+
+  const q = typeof opts.q === 'string' ? opts.q.trim() : '';
+  if(q){
+    params.set('q', q);
+    params.set('mode', opts.searchMode === 'or' ? 'or' : 'and');
+  }
+
+  if(opts.sessionLabelId){
+    params.set('session_label_id', opts.sessionLabelId);
+  }
+
+  if(opts.eventLabelId){
+    params.set('event_label_id', opts.eventLabelId);
+  }
+
+  if(opts.sortOrder && opts.sortOrder !== 'desc'){
+    params.set('sort', opts.sortOrder);
+  }
+
+  if(opts.force){
+    params.set('force', '1');
+  }
+
+  return params;
+}
+
+function shouldUseFilteredSessionsEndpoint(q, sessionLabelId, eventLabelId){
+  return !!(q || sessionLabelId || eventLabelId);
 }
 
 function getSessionListTotalCount(data, fallbackCount){
@@ -4738,22 +4780,29 @@ function appendLoadedSessions(sessions){
   renderSessionList({ appendSessions: appendedFiltered, previousFilteredCount });
 }
 
-async function fetchSessionListChunk(requestId, sortOrder, offset){
-  const params = new URLSearchParams();
-  params.set('ts', Date.now().toString());
-  params.set('offset', String(offset));
-  if(sortOrder && sortOrder !== 'desc'){
-    params.set('sort', sortOrder);
-  }
-  const data = await fetchJsonWithTimeout('/api/sessions-lite?' + params.toString(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
+async function fetchSessionListChunk(requestId, requestOptions, offset){
+  const params = buildSessionListRequestParams({
+    q: requestOptions.q,
+    searchMode: requestOptions.searchMode,
+    sessionLabelId: requestOptions.sessionLabelId,
+    eventLabelId: requestOptions.eventLabelId,
+    sortOrder: requestOptions.sortOrder,
+    offset,
+  });
+  const endpoint = shouldUseFilteredSessionsEndpoint(
+    requestOptions.q,
+    requestOptions.sessionLabelId,
+    requestOptions.eventLabelId
+  ) ? '/api/sessions' : '/api/sessions-lite';
+  const data = await fetchJsonWithTimeout(endpoint + '?' + params.toString(), { cache: 'no-store' }, API_REQUEST_TIMEOUT_MS);
   if(requestId !== loadSessionsRequestSeq){
     return null;
   }
   return data;
 }
 
-async function loadSessionsProgressively(requestId, sortOrder){
-  const firstData = await fetchSessionListChunk(requestId, sortOrder, 0);
+async function loadSessionsProgressively(requestId, requestOptions){
+  const firstData = await fetchSessionListChunk(requestId, requestOptions, 0);
   if(!firstData){
     return;
   }
@@ -4776,7 +4825,7 @@ async function loadSessionsProgressively(requestId, sortOrder){
       return;
     }
 
-    const nextData = await fetchSessionListChunk(requestId, sortOrder, offset);
+    const nextData = await fetchSessionListChunk(requestId, requestOptions, offset);
     if(!nextData){
       return;
     }
@@ -4806,35 +4855,32 @@ async function loadSessions(options){
   state.sessionsError = '';
   state.sessionsLoadMode = loadMode;
   renderSessionList();
-  const params = new URLSearchParams();
-  params.set('ts', Date.now().toString());
   const q = document.getElementById('q').value.trim();
-  if(q){
-    params.set('q', q);
-    params.set('mode', document.getElementById('mode').value);
-  }
+  const searchMode = document.getElementById('mode').value;
   const sessionLabelId = getSelectedSessionLabelFilter();
   const eventLabelId = getSelectedListEventLabelFilter();
-  if(sessionLabelId){
-    params.set('session_label_id', sessionLabelId);
-  }
-  if(eventLabelId){
-    params.set('event_label_id', eventLabelId);
-  }
   const sortOrder = getActiveSortOrder();
-  if(sortOrder && sortOrder !== 'desc'){
-    params.set('sort', sortOrder);
-  }
-  if(loadMode === 'reload' || loadMode === 'reload_refresh'){
-    params.set('force', '1');
-  }
-  if(shouldUseProgressiveInitialSessionLoad(loadMode, q, sessionLabelId, eventLabelId)){
+  const params = buildSessionListRequestParams({
+    q,
+    searchMode,
+    sessionLabelId,
+    eventLabelId,
+    sortOrder,
+    force: loadMode === 'reload' || loadMode === 'reload_refresh',
+  });
+  if(shouldUseProgressiveInitialSessionLoad(loadMode)){
     state.sessions = [];
     state.filtered = [];
     state.sessionsTotalCount = 0;
     renderSessionList();
     try {
-      await loadSessionsProgressively(requestId, sortOrder);
+      await loadSessionsProgressively(requestId, {
+        q,
+        searchMode,
+        sessionLabelId,
+        eventLabelId,
+        sortOrder,
+      });
     } catch (error) {
       if(requestId !== loadSessionsRequestSeq){
         return;
