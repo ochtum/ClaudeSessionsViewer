@@ -1387,7 +1387,7 @@ public sealed class ViewerService
         }
     }
 
-    private static EventsData LoadCliEvents(string path, int maxEvents)
+    private EventsData LoadCliEvents(string path, int maxEvents)
     {
         var events = new List<SessionEventDto>();
         var rawLineCount = 0;
@@ -1419,7 +1419,7 @@ public sealed class ViewerService
         return new EventsData(events, rawLineCount);
     }
 
-    private static IEnumerable<SessionEventDto> EnumerateCliTokenUsageEvents(string path)
+    private IEnumerable<SessionEventDto> EnumerateCliTokenUsageEvents(string path)
     {
         var rawLineCount = 0;
         foreach (var line in File.ReadLines(path))
@@ -1442,7 +1442,7 @@ public sealed class ViewerService
         }
     }
 
-    private static SessionEventDto BuildCliEvent(JsonElement obj, int rawLineCount)
+    private SessionEventDto BuildCliEvent(JsonElement obj, int rawLineCount)
     {
         var timestamp = ExtractTimestamp(obj);
         var type = GetString(obj, "type");
@@ -2538,7 +2538,7 @@ public sealed class ViewerService
             messageEffort);
     }
 
-    private static UsageMetricsDto? ExtractUsage(JsonElement obj, string modelName)
+    private UsageMetricsDto? ExtractUsage(JsonElement obj, string modelName)
     {
         if (!TryGetProperty(obj, "message", out var message)
             || message.ValueKind != JsonValueKind.Object
@@ -2552,7 +2552,14 @@ public sealed class ViewerService
         var outputTokens = GetInt64(usage, "output_tokens");
         var cacheCreationTokens = GetInt64(usage, "cache_creation_input_tokens");
         var cacheReadTokens = GetInt64(usage, "cache_read_input_tokens");
-        var costUsd = TryExtractCostUsd(obj, usage);
+        var costBreakdown = _modelPricing.TryCalculateCostBreakdownUsd(
+            modelName,
+            inputTokens,
+            outputTokens,
+            cacheCreationTokens,
+            cacheReadTokens);
+        var costUsd = costBreakdown?.TotalCostUsd
+            ?? TryExtractCostUsd(obj, usage);
 
         if (inputTokens == 0
             && outputTokens == 0
@@ -2568,7 +2575,11 @@ public sealed class ViewerService
             outputTokens,
             cacheCreationTokens,
             cacheReadTokens,
-            costUsd);
+            costUsd,
+            costBreakdown?.InputCostUsd,
+            costBreakdown?.CacheCreationCostUsd,
+            costBreakdown?.CacheReadCostUsd,
+            costBreakdown?.OutputCostUsd);
     }
 
     private UsageMetricsDto? ExtractUsageForCostSummary(JsonElement obj, string modelName)
@@ -2816,7 +2827,7 @@ public sealed class ViewerService
             : terms.All(term => searchText.Contains(term, StringComparison.Ordinal));
     }
 
-    private static bool MatchesSearchTerms(IndexRecord record, SessionItem item, IReadOnlyList<string> terms, string mode)
+    private bool MatchesSearchTerms(IndexRecord record, SessionItem item, IReadOnlyList<string> terms, string mode)
     {
         if (MatchesTerms(record.SearchText, terms, mode))
         {
@@ -2832,14 +2843,14 @@ public sealed class ViewerService
         return MatchesTerms(fullSearchText, terms, mode);
     }
 
-    private static string BuildFullSearchText(SessionSummaryDto summary, SessionItem item)
+    private string BuildFullSearchText(SessionSummaryDto summary, SessionItem item)
     {
         return item.SourceType == "claude_cli"
             ? BuildFullCliSearchText(summary, item)
             : BuildFullDesktopSearchText(summary, item);
     }
 
-    private static string BuildFullCliSearchText(SessionSummaryDto summary, SessionItem item)
+    private string BuildFullCliSearchText(SessionSummaryDto summary, SessionItem item)
     {
         var builder = new StringBuilder();
         foreach (var prefix in new[]

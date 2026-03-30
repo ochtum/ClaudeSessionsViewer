@@ -2841,7 +2841,8 @@ function renderUsageMetricValueHtml(tokenValue, costUsd, exchangeRate){
 
 function renderTokenUsageEventBodyHtml(ev){
   const usage = ev && ev.usage ? ev.usage : null;
-  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage ? usage.cost_usd : null);
+  const totalCostUsd = getUsageTotalCostUsd(usage);
+  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), totalCostUsd);
   const lines = [];
   const cacheCreateTokens = usage ? usage.cache_creation_tokens || 0 : 0;
   const cacheReadTokens = usage ? usage.cache_read_tokens || 0 : 0;
@@ -2853,8 +2854,8 @@ function renderTokenUsageEventBodyHtml(ev){
   lines.push(`${esc(t('usage.cacheRead'))}: ${renderUsageMetricValueHtml(cacheReadTokens, usage ? usage.cache_read_cost_usd : null, state.activeExchangeRate)}`);
   lines.push(`${esc(t('usage.output'))}: ${renderUsageMetricValueHtml(usage ? usage.output_tokens || 0 : 0, usage ? usage.output_cost_usd : null, state.activeExchangeRate)}`);
   lines.push(`${esc(t('usage.total'))}: ${renderPlainUsageMetricValueHtml(formatUsageCount(getUsageTotalTokens(usage)))}`);
-  lines.push(`${esc(t('usage.cost'))}: ${renderPlainUsageMetricValueHtml(formatUsageCostDisplay(usage ? usage.cost_usd : null, state.activeExchangeRate))}`);
-  lines.push(`${esc(t('usage.perDollar'))}: ${renderPlainUsageMetricValueHtml(formatTokensPerDollar(getUsageTotalTokens(usage), usage ? usage.cost_usd : null) || '-')}`);
+  lines.push(`${esc(t('usage.cost'))}: ${renderPlainUsageMetricValueHtml(formatUsageCostDisplay(totalCostUsd, state.activeExchangeRate))}`);
+  lines.push(`${esc(t('usage.perDollar'))}: ${renderPlainUsageMetricValueHtml(formatTokensPerDollar(getUsageTotalTokens(usage), totalCostUsd) || '-')}`);
   lines.push(`${esc(t('usage.score'))}: ${renderPlainUsageMetricValueHtml(formatUsageScoreDisplay(performance.score))}`);
   lines.push(`${esc(t('usage.rank'))}: ${renderPlainUsageMetricValueHtml(performance.rank || '-')}`);
   return `<pre class="token-usage-body">${lines.join('\n')}</pre>`;
@@ -2882,6 +2883,25 @@ function getUsageTotalTokens(usage){
 function getUsageCachedTokens(usage){
   if(!usage) return 0;
   return Number(usage.cache_creation_tokens || 0) + Number(usage.cache_read_tokens || 0);
+}
+
+function getUsageTotalCostUsd(usage){
+  if(!usage) return null;
+  const directCost = Number(usage.cost_usd);
+  if(Number.isFinite(directCost)){
+    return directCost;
+  }
+  const parts = [
+    Number(usage.input_cost_usd),
+    Number(usage.cache_creation_cost_usd),
+    Number(usage.cache_read_cost_usd),
+    Number(usage.output_cost_usd),
+  ];
+  const finiteParts = parts.filter(Number.isFinite);
+  if(!finiteParts.length){
+    return null;
+  }
+  return finiteParts.reduce((sum, value) => sum + value, 0);
 }
 
 function formatTokensPerDollar(totalTokens, costUsd){
@@ -2947,7 +2967,7 @@ function formatUsageScoreDisplay(value){
 
 function hasUsageData(usage){
   if(!usage) return false;
-  return getUsageTotalTokens(usage) > 0 || Number.isFinite(Number(usage.cost_usd));
+  return getUsageTotalTokens(usage) > 0 || Number.isFinite(Number(getUsageTotalCostUsd(usage)));
 }
 
 function buildUsageBadge(label, extraClass){
@@ -2973,15 +2993,17 @@ function renderUsageBadges(usage, variant){
       badges.push(buildUsageBadge(t('usage.cacheReadTokens', { count: formatUsageCount(usage.cache_read_tokens) })));
     }
   }
-  if(Number.isFinite(Number(usage.cost_usd))){
-    badges.push(buildUsageBadge(t('usage.costUsd', { cost: formatUsageCostDisplay(usage.cost_usd, state.activeExchangeRate) }), 'usage-badge-cost'));
+  const totalCostUsd = getUsageTotalCostUsd(usage);
+  if(Number.isFinite(Number(totalCostUsd))){
+    badges.push(buildUsageBadge(t('usage.costUsd', { cost: formatUsageCostDisplay(totalCostUsd, state.activeExchangeRate) }), 'usage-badge-cost'));
   }
   return badges.join('');
 }
 
 function renderUsageMetaRows(usage){
   if(!hasUsageData(usage)) return '';
-  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage.cost_usd);
+  const totalCostUsd = getUsageTotalCostUsd(usage);
+  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), totalCostUsd);
   const cacheCreateTokens = Number(usage.cache_creation_tokens || 0);
   const cacheReadTokens = Number(usage.cache_read_tokens || 0);
   const metrics = [
@@ -3012,12 +3034,12 @@ function renderUsageMetaRows(usage){
     },
     {
       label: t('usage.cost'),
-      valueHtml: renderPlainUsageMetricValueHtml(formatUsageCostDisplay(usage.cost_usd, state.activeExchangeRate)),
+      valueHtml: renderPlainUsageMetricValueHtml(formatUsageCostDisplay(totalCostUsd, state.activeExchangeRate)),
       tooltip: t('usage.tooltip.cost'),
     },
     {
       label: t('usage.perDollar'),
-      valueHtml: renderPlainUsageMetricValueHtml(formatTokensPerDollar(getUsageTotalTokens(usage), usage.cost_usd) || '-'),
+      valueHtml: renderPlainUsageMetricValueHtml(formatTokensPerDollar(getUsageTotalTokens(usage), totalCostUsd) || '-'),
       tooltip: t('usage.tooltip.perDollar'),
     },
     {
@@ -4047,7 +4069,8 @@ ${stringifyEventBodyValue(ev.arguments)}`;
 
 function formatTokenUsageEventBody(ev){
   const usage = ev && ev.usage ? ev.usage : null;
-  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage ? usage.cost_usd : null);
+  const totalCostUsd = getUsageTotalCostUsd(usage);
+  const performance = getUsageCostPerformance(getUsageTotalTokens(usage), totalCostUsd);
   const lines = [];
   const cacheCreateTokens = usage ? usage.cache_creation_tokens || 0 : 0;
   const cacheReadTokens = usage ? usage.cache_read_tokens || 0 : 0;
@@ -4059,8 +4082,8 @@ function formatTokenUsageEventBody(ev){
   lines.push(`${t('usage.cacheRead')}: ${formatUsageMetricWithCostDisplay(cacheReadTokens, usage ? usage.cache_read_cost_usd : null, state.activeExchangeRate)}`);
   lines.push(`${t('usage.output')}: ${formatUsageMetricWithCostDisplay(usage ? usage.output_tokens || 0 : 0, usage ? usage.output_cost_usd : null, state.activeExchangeRate)}`);
   lines.push(`${t('usage.total')}: ${formatUsageCount(getUsageTotalTokens(usage))}`);
-  lines.push(`${t('usage.cost')}: ${formatUsageCostDisplay(usage ? usage.cost_usd : null, state.activeExchangeRate)}`);
-  lines.push(`${t('usage.perDollar')}: ${formatTokensPerDollar(getUsageTotalTokens(usage), usage ? usage.cost_usd : null) || '-'}`);
+  lines.push(`${t('usage.cost')}: ${formatUsageCostDisplay(totalCostUsd, state.activeExchangeRate)}`);
+  lines.push(`${t('usage.perDollar')}: ${formatTokensPerDollar(getUsageTotalTokens(usage), totalCostUsd) || '-'}`);
   lines.push(`${t('usage.score')}: ${formatUsageScoreDisplay(performance.score)}`);
   lines.push(`${t('usage.rank')}: ${performance.rank || '-'}`);
   return lines.join('\n');
@@ -5598,11 +5621,11 @@ function getTokenUsageSortMetric(group, mode){
     return totalTokens > 0 ? totalTokens : null;
   }
   if(mode === 'cost'){
-    const costUsd = Number(usage.cost_usd);
+    const costUsd = Number(getUsageTotalCostUsd(usage));
     return Number.isFinite(costUsd) ? costUsd : null;
   }
   if(mode === 'score'){
-    const performance = getUsageCostPerformance(getUsageTotalTokens(usage), usage.cost_usd);
+    const performance = getUsageCostPerformance(getUsageTotalTokens(usage), getUsageTotalCostUsd(usage));
     return typeof performance.score === 'number' ? performance.score : null;
   }
   return null;
