@@ -12,6 +12,14 @@ public sealed class UsageMetricsDto
 
     public long TotalTokens { get; init; }
 
+    public decimal? InputCostUsd { get; init; }
+
+    public decimal? CacheCreationCostUsd { get; init; }
+
+    public decimal? CacheReadCostUsd { get; init; }
+
+    public decimal? OutputCostUsd { get; init; }
+
     public decimal? CostUsd { get; init; }
 }
 
@@ -110,11 +118,23 @@ public sealed class CostSummaryPeriodDto
 
     public long InputTokens { get; init; }
 
+    public long CacheCreationTokens { get; init; }
+
+    public long CacheReadTokens { get; init; }
+
     public long CacheTokens { get; init; }
 
     public long OutputTokens { get; init; }
 
     public long TotalTokens { get; init; }
+
+    public decimal? InputCostUsd { get; init; }
+
+    public decimal? CacheCreationCostUsd { get; init; }
+
+    public decimal? CacheReadCostUsd { get; init; }
+
+    public decimal? OutputCostUsd { get; init; }
 
     public decimal? CostUsd { get; init; }
 }
@@ -214,17 +234,34 @@ public sealed class SessionListResponse
     public RootsDto Roots { get; init; } = new();
 
     public IReadOnlyList<SessionSummaryDto> Sessions { get; init; } = [];
+
+    public int TotalCount { get; init; }
+
+    public int Offset { get; init; }
+
+    public int Limit { get; init; }
+
+    public bool HasMore { get; init; }
 }
 
 public sealed class SessionDetailResponse
 {
     public SessionSummaryDto? Session { get; init; }
 
+    public string SessionVersion { get; init; } = string.Empty;
+
     public IReadOnlyList<SessionEventDto> Events { get; init; } = [];
 
     public int RawLineCount { get; init; }
 
     public ExchangeRateDto? ExchangeRate { get; init; }
+}
+
+public sealed class SessionVersionResponse
+{
+    public string Path { get; init; } = string.Empty;
+
+    public string SessionVersion { get; init; } = string.Empty;
 }
 
 public sealed class OkResponse
